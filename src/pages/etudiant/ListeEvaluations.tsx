@@ -14,7 +14,7 @@ import {
   ArrowRight,
 } from "lucide-react"
 
-// Type d'une évaluation (à terme, viendra de src/types/ + API)
+// Types d'affichage locaux (simplifiés) — à harmoniser avec src/types quand le backend sera branché
 type StatutEval = "disponible" | "a_venir" | "terminee"
 type TypeEval = "QCM" | "CODE" | "OUVERTE" | "QUIZ"
 
@@ -86,7 +86,7 @@ const statutConfig: Record<StatutEval, { label: string; className: string }> = {
   },
   terminee: {
     label: "Terminée",
-    className: "bg-muted text-muted-foreground",
+    className: "bg-muted text-muted-foreground border-transparent",
   },
 }
 
@@ -96,14 +96,14 @@ function EvaluationCard({ evaluation }: { evaluation: Evaluation }) {
   const TypeIcon = type.icon
 
   return (
-    <Card>
+    <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm transition-shadow hover:shadow-md">
       <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-4">
-          <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+        <div className="flex min-w-0 items-start gap-4">
+          <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/10">
             <TypeIcon className="size-5 text-primary" />
           </div>
-          <div className="flex flex-col gap-1">
-            <p className="font-semibold">{evaluation.titre}</p>
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="truncate font-semibold">{evaluation.titre}</p>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span>{type.label}</span>
               <span className="flex items-center gap-1">
@@ -121,31 +121,46 @@ function EvaluationCard({ evaluation }: { evaluation: Evaluation }) {
         </div>
 
         <div className="flex items-center gap-3 sm:flex-col sm:items-end lg:flex-row lg:items-center">
-          <Badge variant="outline" className={statut.className}>
+          <Badge
+            variant="outline"
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${statut.className}`}
+          >
             {statut.label}
           </Badge>
 
           {evaluation.statut === "disponible" && (
-            <Button asChild size="sm">
-              <Link to={`/etudiant/evaluations/${evaluation.id}`}>
-                Démarrer
-                <ArrowRight className="ml-1 size-4" />
-              </Link>
-            </Button>
+            <Button
+              size="sm"
+              className="shadow-sm"
+              render={
+                <Link to={`/etudiant/evaluations/${evaluation.id}`}>
+                  Démarrer
+                  <ArrowRight className="ml-1 size-4" />
+                </Link>
+              }
+            />
           )}
           {evaluation.statut === "a_venir" && (
-            <Button asChild size="sm" variant="outline">
-              <Link to={`/etudiant/evaluations/${evaluation.id}`}>
-                Voir les détails
-              </Link>
-            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              render={
+                <Link to={`/etudiant/evaluations/${evaluation.id}`}>
+                  Voir les détails
+                </Link>
+              }
+            />
           )}
           {evaluation.statut === "terminee" && (
-            <Button asChild size="sm" variant="ghost">
-              <Link to={`/etudiant/resultats/${evaluation.id}`}>
-                Voir mes résultats
-              </Link>
-            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              render={
+                <Link to={`/etudiant/resultats/${evaluation.id}`}>
+                  Voir mes résultats
+                </Link>
+              }
+            />
           )}
         </div>
       </CardContent>
@@ -162,18 +177,18 @@ export default function ListeEvaluations() {
       : evaluations.filter((e) => e.statut === filtre)
 
   return (
-    <>
+    <div className="mx-auto flex max-w-3xl flex-col gap-7">
       {/* En-tête */}
       <div>
-        <h1 className="text-2xl font-semibold">Mes évaluations</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-3xl font-extrabold tracking-tight">Mes évaluations</h1>
+        <p className="mt-1 text-muted-foreground">
           Consultez et démarrez vos évaluations disponibles.
         </p>
       </div>
 
       {/* Filtres par statut */}
       <Tabs value={filtre} onValueChange={(v) => setFiltre(v as typeof filtre)}>
-        <TabsList>
+        <TabsList className="rounded-xl">
           <TabsTrigger value="toutes">Toutes</TabsTrigger>
           <TabsTrigger value="disponible">Disponibles</TabsTrigger>
           <TabsTrigger value="a_venir">À venir</TabsTrigger>
@@ -188,13 +203,13 @@ export default function ListeEvaluations() {
             <EvaluationCard key={evaluation.id} evaluation={evaluation} />
           ))
         ) : (
-          <Card>
+          <Card className="rounded-2xl border-border/60 shadow-sm">
             <CardContent className="py-10 text-center text-sm text-muted-foreground">
               Aucune évaluation dans cette catégorie.
             </CardContent>
           </Card>
         )}
       </div>
-    </>
+    </div>
   )
 }

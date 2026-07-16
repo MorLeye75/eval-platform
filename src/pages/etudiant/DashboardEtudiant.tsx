@@ -101,12 +101,16 @@ export default function DashboardEtudiant() {
           <CardTitle className="text-base font-bold">
             Mes évaluations récentes
           </CardTitle>
-          <Button asChild variant="ghost" size="sm">
-            <Link to="/etudiant/evaluations">
-              Tout voir
-              <ArrowRight className="ml-1 size-4" />
-            </Link>
-          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            render={
+              <Link to="/etudiant/evaluations">
+                Tout voir
+                <ArrowRight className="ml-1 size-4" />
+              </Link>
+            }
+          />
         </CardHeader>
         <CardContent className="flex flex-col gap-0 p-0">
           {evaluations.map((evaluation, index) => (
@@ -150,12 +154,15 @@ export default function DashboardEtudiant() {
               </p>
             </div>
           </div>
-          <Button asChild className="shadow-md">
-            <Link to="/etudiant/performances">
-              Voir mes performances détaillées
-              <ArrowRight className="ml-1 size-4" />
-            </Link>
-          </Button>
+          <Button
+            className="shadow-md"
+            render={
+              <Link to="/etudiant/performances">
+                Voir mes performances détaillées
+                <ArrowRight className="ml-1 size-4" />
+              </Link>
+            }
+          />
         </CardContent>
       </Card>
     </div>

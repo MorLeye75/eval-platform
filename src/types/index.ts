@@ -1,0 +1,144 @@
+// ============================================================
+// Types partagés — reflètent le diagramme de classes UML
+// Contrat commun front / back (Spring Boot)
+// ============================================================
+
+// ---------- Utilisateur & rôles ----------
+export type Role = "ETUDIANT" | "ENSEIGNANT" | "ADMIN"
+
+export interface Utilisateur {
+  id: number
+  nom: string
+  prenom: string
+  email: string
+  role: Role
+}
+
+// ---------- Énumérations (d'après le diagramme de classes) ----------
+export type StatutEvaluation =
+  | "BROUILLON"
+  | "PUBLIEE"
+  | "EN_COURS"
+  | "TERMINEE"
+
+export type StatutSoumission =
+  | "EN_COURS"
+  | "SOUMIS"
+  | "EN_CORRECTION"
+  | "EVALUE"
+
+export type StatutProposition = "EN_ATTENTE" | "VALIDEE" | "REJETEE"
+
+export type TypeQuestion = "QCM" | "CODE" | "OUVERTE" | "QUIZ_CHRONOMETREE"
+
+// ---------- Évaluation ----------
+export interface Evaluation {
+  id: number
+  titre: string
+  description: string
+  duree: number // en minutes
+  dateOuverture: string // ISO 8601 (ex: "2026-07-12T08:00:00")
+  dateFermeture: string
+  statut: StatutEvaluation
+  resultatsPublies: boolean
+  questions?: Question[] // chargées selon le contexte
+}
+
+// ---------- Question (abstraite) et ses variantes ----------
+export interface QuestionBase {
+  id: number
+  enonce: string
+  ordre: number
+  points: number
+  type: TypeQuestion
+}
+
+export interface ChoixReponse {
+  id: number
+  texte: string
+  estCorrect: boolean // visible côté enseignant uniquement
+}
+
+export interface QuestionQCM extends QuestionBase {
+  type: "QCM"
+  estChoixMultiple: boolean
+  choix: ChoixReponse[]
+}
+
+export interface QuestionOuverte extends QuestionBase {
+  type: "OUVERTE"
+}
+
+export interface CasTest {
+  id: number
+  entree: string
+  sortieAttendue: string
+  estMasque: boolean // cas de test caché à l'étudiant
+}
+
+export interface QuestionCode extends QuestionBase {
+  type: "CODE"
+  casTests: CasTest[]
+}
+
+export interface QuestionQuiz extends QuestionBase {
+  type: "QUIZ_CHRONOMETREE"
+  dureeQuestion: number // durée individuelle en secondes
+}
+
+// Union pratique pour manipuler n'importe quelle question
+export type Question =
+  | QuestionQCM
+  | QuestionOuverte
+  | QuestionCode
+  | QuestionQuiz
+
+// ---------- Soumission & réponses ----------
+export interface Soumission {
+  id: number
+  evaluationId: number
+  etudiantId: number
+  dateDebut: string
+  dateRemise: string | null
+  noteFinale: number | null
+  statut: StatutSoumission
+  feedbackGeneral: string | null
+}
+
+export interface ReponseEtudiant {
+  id: number
+  questionId: number
+  noteObtenue: number | null
+  valideParProf: boolean
+}
+
+// ---------- Correction IA ----------
+export interface PropositionIA {
+  id: number
+  noteProposee: number
+  justification: string
+  statut: StatutProposition
+}
+
+export interface ResultatCasTest {
+  id: number
+  sortieObtenue: string
+  tempsExecution: number
+  estValide: boolean
+  messageErreur: string | null
+}
+
+// ---------- Analytique (vues) ----------
+export interface StatistiquesEvaluation {
+  moyenne: number
+  noteMax: number
+  noteMin: number
+  ecartType: number
+  tauxReussite: number
+}
+
+export interface TableauDeBordEtudiant {
+  moyenneGenerale: number
+  tauxReussite: number
+  rang: number
+}
