@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "./ProtectedRoute"
 import LoginPage from "@/pages/LoginPage"
+import { EtudiantLayout } from "@/layouts/EtudiantLayout"
+import DashboardEtudiant from "@/pages/etudiant/DashboardEtudiant"
 
 export function AppRouter() {
   return (
@@ -11,13 +13,21 @@ export function AppRouter() {
 
         {/* Espace étudiant */}
         <Route
-          path="/etudiant/*"
+          path="/etudiant"
           element={
             <ProtectedRoute allowedRoles={["ETUDIANT"]}>
-              <div>Espace étudiant — pages à venir</div>
+              <EtudiantLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<Navigate to="/etudiant/dashboard" replace />} />
+          <Route path="dashboard" element={<DashboardEtudiant />} />
+          {/* Les futures pages étudiant viendront ici :
+              <Route path="evaluations" element={<ListeEvaluations />} />
+              <Route path="resultats" element={<ResultatsDetail />} />
+              <Route path="performances" element={<TableauBordPerformance />} />
+              <Route path="notifications" element={<NotificationsPage />} /> */}
+        </Route>
 
         {/* Espace enseignant */}
         <Route
