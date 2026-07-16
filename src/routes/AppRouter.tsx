@@ -3,7 +3,7 @@ import { ProtectedRoute } from "./ProtectedRoute"
 import LoginPage from "@/pages/LoginPage"
 import { EtudiantLayout } from "@/layouts/EtudiantLayout"
 import DashboardEtudiant from "@/pages/etudiant/DashboardEtudiant"
-
+import ListeEvaluations from "@/pages/etudiant/ListeEvaluations"
 export function AppRouter() {
   return (
     <BrowserRouter>
@@ -12,6 +12,15 @@ export function AppRouter() {
         <Route path="/login" element={<LoginPage />} />
 
         {/* Espace étudiant */}
+        <Route path="/etudiant" element={
+  <ProtectedRoute allowedRoles={["ETUDIANT"]}>
+    <EtudiantLayout />
+  </ProtectedRoute>
+}>
+  <Route index element={<Navigate to="/etudiant/dashboard" replace />} />
+  <Route path="dashboard" element={<DashboardEtudiant />} />
+  <Route path="evaluations" element={<ListeEvaluations />} />
+</Route>
         <Route
           path="/etudiant"
           element={
