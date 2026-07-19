@@ -204,3 +204,77 @@ export function getEvaluation(id: number | string | undefined) {
 export function getTotalPoints(evaluation: EvaluationMock) {
   return evaluation.questions.reduce((somme, q) => somme + q.points, 0)
 }
+
+// ============================================================
+// Données de performance de l'étudiant
+// Reflète TableauDeBordEtudiant du diagramme de classes
+// ============================================================
+
+export interface PointHistorique {
+  evaluation: string // libellé court pour l'axe X
+  titreComplet: string
+  date: string
+  note: number // note de l'étudiant, sur noteStandard
+  moyennePromotion: number
+  noteStandard: number
+}
+
+export interface PerformanceEtudiant {
+  moyenneGenerale: number // moyenne de toutes les évaluations publiées
+  tauxReussite: number // % d'évaluations avec note >= 10/20
+  rang: number
+  effectifPromotion: number
+  moyennePromotionGenerale: number
+  historique: PointHistorique[]
+}
+
+// Données mockées — à remplacer par GET /api/etudiants/{id}/performances
+export const performanceMock: PerformanceEtudiant = {
+  moyenneGenerale: 14.2,
+  tauxReussite: 80,
+  rang: 7,
+  effectifPromotion: 42,
+  moyennePromotionGenerale: 12.8,
+  historique: [
+    {
+      evaluation: "Algo",
+      titreComplet: "Algorithmique — QCM",
+      date: "12 mars 2026",
+      note: 12,
+      moyennePromotion: 11.5,
+      noteStandard: 20,
+    },
+    {
+      evaluation: "Prog C",
+      titreComplet: "Programmation C — exercice de code",
+      date: "28 mars 2026",
+      note: 9,
+      moyennePromotion: 10.2,
+      noteStandard: 20,
+    },
+    {
+      evaluation: "SysExp",
+      titreComplet: "Systèmes d'exploitation — QCM",
+      date: "15 avr. 2026",
+      note: 15,
+      moyennePromotion: 12.9,
+      noteStandard: 20,
+    },
+    {
+      evaluation: "BDD",
+      titreComplet: "Bases de données — quiz",
+      date: "3 mai 2026",
+      note: 17,
+      moyennePromotion: 13.4,
+      noteStandard: 20,
+    },
+    {
+      evaluation: "Réseaux",
+      titreComplet: "Réseaux — questions ouvertes",
+      date: "5 juil. 2026",
+      note: 16,
+      moyennePromotion: 13.5,
+      noteStandard: 20,
+    },
+  ],
+}
