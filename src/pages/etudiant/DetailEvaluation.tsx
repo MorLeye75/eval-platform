@@ -39,6 +39,28 @@ const evaluationsMock: Record<number, DetailEval> = {
     dateLimite: "12 juil. 2026 à 23h59",
     points: 20,
   },
+  2: {
+    id: 2,
+    titre: "Programmation C — exercice de code",
+    description:
+      "Exercices de programmation en C avec exécution automatique contre des cas de test.",
+    type: "Exercice de code",
+    duree: 90,
+    nbQuestions: 3,
+    dateLimite: "15 juil. 2026 à 23h59",
+    points: 20,
+  },
+  3: {
+    id: 3,
+    titre: "Réseaux — questions ouvertes",
+    description:
+      "Questions ouvertes sur les protocoles réseau, l'adressage IP et le routage.",
+    type: "Questions ouvertes",
+    duree: 60,
+    nbQuestions: 5,
+    dateLimite: "5 juil. 2026 à 23h59",
+    points: 20,
+  },
   4: {
     id: 4,
     titre: "Bases de données — quiz chronométré",
@@ -182,7 +204,7 @@ export default function DetailEvaluation() {
       <Button
         size="lg"
         className="w-full shadow-md sm:w-auto sm:self-end"
-        onClick={() => navigate(`/etudiant/evaluations/${evaluation.id}/passation`)}
+        onClick={() => navigate(`/examen/${evaluation.id}/qcm`)}
       >
         <Play className="mr-1 size-4" />
         Démarrer l'évaluation

@@ -2,9 +2,11 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "./ProtectedRoute"
 import LoginPage from "@/pages/LoginPage"
 import { EtudiantLayout } from "@/layouts/EtudiantLayout"
+import { ExamenLayout } from "@/layouts/ExamenLayout"
 import DashboardEtudiant from "@/pages/etudiant/DashboardEtudiant"
 import ListeEvaluations from "@/pages/etudiant/ListeEvaluations"
 import DetailEvaluation from "@/pages/etudiant/DetailEvaluation"
+import PassationQCM from "@/pages/etudiant/passation/PassationQCM"
 
 export function AppRouter() {
   return (
@@ -13,7 +15,7 @@ export function AppRouter() {
         {/* Routes publiques */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Espace étudiant */}
+        {/* Espace étudiant — navigation normale avec sidebar */}
         <Route
           path="/etudiant"
           element={
@@ -30,6 +32,24 @@ export function AppRouter() {
               <Route path="resultats" element={<ResultatsDetail />} />
               <Route path="performances" element={<TableauBordPerformance />} />
               <Route path="notifications" element={<NotificationsPage />} /> */}
+        </Route>
+
+        {/* Mode examen — interface épurée, sans navigation */}
+        <Route
+          path="/examen"
+          element={
+            <ProtectedRoute allowedRoles={["ETUDIANT"]}>
+              <ExamenLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path=":id/qcm" element={<PassationQCM />} />
+          {/* Futures passations :
+              <Route path=":id/ouverte" element={<PassationOuverte />} />
+              <Route path=":id/code" element={<PassationCode />} />
+              <Route path=":id/quiz" element={<PassationQuiz />} />
+              <Route path=":id/confirmation" element={<ConfirmationSoumission />} />
+              <Route path=":id/expiration" element={<ExpirationScreen />} /> */}
         </Route>
 
         {/* Espace enseignant */}
