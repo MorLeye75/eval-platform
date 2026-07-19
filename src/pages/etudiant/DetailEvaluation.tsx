@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { getEvaluation, getTotalPoints } from "@/mocks/evaluations"
 import {
   Clock,
   ListChecks,
@@ -14,71 +15,27 @@ import {
   Play,
 } from "lucide-react"
 
-// Type d'affichage local — à harmoniser avec src/types quand le backend sera branché
-interface DetailEval {
-  id: number
-  titre: string
-  description: string
-  type: string
-  duree: number // minutes
-  nbQuestions: number
-  dateLimite: string
-  points: number
+// Libellés lisibles par type d'évaluation
+const typeLabels: Record<string, string> = {
+  QCM: "QCM",
+  CODE: "Exercice de code",
+  OUVERTE: "Questions ouvertes",
+  QUIZ: "Quiz chronométré",
 }
 
-// Données mockées — à remplacer par un appel API (React Query) quand le backend sera prêt
-const evaluationsMock: Record<number, DetailEval> = {
-  1: {
-    id: 1,
-    titre: "Structures de données — QCM",
-    description:
-      "Évaluation portant sur les listes, piles, files, arbres et tables de hachage. Lisez attentivement chaque question avant de répondre.",
-    type: "QCM",
-    duree: 45,
-    nbQuestions: 20,
-    dateLimite: "12 juil. 2026 à 23h59",
-    points: 20,
-  },
-  2: {
-    id: 2,
-    titre: "Programmation C — exercice de code",
-    description:
-      "Exercices de programmation en C avec exécution automatique contre des cas de test.",
-    type: "Exercice de code",
-    duree: 90,
-    nbQuestions: 3,
-    dateLimite: "15 juil. 2026 à 23h59",
-    points: 20,
-  },
-  3: {
-    id: 3,
-    titre: "Réseaux — questions ouvertes",
-    description:
-      "Questions ouvertes sur les protocoles réseau, l'adressage IP et le routage.",
-    type: "Questions ouvertes",
-    duree: 60,
-    nbQuestions: 5,
-    dateLimite: "5 juil. 2026 à 23h59",
-    points: 20,
-  },
-  4: {
-    id: 4,
-    titre: "Bases de données — quiz chronométré",
-    description:
-      "Quiz sur le modèle relationnel, SQL et la normalisation. Chaque question a une durée limitée.",
-    type: "Quiz chronométré",
-    duree: 30,
-    nbQuestions: 15,
-    dateLimite: "10 juil. 2026 à 18h00",
-    points: 15,
-  },
+// Chemin de passation selon le type
+const cheminPassation: Record<string, string> = {
+  QCM: "qcm",
+  CODE: "code",
+  OUVERTE: "ouverte",
+  QUIZ: "quiz",
 }
 
 export default function DetailEvaluation() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const evaluation = id ? evaluationsMock[Number(id)] : undefined
+  const evaluation = getEvaluation(id)
 
   // Cas où l'évaluation n'existe pas
   if (!evaluation) {
@@ -103,10 +60,17 @@ export default function DetailEvaluation() {
     )
   }
 
+  const totalPoints = getTotalPoints(evaluation)
+  const disponible = evaluation.statut === "disponible"
+
   const infos = [
     { label: "Durée", valeur: `${evaluation.duree} min`, icon: Clock },
-    { label: "Questions", valeur: `${evaluation.nbQuestions}`, icon: ListChecks },
-    { label: "Points", valeur: `${evaluation.points} pts`, icon: FileText },
+    {
+      label: "Questions",
+      valeur: `${evaluation.questions.length}`,
+      icon: ListChecks,
+    },
+    { label: "Barème", valeur: `/ ${evaluation.noteStandard}`, icon: FileText },
     { label: "Date limite", valeur: evaluation.dateLimite, icon: Calendar },
   ]
 
@@ -131,7 +95,7 @@ export default function DetailEvaluation() {
           variant="outline"
           className="w-fit rounded-full border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
         >
-          {evaluation.type}
+          {typeLabels[evaluation.type]}
         </Badge>
         <h1 className="text-3xl font-extrabold tracking-tight">
           {evaluation.titre}
@@ -165,6 +129,14 @@ export default function DetailEvaluation() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+          <div className="flex items-start gap-3">
+            <FileText className="mt-0.5 size-4 shrink-0 text-primary" />
+            <span>
+              {evaluation.questions.length} question
+              {evaluation.questions.length > 1 ? "s" : ""} pour un total de{" "}
+              {totalPoints} points, ramenés sur {evaluation.noteStandard}.
+            </span>
+          </div>
           <div className="flex items-start gap-3">
             <Save className="mt-0.5 size-4 shrink-0 text-primary" />
             <span>
@@ -200,15 +172,27 @@ export default function DetailEvaluation() {
         </AlertDescription>
       </Alert>
 
-      {/* Action principale */}
-      <Button
-        size="lg"
-        className="w-full shadow-md sm:w-auto sm:self-end"
-        onClick={() => navigate(`/examen/${evaluation.id}/qcm`)}
-      >
-        <Play className="mr-1 size-4" />
-        Démarrer l'évaluation
-      </Button>
+      {/* Action principale — active uniquement si l'évaluation est disponible */}
+      {disponible ? (
+        <Button
+          size="lg"
+          className="w-full shadow-md sm:w-auto sm:self-end"
+          onClick={() =>
+            navigate(
+              `/examen/${evaluation.id}/${cheminPassation[evaluation.type]}`
+            )
+          }
+        >
+          <Play className="mr-1 size-4" />
+          Démarrer l'évaluation
+        </Button>
+      ) : (
+        <div className="rounded-xl border border-border/60 bg-muted/50 px-4 py-3 text-center text-sm text-muted-foreground">
+          {evaluation.statut === "a_venir"
+            ? "Cette évaluation n'est pas encore ouverte."
+            : "Cette évaluation est terminée."}
+        </div>
+      )}
     </div>
   )
 }

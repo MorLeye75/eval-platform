@@ -5,6 +5,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
+  evaluationsMock,
+  type EvaluationMock,
+  type StatutEval,
+  type TypeEval,
+} from "@/mocks/evaluations"
+import {
   Clock,
   Calendar,
   ListChecks,
@@ -13,57 +19,6 @@ import {
   Timer,
   ArrowRight,
 } from "lucide-react"
-
-// Types d'affichage locaux (simplifiés) — à harmoniser avec src/types quand le backend sera branché
-type StatutEval = "disponible" | "a_venir" | "terminee"
-type TypeEval = "QCM" | "CODE" | "OUVERTE" | "QUIZ"
-
-interface Evaluation {
-  id: number
-  titre: string
-  type: TypeEval
-  duree: number // en minutes
-  dateLimite: string
-  statut: StatutEval
-  note?: string // seulement si terminée
-}
-
-// Données mockées — à remplacer par un appel API (React Query) quand le backend sera prêt
-const evaluations: Evaluation[] = [
-  {
-    id: 1,
-    titre: "Structures de données — QCM",
-    type: "QCM",
-    duree: 45,
-    dateLimite: "12 juil. 2026",
-    statut: "disponible",
-  },
-  {
-    id: 2,
-    titre: "Programmation C — exercice de code",
-    type: "CODE",
-    duree: 90,
-    dateLimite: "15 juil. 2026",
-    statut: "a_venir",
-  },
-  {
-    id: 3,
-    titre: "Réseaux — questions ouvertes",
-    type: "OUVERTE",
-    duree: 60,
-    dateLimite: "5 juil. 2026",
-    statut: "terminee",
-    note: "16 / 20",
-  },
-  {
-    id: 4,
-    titre: "Bases de données — quiz chronométré",
-    type: "QUIZ",
-    duree: 30,
-    dateLimite: "10 juil. 2026",
-    statut: "disponible",
-  },
-]
 
 // Config par type de question (icône + libellé)
 const typeConfig: Record<TypeEval, { label: string; icon: typeof ListChecks }> = {
@@ -90,10 +45,18 @@ const statutConfig: Record<StatutEval, { label: string; className: string }> = {
   },
 }
 
-function EvaluationCard({ evaluation }: { evaluation: Evaluation }) {
+function EvaluationCard({ evaluation }: { evaluation: EvaluationMock }) {
   const type = typeConfig[evaluation.type]
   const statut = statutConfig[evaluation.statut]
   const TypeIcon = type.icon
+
+  // Note affichée uniquement si l'évaluation est corrigée ET publiée
+  const noteAffichee =
+    evaluation.resultat?.resultatsPublies === true
+      ? `Note : ${evaluation.resultat.noteFinale} / ${evaluation.noteStandard}`
+      : evaluation.statut === "terminee"
+        ? "En attente de correction"
+        : `Jusqu'au ${evaluation.dateLimite}`
 
   return (
     <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm transition-shadow hover:shadow-md">
@@ -112,9 +75,7 @@ function EvaluationCard({ evaluation }: { evaluation: Evaluation }) {
               </span>
               <span className="flex items-center gap-1">
                 <Calendar className="size-3.5" />
-                {evaluation.statut === "terminee"
-                  ? `Note : ${evaluation.note}`
-                  : `Jusqu'au ${evaluation.dateLimite}`}
+                {noteAffichee}
               </span>
             </div>
           </div>
@@ -173,8 +134,8 @@ export default function ListeEvaluations() {
 
   const evaluationsFiltrees =
     filtre === "toutes"
-      ? evaluations
-      : evaluations.filter((e) => e.statut === filtre)
+      ? evaluationsMock
+      : evaluationsMock.filter((e) => e.statut === filtre)
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-7">

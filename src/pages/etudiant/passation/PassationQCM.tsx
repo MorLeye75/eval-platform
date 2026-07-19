@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { getEvaluation } from "@/mocks/evaluations"
 import {
   Clock,
   ChevronLeft,
@@ -23,79 +24,25 @@ import {
   Eye,
 } from "lucide-react"
 
-// ---------- Types d'affichage locaux ----------
-interface ChoixQCM {
-  id: number
-  texte: string
-}
-
-interface QuestionQCM {
-  id: number
-  enonce: string
-  points: number
-  estChoixMultiple: boolean
-  choix: ChoixQCM[]
-}
-
-// ---------- Données mockées — à remplacer par l'API ----------
-const questionsMock: QuestionQCM[] = [
-  {
-    id: 1,
-    enonce: "Quelle structure de données suit le principe LIFO (Last In, First Out) ?",
-    points: 2,
-    estChoixMultiple: false,
-    choix: [
-      { id: 1, texte: "File (Queue)" },
-      { id: 2, texte: "Pile (Stack)" },
-      { id: 3, texte: "Liste chaînée" },
-      { id: 4, texte: "Arbre binaire" },
-    ],
-  },
-  {
-    id: 2,
-    enonce: "Parmi les propositions suivantes, lesquelles sont des structures de données linéaires ?",
-    points: 3,
-    estChoixMultiple: true,
-    choix: [
-      { id: 5, texte: "Tableau" },
-      { id: 6, texte: "Arbre binaire de recherche" },
-      { id: 7, texte: "Liste chaînée" },
-      { id: 8, texte: "File" },
-    ],
-  },
-  {
-    id: 3,
-    enonce: "Quelle est la complexité temporelle moyenne de la recherche dans une table de hachage ?",
-    points: 2,
-    estChoixMultiple: false,
-    choix: [
-      { id: 9, texte: "O(n)" },
-      { id: 10, texte: "O(log n)" },
-      { id: 11, texte: "O(1)" },
-      { id: 12, texte: "O(n log n)" },
-    ],
-  },
-]
-
-const DUREE_TOTALE = 45 * 60 // 45 minutes en secondes
-
 export default function PassationQCM() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
+  const evaluation = getEvaluation(id)
+  const questions = evaluation?.questions ?? []
+
   const [indexCourant, setIndexCourant] = useState(0)
   const [reponses, setReponses] = useState<Record<number, number[]>>({})
-  const [tempsRestant, setTempsRestant] = useState(DUREE_TOTALE)
+  const [tempsRestant, setTempsRestant] = useState(
+    (evaluation?.duree ?? 45) * 60
+  )
   const [derniereSauvegarde, setDerniereSauvegarde] = useState<string | null>(null)
   const [dialogOuvert, setDialogOuvert] = useState(false)
   const [changementsOnglet, setChangementsOnglet] = useState(0)
 
-  const question = questionsMock[indexCourant]
-  const nbRepondues = Object.values(reponses).filter((r) => r.length > 0).length
-  const progression = (nbRepondues / questionsMock.length) * 100
-
   // ---------- Timer (côté client pour l'instant ; à recalculer serveur plus tard) ----------
   useEffect(() => {
+    if (!evaluation) return
     const timer = setInterval(() => {
       setTempsRestant((t) => {
         if (t <= 1) {
@@ -107,7 +54,7 @@ export default function PassationQCM() {
       })
     }, 1000)
     return () => clearInterval(timer)
-  }, [id, navigate])
+  }, [id, navigate, evaluation])
 
   // ---------- Sauvegarde automatique toutes les 30 s ----------
   // TODO backend : remplacer par PUT /api/soumissions/{id}/sauvegarder
@@ -138,6 +85,29 @@ export default function PassationQCM() {
     return () => document.removeEventListener("visibilitychange", handleVisibilite)
   }, [])
 
+  // ---------- Cas d'erreur : évaluation introuvable ou sans questions ----------
+  if (!evaluation || questions.length === 0) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-10 text-center">
+        <Card className="w-full rounded-2xl border-border/60 shadow-sm">
+          <CardContent className="py-10 text-sm text-muted-foreground">
+            Cette évaluation est introuvable ou ne contient aucune question.
+          </CardContent>
+        </Card>
+        <Button
+          variant="outline"
+          render={
+            <Link to="/etudiant/evaluations">Retour aux évaluations</Link>
+          }
+        />
+      </div>
+    )
+  }
+
+  const question = questions[indexCourant]
+  const nbRepondues = Object.values(reponses).filter((r) => r.length > 0).length
+  const progression = (nbRepondues / questions.length) * 100
+
   // ---------- Gestion des réponses ----------
   function selectionUnique(choixId: number) {
     setReponses((r) => ({ ...r, [question.id]: [choixId] }))
@@ -165,6 +135,11 @@ export default function PassationQCM() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
+      {/* Titre de l'évaluation */}
+      <p className="text-sm font-semibold text-muted-foreground">
+        {evaluation.titre}
+      </p>
+
       {/* Barre supérieure : timer + sauvegarde */}
       <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -180,7 +155,7 @@ export default function PassationQCM() {
               {formatTemps(tempsRestant)}
             </span>
             <span className="text-sm text-muted-foreground">
-              {nbRepondues} / {questionsMock.length} répondues
+              {nbRepondues} / {questions.length} répondues
             </span>
           </div>
 
@@ -193,7 +168,7 @@ export default function PassationQCM() {
         </CardContent>
       </Card>
 
-      {/* Alerte anti-triche : changement d'onglet détecté */}
+      {/* Alerte anti-triche */}
       {changementsOnglet > 0 && (
         <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
           <Eye className="size-4 shrink-0" />
@@ -212,7 +187,7 @@ export default function PassationQCM() {
       <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <CardTitle className="text-base font-bold">
-            Question {indexCourant + 1} sur {questionsMock.length}
+            Question {indexCourant + 1} sur {questions.length}
           </CardTitle>
           <Badge
             variant="outline"
@@ -277,7 +252,7 @@ export default function PassationQCM() {
 
         {/* Grille des numéros de question */}
         <div className="flex flex-wrap justify-center gap-2">
-          {questionsMock.map((q, i) => {
+          {questions.map((q, i) => {
             const repondue = (reponses[q.id] ?? []).length > 0
             return (
               <button
@@ -297,7 +272,7 @@ export default function PassationQCM() {
           })}
         </div>
 
-        {indexCourant < questionsMock.length - 1 ? (
+        {indexCourant < questions.length - 1 ? (
           <Button onClick={() => setIndexCourant((i) => i + 1)}>
             Suivant
             <ChevronRight className="ml-1 size-4" />
@@ -311,7 +286,7 @@ export default function PassationQCM() {
       </div>
 
       {/* Bouton soumettre toujours accessible */}
-      {indexCourant < questionsMock.length - 1 && (
+      {indexCourant < questions.length - 1 && (
         <Button
           variant="outline"
           className="self-center"
@@ -334,8 +309,8 @@ export default function PassationQCM() {
             </DialogTitle>
             <DialogDescription className="text-sm leading-relaxed">
               Vous avez répondu à {nbRepondues} question
-              {nbRepondues > 1 ? "s" : ""} sur {questionsMock.length}.
-              {nbRepondues < questionsMock.length &&
+              {nbRepondues > 1 ? "s" : ""} sur {questions.length}.
+              {nbRepondues < questions.length &&
                 " Les questions sans réponse seront comptées comme non traitées."}{" "}
               Cette action est définitive.
             </DialogDescription>

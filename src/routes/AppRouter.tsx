@@ -9,6 +9,7 @@ import DetailEvaluation from "@/pages/etudiant/DetailEvaluation"
 import PassationQCM from "@/pages/etudiant/passation/PassationQCM"
 import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumission"
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
+import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
 
 export function AppRouter() {
   return (
@@ -30,6 +31,7 @@ export function AppRouter() {
           <Route path="dashboard" element={<DashboardEtudiant />} />
           <Route path="evaluations" element={<ListeEvaluations />} />
           <Route path="evaluations/:id" element={<DetailEvaluation />} />
+          <Route path="resultats/:id" element={<ResultatsDetail />} />
           {/* Futures pages étudiant :
               <Route path="resultats" element={<ResultatsDetail />} />
               <Route path="performances" element={<TableauBordPerformance />} />
