@@ -1,0 +1,81 @@
+import { useParams, Link } from "react-router-dom"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { CircleCheck, Home, ListChecks } from "lucide-react"
+
+export default function ConfirmationSoumission() {
+  const { id } = useParams<{ id: string }>()
+
+  // Données mockées — à remplacer par la réponse de POST /api/soumissions/{id}/soumettre
+  const recapitulatif = {
+    titre: "Structures de données — QCM",
+    questionsRepondues: 3,
+    questionsTotal: 3,
+    heureSoumission: new Date().toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  }
+
+  return (
+    <div className="mx-auto flex max-w-lg flex-col items-center gap-6 py-8 text-center">
+      {/* Icône de succès */}
+      <div className="flex size-16 items-center justify-center rounded-full bg-primary/10">
+        <CircleCheck className="size-8 text-primary" />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-extrabold tracking-tight">
+          Évaluation soumise
+        </h1>
+        <p className="text-muted-foreground">
+          Votre copie a bien été enregistrée. Vous serez notifié dès que les
+          résultats seront publiés par votre enseignant.
+        </p>
+      </div>
+
+      {/* Récapitulatif */}
+      <Card className="w-full rounded-2xl border-border/60 shadow-sm">
+        <CardContent className="flex flex-col gap-3 py-5 text-left text-sm">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Évaluation</span>
+            <span className="font-semibold">{recapitulatif.titre}</span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Questions traitées</span>
+            <span className="font-semibold">
+              {recapitulatif.questionsRepondues} / {recapitulatif.questionsTotal}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground">Heure de soumission</span>
+            <span className="font-semibold">{recapitulatif.heureSoumission}</span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-center">
+        <Button
+          variant="outline"
+          className="w-full sm:w-auto"
+          render={
+            <Link to="/etudiant/evaluations">
+              <ListChecks className="mr-1 size-4" />
+              Mes évaluations
+            </Link>
+          }
+        />
+        <Button
+          className="w-full shadow-md sm:w-auto"
+          render={
+            <Link to="/etudiant/dashboard">
+              <Home className="mr-1 size-4" />
+              Tableau de bord
+            </Link>
+          }
+        />
+      </div>
+    </div>
+  )
+}
