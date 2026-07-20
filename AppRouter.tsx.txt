@@ -1,0 +1,5 @@
+<Route element={<ProtectedRoute role="ADMIN" />}>
+  <Route path="/admin" element={<AdminLayout />}>
+    <Route index element={<DashboardAdmin />} />
+  </Route>
+</Route>

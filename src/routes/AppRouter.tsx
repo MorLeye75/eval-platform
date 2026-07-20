@@ -11,6 +11,8 @@ import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumi
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
 import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
 import TableauBordPerformance from "@/pages/etudiant/TableauBordPerformance"
+import AdminLayout from "@/pages/admin/AdminLayout";
+import DashboardAdmin from "@/pages/admin/DashboardAdmin";
 
 export function AppRouter() {
   return (
@@ -70,13 +72,15 @@ export function AppRouter() {
 
         {/* Espace admin */}
         <Route
-          path="/admin/*"
+          path="/admin"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <div>Espace admin — pages à venir</div>
+              <AdminLayout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route index element={<DashboardAdmin />} />
+        </Route>
 
         {/* Par défaut → login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
