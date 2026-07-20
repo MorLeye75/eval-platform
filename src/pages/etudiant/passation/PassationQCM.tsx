@@ -204,7 +204,7 @@ export default function PassationQCM() {
               <p className="text-xs text-muted-foreground">
                 Plusieurs réponses possibles
               </p>
-              {question.choix.map((choix) => (
+              {(question.choix ?? []).map((choix) => (
                 <label
                   key={choix.id}
                   className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 p-3.5 transition-colors hover:bg-muted/50"
@@ -225,7 +225,7 @@ export default function PassationQCM() {
               onValueChange={(v) => selectionUnique(Number(v))}
               className="flex flex-col gap-3"
             >
-              {question.choix.map((choix) => (
+              {(question.choix ?? []).map((choix) => (
                 <label
                   key={choix.id}
                   className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 p-3.5 transition-colors hover:bg-muted/50"

@@ -6,6 +6,7 @@
 
 export type StatutEval = "disponible" | "a_venir" | "terminee"
 export type TypeEval = "QCM" | "CODE" | "OUVERTE" | "QUIZ"
+export type TypeQuestionMock = "QCM" | "OUVERTE" | "CODE"
 
 export interface ChoixMock {
   id: number
@@ -17,8 +18,10 @@ export interface QuestionMock {
   id: number
   enonce: string
   points: number
-  estChoixMultiple: boolean
-  choix: ChoixMock[]
+  type: TypeQuestionMock
+  estChoixMultiple?: boolean // uniquement pour QCM
+  choix?: ChoixMock[] // uniquement pour QCM
+  consigne?: string // aide facultative pour les questions ouvertes
 }
 
 export interface EvaluationMock {
@@ -60,6 +63,7 @@ export const evaluationsMock: EvaluationMock[] = [
     questions: [
       {
         id: 1,
+        type: "QCM",
         enonce:
           "Quelle structure de données suit le principe LIFO (Last In, First Out) ?",
         points: 2,
@@ -73,6 +77,7 @@ export const evaluationsMock: EvaluationMock[] = [
       },
       {
         id: 2,
+        type: "QCM",
         enonce:
           "Parmi les propositions suivantes, lesquelles sont des structures de données linéaires ?",
         points: 3,
@@ -86,6 +91,7 @@ export const evaluationsMock: EvaluationMock[] = [
       },
       {
         id: 3,
+        type: "QCM",
         enonce:
           "Quelle est la complexité temporelle moyenne de la recherche dans une table de hachage ?",
         points: 2,
@@ -126,6 +132,7 @@ export const evaluationsMock: EvaluationMock[] = [
     questions: [
       {
         id: 20,
+        type: "QCM",
         enonce: "Quel protocole assure la livraison fiable des paquets ?",
         points: 4,
         estChoixMultiple: false,
@@ -138,6 +145,7 @@ export const evaluationsMock: EvaluationMock[] = [
       },
       {
         id: 21,
+        type: "QCM",
         enonce: "Parmi ces adresses, lesquelles sont des adresses privées ?",
         points: 3,
         estChoixMultiple: true,
@@ -150,6 +158,7 @@ export const evaluationsMock: EvaluationMock[] = [
       },
       {
         id: 22,
+        type: "QCM",
         enonce: "À quelle couche du modèle OSI appartient le routage IP ?",
         points: 3,
         estChoixMultiple: false,
@@ -193,6 +202,45 @@ export const evaluationsMock: EvaluationMock[] = [
     noteStandard: 20,
     questions: [],
   },
+
+  {
+    id: 5,
+    titre: "Génie logiciel — questions ouvertes",
+    description:
+      "Répondez de manière argumentée aux questions portant sur les méthodes de conception et les bonnes pratiques de développement.",
+    type: "OUVERTE",
+    duree: 60,
+    dateLimite: "20 juil. 2026 à 23h59",
+    statut: "disponible",
+    noteStandard: 20,
+    questions: [
+      {
+        id: 60,
+        type: "OUVERTE",
+        enonce:
+          "Expliquez la différence entre une relation d'agrégation et une relation de composition en UML. Illustrez par un exemple concret.",
+        points: 5,
+        consigne:
+          "Attendu : définition des deux notions + un exemple pour chacune.",
+      },
+      {
+        id: 61,
+        type: "OUVERTE",
+        enonce:
+          "Quels sont les avantages d'une architecture client-serveur découplée par rapport à une application monolithique ?",
+        points: 5,
+        consigne: "Citez au moins trois avantages et justifiez-les.",
+      },
+      {
+        id: 62,
+        type: "OUVERTE",
+        enonce:
+          "Dans un projet à plusieurs développeurs, pourquoi utilise-t-on des branches Git plutôt que de travailler directement sur la branche principale ?",
+        points: 5,
+        consigne: "Argumentez en vous appuyant sur des situations concrètes.",
+      },
+    ],
+  },
 ]
 
 // ---------- Helpers ----------
@@ -211,17 +259,17 @@ export function getTotalPoints(evaluation: EvaluationMock) {
 // ============================================================
 
 export interface PointHistorique {
-  evaluation: string // libellé court pour l'axe X
+  evaluation: string // libellé court pour l'axe X du graphique
   titreComplet: string
   date: string
-  note: number // note de l'étudiant, sur noteStandard
+  note: number
   moyennePromotion: number
   noteStandard: number
 }
 
 export interface PerformanceEtudiant {
-  moyenneGenerale: number // moyenne de toutes les évaluations publiées
-  tauxReussite: number // % d'évaluations avec note >= 10/20
+  moyenneGenerale: number
+  tauxReussite: number
   rang: number
   effectifPromotion: number
   moyennePromotionGenerale: number

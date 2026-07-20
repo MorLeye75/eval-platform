@@ -25,7 +25,6 @@ import {
 const menuItems = [
   { title: "Tableau de bord", url: "/etudiant/dashboard", icon: LayoutDashboard },
   { title: "Mes évaluations", url: "/etudiant/evaluations", icon: ClipboardList },
-  { title: "Mes résultats", url: "/etudiant/resultats", icon: FileText },
   { title: "Mes performances", url: "/etudiant/performances", icon: BarChart3 },
   { title: "Notifications", url: "/etudiant/notifications", icon: Bell },
 ]

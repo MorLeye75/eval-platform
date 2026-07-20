@@ -217,7 +217,7 @@ export default function ResultatsDetail() {
           const reponsesEtudiant = r.reponsesEtudiant[q.id] ?? []
 
           // Calcul des points obtenus : tout juste = tous les points, sinon 0
-          const bonnesReponses = q.choix
+          const bonnesReponses = (q.choix ?? [])
             .filter((c) => c.estCorrect)
             .map((c) => c.id)
           const toutJuste =
@@ -250,7 +250,7 @@ export default function ResultatsDetail() {
                 <p className="text-sm font-medium">{q.enonce}</p>
 
                 <div className="flex flex-col gap-2">
-                  {q.choix.map((choix) => (
+                  {(q.choix ?? []).map((choix) => (
                     <ChoixLigne
                       key={choix.id}
                       texte={choix.texte}
