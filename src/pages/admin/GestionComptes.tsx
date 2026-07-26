@@ -17,7 +17,6 @@ import type { UtilisateurAdmin } from "@/types"
 /* ---------------------------------------------------------------
    Données mockées — à remplacer par :
    const { data } = useQuery({ queryKey: ["admin-users"], queryFn: () => api.get("/admin/utilisateurs") })
-   Types alignés sur Utilisateur + UtilisateurAdmin de @/types
 --------------------------------------------------------------- */
 const MOCK_USERS: UtilisateurAdmin[] = [
   { id: 1, nom: "Sarr",   prenom: "Fatou",    email: "fatou.sarr@ept.sn",   role: "ENSEIGNANT", actif: true,  dateCreation: "2026-01-10T08:00:00", derniereConnexion: "2026-07-20T14:55:00" },
@@ -29,14 +28,12 @@ const MOCK_USERS: UtilisateurAdmin[] = [
   { id: 7, nom: "Sy",     prenom: "Mariama",  email: "mariama.sy@ept.sn",   role: "ETUDIANT",   actif: true,  dateCreation: "2026-01-15T08:00:00", derniereConnexion: "2026-07-20T14:30:00" },
 ]
 
-// Labels lisibles pour l'affichage
 const ROLE_LABEL: Record<string, string> = {
   ETUDIANT:   "Étudiant",
   ENSEIGNANT: "Enseignant",
   ADMIN:      "Admin",
 }
 
-// Classes sémantiques uniquement — aucun hex
 const ROLE_CLS: Record<string, string> = {
   ETUDIANT:   "bg-blue-500/10 text-blue-700 dark:text-blue-400",
   ENSEIGNANT: "bg-primary/10 text-primary",
@@ -49,26 +46,26 @@ function getInitiales(u: UtilisateurAdmin) {
 
 function formatDate(iso: string | null) {
   if (!iso) return "—"
-  return new Intl.RelativeTimeFormat("fr", { numeric: "auto" }).format(
-    Math.round((new Date(iso).getTime() - Date.now()) / 60000),
-    "minute"
-  )
+  const diff = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
+  return new Intl.RelativeTimeFormat("fr", { numeric: "auto" }).format(diff, "minute")
 }
 
+const TABS = ["tous", "etudiants", "enseignants", "admins"] as const
+
 export default function GestionComptes() {
-  const [tab, setTab]     = useState("tous")
+  const [tab, setTab]     = useState<(typeof TABS)[number]>("tous")
   const [query, setQuery] = useState("")
 
   const filtered = MOCK_USERS.filter((u) => {
     const matchTab =
-      tab === "tous"        ||
+      tab === "tous"         ||
       (tab === "etudiants"   && u.role === "ETUDIANT")   ||
       (tab === "enseignants" && u.role === "ENSEIGNANT")  ||
       (tab === "admins"      && u.role === "ADMIN")
     const q = query.toLowerCase()
     const matchQuery =
-      u.nom.toLowerCase().includes(q)     ||
-      u.prenom.toLowerCase().includes(q)  ||
+      u.nom.toLowerCase().includes(q)    ||
+      u.prenom.toLowerCase().includes(q) ||
       u.email.toLowerCase().includes(q)
     return matchTab && matchQuery
   })
@@ -78,7 +75,9 @@ export default function GestionComptes() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Gestion des comptes</h1>
-          <p className="mt-1 text-muted-foreground">Créez, modifiez ou désactivez les comptes utilisateurs.</p>
+          <p className="mt-1 text-muted-foreground">
+            Créez, modifiez ou désactivez les comptes utilisateurs.
+          </p>
         </div>
         <button className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
           <Plus className="size-4" /> Nouveau compte
@@ -96,7 +95,7 @@ export default function GestionComptes() {
             className="rounded-xl pl-9"
           />
         </div>
-        <Tabs value={tab} onValueChange={setTab}>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
           <TabsList className="rounded-xl">
             <TabsTrigger value="tous">Tous</TabsTrigger>
             <TabsTrigger value="etudiants">Étudiants</TabsTrigger>
@@ -106,7 +105,7 @@ export default function GestionComptes() {
         </Tabs>
       </div>
 
-      {/* Table shadcn */}
+      {/* Table */}
       <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
         <CardContent className="p-0">
           <Table>
@@ -122,7 +121,6 @@ export default function GestionComptes() {
             <TableBody>
               {filtered.map((u) => (
                 <TableRow key={u.id}>
-                  {/* Utilisateur */}
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
@@ -134,14 +132,13 @@ export default function GestionComptes() {
                       </div>
                     </div>
                   </TableCell>
-                  {/* Rôle */}
                   <TableCell>
                     <Badge variant="outline" className={`rounded-full text-[11px] font-semibold ${ROLE_CLS[u.role]}`}>
                       {ROLE_LABEL[u.role]}
                     </Badge>
                   </TableCell>
-                  {/* Statut */}
                   <TableCell>
+                    {/* Uniquement Actif / Désactivé — actif: boolean */}
                     <Badge
                       variant="outline"
                       className={`inline-flex items-center gap-1.5 rounded-full text-[11px] font-semibold ${
@@ -154,11 +151,9 @@ export default function GestionComptes() {
                       {u.actif ? "Actif" : "Désactivé"}
                     </Badge>
                   </TableCell>
-                  {/* Dernière connexion */}
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDate(u.derniereConnexion)}
                   </TableCell>
-                  {/* Actions */}
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
@@ -180,8 +175,12 @@ export default function GestionComptes() {
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{filtered.length} sur {MOCK_USERS.length} utilisateurs</span>
         <div className="flex gap-1.5">
-          <button className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold transition-colors hover:bg-muted">← Précédent</button>
-          <button className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold transition-colors hover:bg-muted">Suivant →</button>
+          <button className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold transition-colors hover:bg-muted">
+            ← Précédent
+          </button>
+          <button className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold transition-colors hover:bg-muted">
+            Suivant →
+          </button>
         </div>
       </div>
     </div>
