@@ -142,3 +142,51 @@ export interface TableauDeBordEtudiant {
   tauxReussite: number
   rang: number
 }
+
+// ADDITIONS pour l'espace Admin — à fusionner dans src/types/index.ts
+
+
+// ---------- Statut compte (§3.3 du CDC) ----------
+// "Suspendu" retiré en attente de décision avec l'encadrant
+export type StatutCompte = "ACTIF" | "DESACTIVE"
+
+export interface UtilisateurAdmin extends Utilisateur {
+  actif: boolean           // false = désactivé (StatutCompte)
+  dateCreation: string     // ISO 8601
+  derniereConnexion: string | null
+}
+
+// ---------- Stats globales (vue admin) ----------
+export interface StatistiquesGlobales {
+  moyennePlateforme: number
+  tauxReussite: number      // pourcentage
+  nbEvaluationsCreees: number
+  tauxCompletion: number    // pourcentage
+  nbUtilisateurs: number
+  nbEvaluationsActives: number
+  nbSoumissions7j: number
+  nbIncidents: number
+}
+
+// ---------- Évaluation en cours (supervision) ----------
+export interface EvaluationEnCours {
+  id: number
+  titre: string
+  enseignant: Pick<Utilisateur, "nom" | "prenom">  // relation Enseignant
+  nbSoumis: number         // soumissions reçues
+  nbAttendus: number       // total inscrits
+  dateDebut: string        // ISO 8601
+  dateFin: string          // ISO 8601
+}
+
+// ---------- Alerte anti-triche ----------
+export type NiveauAlerte = "INFO" | "MODERE" | "ELEVE"
+
+export interface AlerteAntTriche {
+  id: number
+  etudiantId: number
+  evaluationId: number
+  description: string
+  niveau: NiveauAlerte
+  date: string             // ISO 8601
+}
