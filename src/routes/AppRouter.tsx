@@ -11,7 +11,7 @@ import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumi
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
 import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
 import TableauBordPerformance from "@/pages/etudiant/TableauBordPerformance"
-import AdminLayout from "@/pages/admin/AdminLayout";
+import { AdminLayout } from "@/layouts/AdminLayout";
 import DashboardAdmin from "@/pages/admin/DashboardAdmin";
 
 export function AppRouter() {
