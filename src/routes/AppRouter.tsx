@@ -11,6 +11,8 @@ import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumi
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
 import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
 import TableauBordPerformance from "@/pages/etudiant/TableauBordPerformance"
+import SupervisionGlobale from "@/pages/admin/SupervisionGlobale"
+import StatistiquesGlobales from "@/pages/admin/StatistiquesGlobales"
 
 export function AppRouter() {
   return (
@@ -76,7 +78,10 @@ export function AppRouter() {
               <div>Espace admin — pages à venir</div>
             </ProtectedRoute>
           }
+          
         />
+        <Route path="supervision" element={<SupervisionGlobale />} />
+        <Route path="statistiques" element={<StatistiquesGlobales />} />
 
         {/* Par défaut → login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
