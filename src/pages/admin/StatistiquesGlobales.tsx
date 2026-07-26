@@ -1,20 +1,22 @@
 import { Award, CheckCircle2, FileText, BarChart3 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts"
-import type { StatistiquesGlobales } from "@/types"
+import type { StatistiquesGlobales as StatsType, Statistiques } from "@/types"
 
 /* ---------------------------------------------------------------
    Données mockées — à remplacer par :
    const { data } = useQuery({ queryKey: ["admin-stats"], queryFn: () => api.get("/admin/statistiques") })
 
-   Note : la section "Départements" a été retirée — absente du
-   diagramme de classes et du CDC. À ajouter après décision encadrant.
+   StatsByPromotion : GET /admin/statistiques/promotions
+   (remplace les départements — Promotion existe dans le diagramme de classes)
 --------------------------------------------------------------- */
-const mockStats: StatistiquesGlobales = {
+
+const mockStats: StatsType = {
   moyennePlateforme: 13.4,
   tauxReussite: 78,
   nbEvaluationsCreees: 156,
@@ -42,7 +44,24 @@ const TYPE_DATA = [
   { name: "Quiz",     value: 15 },
 ]
 
-// Variables CSS du thème — suivent automatiquement le thème shadcn
+// Stats par promotion — alignées sur la classe Promotion du diagramme
+// { nom, annee, effectif } + stats issues de Statistiques
+interface StatPromotion {
+  id: number
+  nom: string
+  annee: string
+  effectif: number
+  stats: Pick<Statistiques, "moyenne" | "tauxReussite">
+  nbEvaluations: number
+}
+
+const STATS_PROMOTIONS: StatPromotion[] = [
+  { id: 1, nom: "DIC1",  annee: "2025-2026", effectif: 45, stats: { moyenne: 14.1, tauxReussite: 82 }, nbEvaluations: 24 },
+  { id: 2, nom: "DIC2",  annee: "2025-2026", effectif: 38, stats: { moyenne: 13.2, tauxReussite: 76 }, nbEvaluations: 31 },
+  { id: 3, nom: "DIC3",  annee: "2025-2026", effectif: 32, stats: { moyenne: 12.8, tauxReussite: 71 }, nbEvaluations: 28 },
+  { id: 4, nom: "DGEI1", annee: "2025-2026", effectif: 41, stats: { moyenne: 13.5, tauxReussite: 79 }, nbEvaluations: 19 },
+]
+
 const PIE_COLORS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)"]
 
 const tooltipStyle = {
@@ -61,10 +80,12 @@ export default function StatistiquesGlobales() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Statistiques globales</h1>
-        <p className="mt-1 text-muted-foreground">Indicateurs de performance de l'ensemble de la plateforme.</p>
+        <p className="mt-1 text-muted-foreground">
+          Indicateurs de performance de l'ensemble de la plateforme.
+        </p>
       </div>
 
-      {/* Stats */}
+      {/* Stats globales */}
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Moyenne plateforme" value={`${s.moyennePlateforme} / 20`} icon={Award}        hint="+0,3 vs semestre" dir="up" />
         <StatCard label="Taux de réussite"   value={`${s.tauxReussite} %`}          icon={CheckCircle2} hint="≥ 10/20"          dir="up" />
@@ -106,22 +127,61 @@ export default function StatistiquesGlobales() {
                     ))}
                   </Pie>
                   <Tooltip {...tooltipStyle} />
-                  <Legend
-                    iconType="circle"
-                    iconSize={10}
-                    wrapperStyle={{ fontSize: "0.75rem", paddingTop: "0.5rem" }}
-                  />
+                  <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: "0.75rem", paddingTop: "0.5rem" }} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Stats par promotion — remplace les départements */}
+      <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base font-bold">Statistiques par promotion</CardTitle>
+          <p className="text-sm text-muted-foreground">Année {STATS_PROMOTIONS[0]?.annee}</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                {["Promotion", "Étudiants", "Évaluations", "Moyenne", "Taux réussite"].map((h) => (
+                  <th key={h} className="px-5 py-3 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {STATS_PROMOTIONS.map((p) => (
+                <tr key={p.id} className="border-b border-border last:border-none transition-colors hover:bg-muted/40">
+                  <td className="px-5 py-3 font-semibold">{p.nom}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{p.effectif}</td>
+                  <td className="px-5 py-3 text-muted-foreground">{p.nbEvaluations}</td>
+                  <td className="px-5 py-3">{p.stats.moyenne.toFixed(1)} / 20</td>
+                  <td className="px-5 py-3">
+                    <Badge
+                      variant="outline"
+                      className={`rounded-full text-[11px] font-semibold ${
+                        p.stats.tauxReussite >= 75
+                          ? "bg-primary/10 text-primary"
+                          : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400"
+                      }`}
+                    >
+                      {p.stats.tauxReussite} %
+                    </Badge>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
     </div>
   )
 }
 
-/* ── Sous-composants ───────────────────────────────────────── */
+/* ── Sous-composant ──────────────────────────────────────────── */
 
 function StatCard({ label, value, icon: Icon, hint, dir }: {
   label: string; value: string; icon: LucideIcon; hint?: string; dir?: "up" | "down"
