@@ -1,11 +1,9 @@
-import { useParams, Link } from "react-router-dom"
+import { Link } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CircleCheck, Home, ListChecks } from "lucide-react"
 
 export default function ConfirmationSoumission() {
-  const { id } = useParams<{ id: string }>()
-
   // Données mockées — à remplacer par la réponse de POST /api/soumissions/{id}/soumettre
   const recapitulatif = {
     titre: "Structures de données — QCM",
