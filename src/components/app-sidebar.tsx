@@ -2,7 +2,6 @@ import { Link, useLocation } from "react-router-dom"
 import {
   LayoutDashboard,
   ClipboardList,
-  FileText,
   BarChart3,
   Bell,
   GraduationCap,
