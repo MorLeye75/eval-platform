@@ -21,7 +21,7 @@ import {
   Send,
   CircleCheck,
   Eye,
-  Lightbulb,
+  Info,
 } from "lucide-react"
 
 export default function PassationOuverte() {
@@ -40,7 +40,7 @@ export default function PassationOuverte() {
   const [dialogOuvert, setDialogOuvert] = useState(false)
   const [changementsOnglet, setChangementsOnglet] = useState(0)
 
-  // ---------- Timer (côté client pour l'instant ; à recalculer serveur plus tard) ----------
+  // ---------- Timer ----------
   useEffect(() => {
     if (!evaluation) return
     const timer = setInterval(() => {
@@ -57,7 +57,7 @@ export default function PassationOuverte() {
   }, [id, navigate, evaluation])
 
   // ---------- Sauvegarde automatique toutes les 30 s ----------
-  // TODO backend : remplacer par PUT /api/soumissions/{id}/sauvegarder
+  // TODO backend : PUT /api/soumissions/{id}/sauvegarder (+ nbChangementsOnglet)
   const reponsesRef = useRef(reponses)
   reponsesRef.current = reponses
 
@@ -74,18 +74,16 @@ export default function PassationOuverte() {
   }, [])
 
   // ---------- Anti-triche : détection de changement d'onglet ----------
-  // TODO backend : envoyer un log au serveur à chaque détection
+  // TODO backend : envoyer nbChangementsOnglet au serveur
   useEffect(() => {
     function handleVisibilite() {
-      if (document.hidden) {
-        setChangementsOnglet((n) => n + 1)
-      }
+      if (document.hidden) setChangementsOnglet((n) => n + 1)
     }
     document.addEventListener("visibilitychange", handleVisibilite)
     return () => document.removeEventListener("visibilitychange", handleVisibilite)
   }, [])
 
-  // ---------- Cas d'erreur : évaluation introuvable ou sans questions ----------
+  // ---------- Cas d'erreur ----------
   if (!evaluation || questions.length === 0) {
     return (
       <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-10 text-center">
@@ -96,21 +94,22 @@ export default function PassationOuverte() {
         </Card>
         <Button
           variant="outline"
-          render={
-            <Link to="/etudiant/evaluations">Retour aux évaluations</Link>
-          }
+          render={<Link to="/etudiant/evaluations">Retour aux évaluations</Link>}
         />
       </div>
     )
   }
 
   const question = questions[indexCourant]
-  const nbRepondues = Object.values(reponses).filter((r) => r.trim().length > 0).length
+  const reponseCourante = reponses[question.id] ?? ""
+  const nbRepondues = Object.values(reponses).filter(
+    (r) => r.trim().length > 0
+  ).length
   const progression = (nbRepondues / questions.length) * 100
 
-  function saisirReponse(texte: string) {
-    setReponses((r) => ({ ...r, [question.id]: texte }))
-  }
+  const nbMots = reponseCourante.trim()
+    ? reponseCourante.trim().split(/\s+/).length
+    : 0
 
   function formatTemps(secondes: number) {
     const m = Math.floor(secondes / 60)
@@ -118,9 +117,7 @@ export default function PassationOuverte() {
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
   }
 
-  const tempsCritique = tempsRestant < 300 // moins de 5 min
-  const texteCourant = reponses[question.id] ?? ""
-  const nbMots = texteCourant.trim().length === 0 ? 0 : texteCourant.trim().split(/\s+/).length
+  const tempsCritique = tempsRestant < 300
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
@@ -144,7 +141,7 @@ export default function PassationOuverte() {
               {formatTemps(tempsRestant)}
             </span>
             <span className="text-sm text-muted-foreground">
-              {nbRepondues} / {questions.length} répondues
+              {nbRepondues} / {questions.length} traitées
             </span>
           </div>
 
@@ -186,25 +183,30 @@ export default function PassationOuverte() {
           </Badge>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <p className="text-base font-medium">{question.enonce}</p>
+          <p className="text-base font-medium leading-relaxed">
+            {question.enonce}
+          </p>
 
           {question.consigne && (
-            <div className="flex items-start gap-2 rounded-xl border border-border/60 bg-muted/40 px-3.5 py-2.5 text-xs text-muted-foreground">
-              <Lightbulb className="mt-0.5 size-3.5 shrink-0" />
+            <div className="flex items-start gap-2 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
+              <Info className="mt-0.5 size-4 shrink-0" />
               <span>{question.consigne}</span>
             </div>
           )}
 
           <Textarea
-            value={texteCourant}
-            onChange={(e) => saisirReponse(e.target.value)}
+            value={reponseCourante}
+            onChange={(e) =>
+              setReponses((r) => ({ ...r, [question.id]: e.target.value }))
+            }
             placeholder="Rédigez votre réponse ici..."
-            rows={10}
-            className="resize-none rounded-xl"
+            className="min-h-56 resize-y rounded-xl text-sm leading-relaxed"
           />
-          <span className="self-end text-xs text-muted-foreground">
-            {nbMots} mot{nbMots > 1 ? "s" : ""}
-          </span>
+
+          <p className="text-right text-xs text-muted-foreground">
+            {nbMots} mot{nbMots > 1 ? "s" : ""} · {reponseCourante.length}{" "}
+            caractère{reponseCourante.length > 1 ? "s" : ""}
+          </p>
         </CardContent>
       </Card>
 
@@ -219,10 +221,9 @@ export default function PassationOuverte() {
           Précédent
         </Button>
 
-        {/* Grille des numéros de question */}
         <div className="flex flex-wrap justify-center gap-2">
           {questions.map((q, i) => {
-            const repondue = (reponses[q.id] ?? "").trim().length > 0
+            const traitee = (reponses[q.id] ?? "").trim().length > 0
             return (
               <button
                 key={q.id}
@@ -230,7 +231,7 @@ export default function PassationOuverte() {
                 className={`size-9 rounded-lg text-sm font-semibold transition-colors ${
                   i === indexCourant
                     ? "bg-primary text-primary-foreground"
-                    : repondue
+                    : traitee
                       ? "bg-primary/15 text-primary"
                       : "bg-muted text-muted-foreground hover:bg-muted/70"
                 }`}
@@ -254,7 +255,6 @@ export default function PassationOuverte() {
         )}
       </div>
 
-      {/* Bouton soumettre toujours accessible */}
       {indexCourant < questions.length - 1 && (
         <Button
           variant="outline"
@@ -266,7 +266,7 @@ export default function PassationOuverte() {
         </Button>
       )}
 
-      {/* Modale de confirmation de soumission */}
+      {/* Modale de confirmation */}
       <Dialog open={dialogOuvert} onOpenChange={setDialogOuvert}>
         <DialogContent
           showCloseButton={false}
@@ -277,10 +277,10 @@ export default function PassationOuverte() {
               Confirmer la soumission
             </DialogTitle>
             <DialogDescription className="text-sm leading-relaxed">
-              Vous avez répondu à {nbRepondues} question
+              Vous avez traité {nbRepondues} question
               {nbRepondues > 1 ? "s" : ""} sur {questions.length}.
               {nbRepondues < questions.length &&
-                " Les questions sans réponse seront comptées comme non traitées."}{" "}
+                " Les questions laissées vides seront comptées comme non traitées."}{" "}
               Cette action est définitive.
             </DialogDescription>
           </DialogHeader>
