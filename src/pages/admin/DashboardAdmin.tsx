@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { Users, FileText, CheckCircle2, AlertTriangle, Database, Shield, Award } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts"
