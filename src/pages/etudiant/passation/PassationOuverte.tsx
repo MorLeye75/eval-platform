@@ -297,7 +297,13 @@ export default function PassationOuverte() {
               className="w-full shadow-md sm:w-auto"
               onClick={() => {
                 // TODO backend : POST /api/soumissions/{id}/soumettre
-                navigate(`/examen/${id}/confirmation`)
+                navigate(`/examen/${id}/confirmation`, {
+                  state: {
+                    titre: evaluation.titre,
+                    traitees: nbRepondues,
+                    total: questions.length,
+                  },
+                })
               }}
             >
               <CircleCheck className="mr-1 size-4 shrink-0" />
