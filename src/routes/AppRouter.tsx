@@ -15,13 +15,19 @@ import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumi
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
 import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
 import TableauBordPerformance from "@/pages/etudiant/TableauBordPerformance"
+import { EnseignantLayout } from "@/layouts/EnseignantLayout"
+import DashboardEnseignant from "@/pages/enseignant/DashboardEnseignant"
 import ListeEvaluationsEnseignant from "@/pages/enseignant/ListeEvaluationsEnseignant"
 import InfosGenerales from "@/pages/enseignant/creation/InfosGenerales"
 import BuilderQuestions from "@/pages/enseignant/creation/BuilderQuestions"
 import Previsualisation from "@/pages/enseignant/creation/Previsualisation"
+import SupervisionTempsReel from "@/pages/enseignant/SupervisionTempsReel"
+import ValidationIA from "@/pages/enseignant/ValidationIA"
+import StatistiquesEvaluation from "@/pages/enseignant/StatistiquesEvaluation"
+import PublicationResultats from "@/pages/enseignant/PublicationResultats"
+import ExportResultats from "@/pages/enseignant/ExportResultats"
 import NotificationsPage from "@/pages/NotificationsPage"
 import ProfilePage from "@/pages/ProfilePage"
-
 
 export function AppRouter() {
   return (
@@ -33,7 +39,7 @@ export function AppRouter() {
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
-        {/* Espace étudiant — navigation normale avec sidebar */}
+        {/* Espace étudiant */}
         <Route
           path="/etudiant"
           element={
@@ -42,21 +48,17 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         >
-          <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="profil" element={<ProfilePage />} />
           <Route index element={<Navigate to="/etudiant/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardEtudiant />} />
           <Route path="evaluations" element={<ListeEvaluations />} />
           <Route path="evaluations/:id" element={<DetailEvaluation />} />
           <Route path="resultats/:id" element={<ResultatsDetail />} />
           <Route path="performances" element={<TableauBordPerformance />} />
-          {/* Futures pages étudiant :
-              <Route path="resultats" element={<ResultatsDetail />} />
-              <Route path="performances" element={<TableauBordPerformance />} />
-              <Route path="notifications" element={<NotificationsPage />} /> */}
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="profil" element={<ProfilePage />} />
         </Route>
 
-        {/* Mode examen — interface épurée, sans navigation */}
+        {/* Mode examen */}
         <Route
           path="/examen"
           element={
@@ -70,17 +72,30 @@ export function AppRouter() {
           <Route path=":id/code" element={<PassationCode />} />
           <Route path=":id/confirmation" element={<ConfirmationSoumission />} />
           <Route path=":id/expiration" element={<ExpirationScreen />} />
-          {/* Futures passations :
-              <Route path=":id/quiz" element={<PassationQuiz />} /> */}
         </Route>
 
         {/* Espace enseignant */}
-        <Route path="notifications" element={<NotificationsPage />} />
-        <Route path="profil" element={<ProfilePage />} />
-        <Route path="evaluations" element={<ListeEvaluationsEnseignant />} />
-        <Route path="evaluations/creation" element={<InfosGenerales />} />
-        <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
-        <Route path="evaluations/creation/previsualisation" element={<Previsualisation />} />
+        <Route
+          path="/enseignant"
+          element={
+            <ProtectedRoute allowedRoles={["ENSEIGNANT"]}>
+              <EnseignantLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardEnseignant />} />
+          <Route path="evaluations" element={<ListeEvaluationsEnseignant />} />
+          <Route path="evaluations/creation" element={<InfosGenerales />} />
+          <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
+          <Route path="evaluations/creation/previsualisation" element={<Previsualisation />} />
+          <Route path="supervision/:id?" element={<SupervisionTempsReel />} />
+          <Route path="validation-ia" element={<ValidationIA />} />
+          <Route path="statistiques/:id?" element={<StatistiquesEvaluation />} />
+          <Route path="publication" element={<PublicationResultats />} />
+          <Route path="export" element={<ExportResultats />} />
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="profil" element={<ProfilePage />} />
+        </Route>
 
         {/* Espace admin */}
         <Route
