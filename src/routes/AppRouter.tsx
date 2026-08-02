@@ -15,6 +15,12 @@ import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumi
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
 import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
 import TableauBordPerformance from "@/pages/etudiant/TableauBordPerformance"
+import ListeEvaluationsEnseignant from "@/pages/enseignant/ListeEvaluationsEnseignant"
+import InfosGenerales from "@/pages/enseignant/creation/InfosGenerales"
+import BuilderQuestions from "@/pages/enseignant/creation/BuilderQuestions"
+import Previsualisation from "@/pages/enseignant/creation/Previsualisation"
+
+
 
 export function AppRouter() {
   return (
@@ -66,14 +72,10 @@ export function AppRouter() {
         </Route>
 
         {/* Espace enseignant */}
-        <Route
-          path="/enseignant/*"
-          element={
-            <ProtectedRoute allowedRoles={["ENSEIGNANT"]}>
-              <div>Espace enseignant — pages à venir</div>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="evaluations" element={<ListeEvaluationsEnseignant />} />
+        <Route path="evaluations/creation" element={<InfosGenerales />} />
+        <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
+        <Route path="evaluations/creation/previsualisation" element={<Previsualisation />} />
 
         {/* Espace admin */}
         <Route
