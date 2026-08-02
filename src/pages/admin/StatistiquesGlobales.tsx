@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from "recharts"
-import type { StatistiquesGlobales as StatsType, Statistiques } from "@/types"
+import type { StatistiquesGlobales as StatsType, StatistiquesEvaluation } from "@/types"
 
 /* ---------------------------------------------------------------
    Données mockées — à remplacer par :
@@ -51,7 +51,7 @@ interface StatPromotion {
   nom: string
   annee: string
   effectif: number
-  stats: Pick<Statistiques, "moyenne" | "tauxReussite">
+  stats: Pick<StatistiquesEvaluation, "moyenne" | "tauxReussite">
   nbEvaluations: number
 }
 
