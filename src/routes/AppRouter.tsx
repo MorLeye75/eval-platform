@@ -19,7 +19,8 @@ import ListeEvaluationsEnseignant from "@/pages/enseignant/ListeEvaluationsEnsei
 import InfosGenerales from "@/pages/enseignant/creation/InfosGenerales"
 import BuilderQuestions from "@/pages/enseignant/creation/BuilderQuestions"
 import Previsualisation from "@/pages/enseignant/creation/Previsualisation"
-
+import NotificationsPage from "@/pages/NotificationsPage"
+import ProfilePage from "@/pages/ProfilePage"
 
 
 export function AppRouter() {
@@ -41,6 +42,8 @@ export function AppRouter() {
             </ProtectedRoute>
           }
         >
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="profil" element={<ProfilePage />} />
           <Route index element={<Navigate to="/etudiant/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardEtudiant />} />
           <Route path="evaluations" element={<ListeEvaluations />} />
@@ -72,6 +75,8 @@ export function AppRouter() {
         </Route>
 
         {/* Espace enseignant */}
+        <Route path="notifications" element={<NotificationsPage />} />
+        <Route path="profil" element={<ProfilePage />} />
         <Route path="evaluations" element={<ListeEvaluationsEnseignant />} />
         <Route path="evaluations/creation" element={<InfosGenerales />} />
         <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
