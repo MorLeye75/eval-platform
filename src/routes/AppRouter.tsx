@@ -15,12 +15,17 @@ import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumi
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
 import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
 import TableauBordPerformance from "@/pages/etudiant/TableauBordPerformance"
+import { EnseignantLayout } from "@/layouts/EnseignantLayout"
+import DashboardEnseignant from "@/pages/enseignant/DashboardEnseignant"
 import ListeEvaluationsEnseignant from "@/pages/enseignant/ListeEvaluationsEnseignant"
 import InfosGenerales from "@/pages/enseignant/creation/InfosGenerales"
 import BuilderQuestions from "@/pages/enseignant/creation/BuilderQuestions"
 import Previsualisation from "@/pages/enseignant/creation/Previsualisation"
-
-
+import SupervisionTempsReel from "@/pages/enseignant/SupervisionTempsReel"
+import ValidationIA from "@/pages/enseignant/ValidationIA"
+import StatistiquesEvaluation from "@/pages/enseignant/StatistiquesEvaluation"
+import PublicationResultats from "@/pages/enseignant/PublicationResultats"
+import ExportResultats from "@/pages/enseignant/ExportResultats"
 
 export function AppRouter() {
   return (
@@ -72,11 +77,25 @@ export function AppRouter() {
         </Route>
 
         {/* Espace enseignant */}
-        <Route path="evaluations" element={<ListeEvaluationsEnseignant />} />
-        <Route path="evaluations/creation" element={<InfosGenerales />} />
-        <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
-        <Route path="evaluations/creation/previsualisation" element={<Previsualisation />} />
-
+        <Route
+          path="/enseignant"
+          element={
+            <ProtectedRoute allowedRoles={["ENSEIGNANT"]}>
+              <EnseignantLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route index element={<DashboardEnseignant />} />
+          <Route path="evaluations" element={<ListeEvaluationsEnseignant />} />
+          <Route path="evaluations/creation" element={<InfosGenerales />} />
+          <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
+          <Route path="evaluations/creation/previsualisation" element={<Previsualisation />} />
+          <Route path="supervision/:id?" element={<SupervisionTempsReel />} />
+          <Route path="validation-ia" element={<ValidationIA />} />
+          <Route path="statistiques/:id?" element={<StatistiquesEvaluation />} />
+          <Route path="publication" element={<PublicationResultats />} />
+          <Route path="export" element={<ExportResultats />} />
+        </Route>
         {/* Espace admin */}
         <Route
           path="/admin/*"
