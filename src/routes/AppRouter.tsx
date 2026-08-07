@@ -21,6 +21,8 @@ import StatistiquesGlobales from "@/pages/admin/StatistiquesGlobales"
 import ParametresSysteme from "@/pages/admin/ParametresSysteme"
 import { EnseignantLayout } from "@/layouts/EnseignantLayout"
 import DashboardEnseignant from "@/pages/enseignant/DashboardEnseignant"
+import { AdminLayout } from "@/layouts/AdminLayout"
+import DashboardAdmin from "@/pages/admin/DashboardAdmin"
 
 export function AppRouter() {
   return (
@@ -95,6 +97,7 @@ export function AppRouter() {
           <Route path="statistiques" element={<StatistiquesGlobales />} />
           <Route path="parametres" element={<ParametresSysteme />} />
         </Route>
+
         {/* Par défaut → login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
