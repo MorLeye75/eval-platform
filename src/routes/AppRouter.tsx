@@ -19,6 +19,8 @@ import GestionComptes from "@/pages/admin/GestionComptes"
 import SupervisionGlobale from "@/pages/admin/SupervisionGlobale"
 import StatistiquesGlobales from "@/pages/admin/StatistiquesGlobales"
 import ParametresSysteme from "@/pages/admin/ParametresSysteme"
+import { EnseignantLayout } from "@/layouts/EnseignantLayout"
+import DashboardEnseignant from "@/pages/enseignant/DashboardEnseignant"
 
 export function AppRouter() {
   return (
@@ -70,14 +72,13 @@ export function AppRouter() {
         </Route>
 
         {/* Espace enseignant */}
-        <Route
-          path="/enseignant/*"
-          element={
-            <ProtectedRoute allowedRoles={["ENSEIGNANT"]}>
-              <div>Espace enseignant — pages à venir</div>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/enseignant" element={
+          <ProtectedRoute allowedRoles={["ENSEIGNANT"]}>
+            <EnseignantLayout />
+          </ProtectedRoute>
+        }>
+          <Route index element={<DashboardEnseignant />} />
+        </Route>
 
         {/* Espace admin */}
         <Route
