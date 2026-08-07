@@ -88,11 +88,14 @@ export default function DashboardEnseignant() {
             Voici un aperçu de vos évaluations et des actions en attente.
           </p>
         </div>
-        <Button asChild className="rounded-xl">
-          <Link to="/enseignant/evaluations/creation">
-            <Plus className="size-4" /> Nouvelle évaluation
-          </Link>
-        </Button>
+        <Button
+          className="rounded-xl"
+          render={
+            <Link to="/enseignant/evaluations/creation">
+              <Plus className="size-4" /> Nouvelle évaluation
+            </Link>
+          }
+        />
       </div>
 
       {/* Stats */}
