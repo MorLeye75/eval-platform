@@ -1,21 +1,22 @@
-import { useParams, Link } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CircleCheck, Home, ListChecks } from "lucide-react"
 
-export default function ConfirmationSoumission() {
-  const { id } = useParams<{ id: string }>()
+interface EtatConfirmation {
+  titre: string
+  traitees: number
+  total: number
+}
 
-  // Données mockées — à remplacer par la réponse de POST /api/soumissions/{id}/soumettre
-  const recapitulatif = {
-    titre: "Structures de données — QCM",
-    questionsRepondues: 3,
-    questionsTotal: 3,
-    heureSoumission: new Date().toLocaleTimeString("fr-FR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  }
+export default function ConfirmationSoumission() {
+  const location = useLocation()
+  const etat = location.state as EtatConfirmation | null
+
+  const heureSoumission = new Date().toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-6 py-8 text-center">
@@ -37,19 +38,23 @@ export default function ConfirmationSoumission() {
       {/* Récapitulatif */}
       <Card className="w-full rounded-2xl border-border/60 shadow-sm">
         <CardContent className="flex flex-col gap-3 py-5 text-left text-sm">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Évaluation</span>
-            <span className="font-semibold">{recapitulatif.titre}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Questions traitées</span>
-            <span className="font-semibold">
-              {recapitulatif.questionsRepondues} / {recapitulatif.questionsTotal}
-            </span>
-          </div>
+          {etat && (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Évaluation</span>
+                <span className="font-semibold">{etat.titre}</span>
+              </div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-muted-foreground">Questions traitées</span>
+                <span className="font-semibold">
+                  {etat.traitees} / {etat.total}
+                </span>
+              </div>
+            </>
+          )}
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Heure de soumission</span>
-            <span className="font-semibold">{recapitulatif.heureSoumission}</span>
+            <span className="font-semibold">{heureSoumission}</span>
           </div>
         </CardContent>
       </Card>

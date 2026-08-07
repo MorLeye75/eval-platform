@@ -14,6 +14,13 @@ export interface ChoixMock {
   estCorrect: boolean
 }
 
+export interface CasDeTestMock {
+  id: number
+  entree: string
+  sortieAttendue: string
+  estMasque: boolean // cas caché : non exécutable par l'étudiant, réservé à la correction
+}
+
 export interface QuestionMock {
   id: number
   enonce: string
@@ -21,7 +28,9 @@ export interface QuestionMock {
   type: TypeQuestionMock
   estChoixMultiple?: boolean // uniquement pour QCM
   choix?: ChoixMock[] // uniquement pour QCM
-  consigne?: string // aide facultative pour les questions ouvertes
+  consigne?: string // aide facultative pour les questions ouvertes/code
+  langagesAutorises?: string[] // uniquement pour CODE
+  casDeTests?: CasDeTestMock[] // uniquement pour CODE
 }
 
 export interface EvaluationMock {
@@ -108,15 +117,47 @@ export const evaluationsMock: EvaluationMock[] = [
 
   {
     id: 2,
-    titre: "Programmation C — exercice de code",
+    titre: "Algorithmique — exercice de code",
     description:
-      "Exercices de programmation en C avec exécution automatique contre des cas de test.",
+      "Résolvez les exercices dans le langage de votre choix. Votre code est exécuté automatiquement contre une série de cas de test.",
     type: "CODE",
     duree: 90,
     dateLimite: "15 juil. 2026 à 23h59",
-    statut: "a_venir",
+    statut: "disponible",
     noteStandard: 20,
-    questions: [],
+    questions: [
+      {
+        id: 30,
+        type: "CODE",
+        enonce:
+          "Écrivez un programme qui lit un entier n sur l'entrée standard et affiche la somme des entiers de 1 à n.",
+        points: 10,
+        consigne:
+          "L'entrée contient un seul entier. La sortie doit contenir uniquement le résultat, suivi d'un retour à la ligne.",
+        langagesAutorises: ["c", "cpp", "java", "python", "javascript"],
+        casDeTests: [
+          { id: 300, entree: "5", sortieAttendue: "15", estMasque: false },
+          { id: 301, entree: "10", sortieAttendue: "55", estMasque: false },
+          { id: 302, entree: "100", sortieAttendue: "5050", estMasque: true },
+          { id: 303, entree: "1", sortieAttendue: "1", estMasque: true },
+        ],
+      },
+      {
+        id: 31,
+        type: "CODE",
+        enonce:
+          "Écrivez un programme qui lit une chaîne de caractères et affiche « OUI » si c'est un palindrome, « NON » sinon.",
+        points: 10,
+        consigne: "La comparaison est sensible à la casse. Sortie exacte attendue : OUI ou NON.",
+        langagesAutorises: ["c", "cpp", "java", "python", "javascript"],
+        casDeTests: [
+          { id: 310, entree: "radar", sortieAttendue: "OUI", estMasque: false },
+          { id: 311, entree: "bonjour", sortieAttendue: "NON", estMasque: false },
+          { id: 312, entree: "a", sortieAttendue: "OUI", estMasque: true },
+          { id: 313, entree: "abba", sortieAttendue: "OUI", estMasque: true },
+        ],
+      },
+    ],
   },
 
   {

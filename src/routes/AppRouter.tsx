@@ -1,12 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "./ProtectedRoute"
 import LoginPage from "@/pages/LoginPage"
+import ForgotPasswordPage from "@/pages/ForgotPasswordPage"
+import ResetPasswordPage from "@/pages/ResetPasswordPage"
 import { EtudiantLayout } from "@/layouts/EtudiantLayout"
 import { ExamenLayout } from "@/layouts/ExamenLayout"
 import DashboardEtudiant from "@/pages/etudiant/DashboardEtudiant"
 import ListeEvaluations from "@/pages/etudiant/ListeEvaluations"
 import DetailEvaluation from "@/pages/etudiant/DetailEvaluation"
 import PassationQCM from "@/pages/etudiant/passation/PassationQCM"
+import PassationOuverte from "@/pages/etudiant/passation/PassationOuverte"
+import PassationCode from "@/pages/etudiant/passation/PassationCode"
 import ConfirmationSoumission from "@/pages/etudiant/passation/ConfirmationSoumission"
 import ExpirationScreen from "@/pages/etudiant/passation/ExpirationScreen"
 import ResultatsDetail from "@/pages/etudiant/ResultatsDetail"
@@ -18,6 +22,9 @@ export function AppRouter() {
       <Routes>
         {/* Routes publiques */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
 
         {/* Espace étudiant — navigation normale avec sidebar */}
         <Route
@@ -50,11 +57,11 @@ export function AppRouter() {
           }
         >
           <Route path=":id/qcm" element={<PassationQCM />} />
+          <Route path=":id/ouverte" element={<PassationOuverte />} />
+          <Route path=":id/code" element={<PassationCode />} />
           <Route path=":id/confirmation" element={<ConfirmationSoumission />} />
           <Route path=":id/expiration" element={<ExpirationScreen />} />
           {/* Futures passations :
-              <Route path=":id/ouverte" element={<PassationOuverte />} />
-              <Route path=":id/code" element={<PassationCode />} />
               <Route path=":id/quiz" element={<PassationQuiz />} /> */}
         </Route>
 
