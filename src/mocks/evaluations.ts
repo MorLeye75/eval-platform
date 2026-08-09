@@ -39,6 +39,7 @@ export interface EvaluationMock {
   description: string
   type: TypeEval
   duree: number // minutes
+  dureeQuestion?: number // secondes — uniquement pour les évaluations de type QUIZ
   dateLimite: string
   statut: StatutEval
   noteStandard: number // barème défini par l'enseignant
@@ -235,13 +236,80 @@ export const evaluationsMock: EvaluationMock[] = [
     id: 4,
     titre: "Bases de données — quiz chronométré",
     description:
-      "Quiz sur le modèle relationnel, SQL et la normalisation. Chaque question a une durée limitée.",
+      "Quiz rapide sur le modèle relationnel, SQL et la normalisation. Chaque question dispose de 30 secondes. Aucun retour en arrière n'est possible.",
     type: "QUIZ",
-    duree: 30,
+    duree: 5,
+    dureeQuestion: 30,
     dateLimite: "10 juil. 2026 à 18h00",
     statut: "disponible",
     noteStandard: 20,
-    questions: [],
+    questions: [
+      {
+        id: 40,
+        type: "QCM",
+        enonce: "Quelle commande SQL permet de supprimer une table entière ?",
+        points: 2,
+        estChoixMultiple: false,
+        choix: [
+          { id: 400, texte: "DELETE TABLE", estCorrect: false },
+          { id: 401, texte: "DROP TABLE", estCorrect: true },
+          { id: 402, texte: "REMOVE TABLE", estCorrect: false },
+          { id: 403, texte: "TRUNCATE TABLE", estCorrect: false },
+        ],
+      },
+      {
+        id: 41,
+        type: "QCM",
+        enonce: "Une clé étrangère sert à :",
+        points: 2,
+        estChoixMultiple: false,
+        choix: [
+          { id: 410, texte: "Identifier de manière unique une ligne", estCorrect: false },
+          { id: 411, texte: "Référencer la clé primaire d'une autre table", estCorrect: true },
+          { id: 412, texte: "Chiffrer les données sensibles", estCorrect: false },
+          { id: 413, texte: "Accélérer les requêtes de recherche", estCorrect: false },
+        ],
+      },
+      {
+        id: 42,
+        type: "QCM",
+        enonce: "Parmi ces propositions, lesquelles sont des formes normales ?",
+        points: 3,
+        estChoixMultiple: true,
+        choix: [
+          { id: 420, texte: "1NF", estCorrect: true },
+          { id: 421, texte: "2NF", estCorrect: true },
+          { id: 422, texte: "5NF", estCorrect: true },
+          { id: 423, texte: "9NF", estCorrect: false },
+        ],
+      },
+      {
+        id: 43,
+        type: "QCM",
+        enonce: "Quelle jointure retourne toutes les lignes de la table de gauche ?",
+        points: 2,
+        estChoixMultiple: false,
+        choix: [
+          { id: 430, texte: "INNER JOIN", estCorrect: false },
+          { id: 431, texte: "LEFT JOIN", estCorrect: true },
+          { id: 432, texte: "RIGHT JOIN", estCorrect: false },
+          { id: 433, texte: "CROSS JOIN", estCorrect: false },
+        ],
+      },
+      {
+        id: 44,
+        type: "QCM",
+        enonce: "Que garantit la propriété « Atomicité » des transactions ACID ?",
+        points: 2,
+        estChoixMultiple: false,
+        choix: [
+          { id: 440, texte: "Les données sont chiffrées", estCorrect: false },
+          { id: 441, texte: "La transaction s'exécute entièrement ou pas du tout", estCorrect: true },
+          { id: 442, texte: "Plusieurs utilisateurs peuvent écrire simultanément", estCorrect: false },
+          { id: 443, texte: "Les données survivent à une panne", estCorrect: false },
+        ],
+      },
+    ],
   },
 
   {
