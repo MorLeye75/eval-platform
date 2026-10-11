@@ -2,6 +2,7 @@ import { Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/context/AuthContext"
 import {
   ClipboardList,
   Award,
@@ -59,12 +60,14 @@ function StatutBadge({ statut, variant }: { statut: string; variant: string }) {
 }
 
 export default function DashboardEtudiant() {
+  const { user } = useAuth()
+
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-7">
       {/* En-tête */}
       <div>
         <h1 className="flex items-center gap-2 text-3xl font-extrabold tracking-tight">
-          Bonjour <span className="text-2xl">👋</span>
+          Bonjour{user?.prenom ? `, ${user.prenom}` : ""} <span className="text-2xl">👋</span>
         </h1>
         <p className="mt-1 text-muted-foreground">
           Voici un aperçu rapide de vos évaluations et de vos résultats.
@@ -113,30 +116,38 @@ export default function DashboardEtudiant() {
           />
         </CardHeader>
         <CardContent className="flex flex-col gap-0 p-0">
-          {evaluations.map((evaluation, index) => (
-            <div
-              key={evaluation.id}
-              className={`flex items-center justify-between gap-4 px-6 py-4 transition-colors hover:bg-muted/40 ${
-                index !== evaluations.length - 1 ? "border-b border-border/60" : ""
-              }`}
-            >
-              <div className="flex min-w-0 items-center gap-3">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                  <ClipboardList className="size-4 text-muted-foreground" />
+          {evaluations.map((evaluation, index) => {
+            const cible =
+              evaluation.statut === "Corrigée"
+                ? `/etudiant/resultats/${evaluation.id}`
+                : `/etudiant/evaluations/${evaluation.id}`
+
+            return (
+              <Link
+                key={evaluation.id}
+                to={cible}
+                className={`flex items-center justify-between gap-4 px-6 py-4 transition-colors hover:bg-muted/40 ${
+                  index !== evaluations.length - 1 ? "border-b border-border/60" : ""
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+                    <ClipboardList className="size-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold">{evaluation.titre}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {evaluation.detail}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold">{evaluation.titre}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {evaluation.detail}
-                  </p>
-                </div>
-              </div>
-              <StatutBadge
-                statut={evaluation.statut}
-                variant={evaluation.variant}
-              />
-            </div>
-          ))}
+                <StatutBadge
+                  statut={evaluation.statut}
+                  variant={evaluation.variant}
+                />
+              </Link>
+            )
+          })}
         </CardContent>
       </Card>
 
