@@ -1,15 +1,18 @@
-import { Link } from "react-router-dom"
+import { Link, useParams, useLocation } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { getEvaluation } from "@/mocks/evaluations"
 import { Clock, Home, ListChecks, Lock } from "lucide-react"
 
 export default function ExpirationScreen() {
-  // Données mockées — à remplacer par la réponse du serveur
-  const recapitulatif = {
-    titre: "Structures de données — QCM",
-    questionsRepondues: 2,
-    questionsTotal: 3,
-  }
+  const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const evaluation = getEvaluation(id)
+  const state = location.state as { titre?: string; traitees?: number; total?: number } | null
+
+  const titre = state?.titre ?? evaluation?.titre ?? "Évaluation"
+  const total = state?.total ?? evaluation?.questions.length ?? 0
+  const traitees = state?.traitees
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-6 py-8 text-center">
@@ -33,14 +36,16 @@ export default function ExpirationScreen() {
         <CardContent className="flex flex-col gap-3 py-5 text-left text-sm">
           <div className="flex items-center justify-between gap-4">
             <span className="text-muted-foreground">Évaluation</span>
-            <span className="font-semibold">{recapitulatif.titre}</span>
+            <span className="font-semibold">{titre}</span>
           </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-muted-foreground">Questions traitées</span>
-            <span className="font-semibold">
-              {recapitulatif.questionsRepondues} / {recapitulatif.questionsTotal}
-            </span>
-          </div>
+          {total > 0 && (
+            <div className="flex items-center justify-between gap-4">
+              <span className="text-muted-foreground">Questions de l'épreuve</span>
+              <span className="font-semibold">
+                {traitees !== undefined ? `${traitees} / ${total}` : `${total} question${total > 1 ? "s" : ""}`}
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 

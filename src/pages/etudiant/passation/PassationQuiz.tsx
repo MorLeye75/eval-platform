@@ -7,6 +7,8 @@ import { Progress } from "@/components/ui/progress"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { getEvaluation } from "@/mocks/evaluations"
+import { useExamTimer } from "@/hooks/useExamTimer"
+import { useAntiCheat } from "@/hooks/useAntiCheat"
 import {
   Clock,
   Timer,
@@ -29,25 +31,36 @@ export default function PassationQuiz() {
   const [indexCourant, setIndexCourant] = useState(0)
   const [reponses, setReponses] = useState<Record<number, number[]>>({})
   const [tempsQuestion, setTempsQuestion] = useState(dureeQuestion)
-  const [tempsGlobal, setTempsGlobal] = useState((evaluation?.duree ?? 5) * 60)
-  const [changementsOnglet, setChangementsOnglet] = useState(0)
+
+  const { changementsOnglet } = useAntiCheat({ enabled: demarre })
+
+  const { tempsRestant: tempsGlobal } = useExamTimer({
+    dureeMinutes: evaluation?.duree ?? 5,
+    onExpire: () => navigate(`/examen/${id}/expiration`),
+    enabled: demarre && !!evaluation,
+  })
 
   const question = questions[indexCourant]
   const estDerniere = indexCourant === questions.length - 1
 
   // ---------- Passage à la question suivante (ou fin) ----------
   const questionSuivante = useCallback(() => {
-    // TODO backend : PUT /api/soumissions/{id}/sauvegarder — sauvegarde à CHAQUE
-    // question validée, car le retour en arrière est impossible
     console.log("Sauvegarde de la question", question?.id, reponses[question?.id])
 
     if (estDerniere) {
-      navigate(`/examen/${id}/confirmation`)
+      const nbTraitees = Object.keys(reponses).length
+      navigate(`/examen/${id}/confirmation`, {
+        state: {
+          titre: evaluation?.titre ?? "Quiz chronométré",
+          traitees: nbTraitees,
+          total: questions.length,
+        },
+      })
     } else {
       setIndexCourant((i) => i + 1)
       setTempsQuestion(dureeQuestion)
     }
-  }, [estDerniere, navigate, id, dureeQuestion, question, reponses])
+  }, [estDerniere, navigate, id, dureeQuestion, question, reponses, evaluation, questions.length])
 
   // ---------- Chrono par question ----------
   useEffect(() => {
@@ -64,31 +77,6 @@ export default function PassationQuiz() {
     }, 1000)
     return () => clearInterval(timer)
   }, [demarre, indexCourant, evaluation, dureeQuestion, questionSuivante])
-
-  // ---------- Chrono global ----------
-  useEffect(() => {
-    if (!demarre || !evaluation) return
-    const timer = setInterval(() => {
-      setTempsGlobal((t) => {
-        if (t <= 1) {
-          clearInterval(timer)
-          navigate(`/examen/${id}/expiration`)
-          return 0
-        }
-        return t - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [demarre, evaluation, id, navigate])
-
-  // ---------- Anti-triche ----------
-  useEffect(() => {
-    function handleVisibilite() {
-      if (document.hidden) setChangementsOnglet((n) => n + 1)
-    }
-    document.addEventListener("visibilitychange", handleVisibilite)
-    return () => document.removeEventListener("visibilitychange", handleVisibilite)
-  }, [])
 
   // ---------- Cas d'erreur ----------
   if (!evaluation || questions.length === 0) {

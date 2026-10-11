@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,6 +14,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { getEvaluation } from "@/mocks/evaluations"
+import { useExamTimer } from "@/hooks/useExamTimer"
+import { useAutoSave } from "@/hooks/useAutoSave"
+import { useAntiCheat } from "@/hooks/useAntiCheat"
 import {
   Clock,
   ChevronLeft,
@@ -33,57 +36,19 @@ export default function PassationQCM() {
 
   const [indexCourant, setIndexCourant] = useState(0)
   const [reponses, setReponses] = useState<Record<number, number[]>>({})
-  const [tempsRestant, setTempsRestant] = useState(
-    (evaluation?.duree ?? 45) * 60
-  )
-  const [derniereSauvegarde, setDerniereSauvegarde] = useState<string | null>(null)
   const [dialogOuvert, setDialogOuvert] = useState(false)
-  const [changementsOnglet, setChangementsOnglet] = useState(0)
 
-  // ---------- Timer (côté client pour l'instant ; à recalculer serveur plus tard) ----------
-  useEffect(() => {
-    if (!evaluation) return
-    const timer = setInterval(() => {
-      setTempsRestant((t) => {
-        if (t <= 1) {
-          clearInterval(timer)
-          navigate(`/examen/${id}/expiration`)
-          return 0
-        }
-        return t - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [id, navigate, evaluation])
+  const { tempsRestant } = useExamTimer({
+    dureeMinutes: evaluation?.duree ?? 45,
+    onExpire: () => navigate(`/examen/${id}/expiration`),
+    enabled: !!evaluation,
+  })
 
-  // ---------- Sauvegarde automatique toutes les 30 s ----------
-  // TODO backend : remplacer par PUT /api/soumissions/{id}/sauvegarder
-  const reponsesRef = useRef(reponses)
-  reponsesRef.current = reponses
+  const { derniereSauvegarde } = useAutoSave({
+    data: reponses,
+  })
 
-  useEffect(() => {
-    const autoSave = setInterval(() => {
-      const maintenant = new Date().toLocaleTimeString("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-      setDerniereSauvegarde(maintenant)
-      console.log("Sauvegarde auto (mock) :", reponsesRef.current)
-    }, 30000)
-    return () => clearInterval(autoSave)
-  }, [])
-
-  // ---------- Anti-triche : détection de changement d'onglet ----------
-  // TODO backend : envoyer un log au serveur à chaque détection
-  useEffect(() => {
-    function handleVisibilite() {
-      if (document.hidden) {
-        setChangementsOnglet((n) => n + 1)
-      }
-    }
-    document.addEventListener("visibilitychange", handleVisibilite)
-    return () => document.removeEventListener("visibilitychange", handleVisibilite)
-  }, [])
+  const { changementsOnglet } = useAntiCheat()
 
   // ---------- Cas d'erreur : évaluation introuvable ou sans questions ----------
   if (!evaluation || questions.length === 0) {
