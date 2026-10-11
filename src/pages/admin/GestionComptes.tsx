@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Button } from "@/components/ui/button"
 import type { UtilisateurAdmin } from "@/types"
 
 /* ---------------------------------------------------------------
@@ -46,8 +47,18 @@ function getInitiales(u: UtilisateurAdmin) {
 
 function formatDate(iso: string | null) {
   if (!iso) return "—"
-  const diff = Math.round((new Date(iso).getTime() - Date.now()) / 60000)
-  return new Intl.RelativeTimeFormat("fr", { numeric: "auto" }).format(diff, "minute")
+  const diffMs = new Date(iso).getTime() - Date.now()
+  const diffSec = Math.round(diffMs / 1000)
+  const diffMin = Math.round(diffSec / 60)
+  const diffHour = Math.round(diffMin / 60)
+  const diffDay = Math.round(diffHour / 24)
+  const diffMonth = Math.round(diffDay / 30)
+
+  const rtf = new Intl.RelativeTimeFormat("fr", { numeric: "auto" })
+  if (Math.abs(diffMin) < 60) return rtf.format(diffMin, "minute")
+  if (Math.abs(diffHour) < 24) return rtf.format(diffHour, "hour")
+  if (Math.abs(diffDay) < 30) return rtf.format(diffDay, "day")
+  return rtf.format(diffMonth, "month")
 }
 
 const TABS = ["tous", "etudiants", "enseignants", "admins"] as const
@@ -79,9 +90,9 @@ export default function GestionComptes() {
             Créez, modifiez ou désactivez les comptes utilisateurs.
           </p>
         </div>
-        <button className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90">
+        <Button className="rounded-xl">
           <Plus className="size-4" /> Nouveau compte
-        </button>
+        </Button>
       </div>
 
       {/* Barre outils */}

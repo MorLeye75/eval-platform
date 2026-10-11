@@ -1,8 +1,8 @@
 import { Eye, Users, AlertTriangle, FileText, Clock } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import type { EvaluationEnCours, AlerteAntTriche, NiveauAlerte } from "@/types"
+import { StatCard } from "@/components/admin/AdminWidgets"
 
 /* ---------------------------------------------------------------
    Données mockées — à remplacer par :
@@ -56,7 +56,7 @@ export default function SupervisionGlobale() {
       <div className="flex flex-col gap-3">
         <h2 className="font-semibold">Évaluations en cours</h2>
         {MOCK_EVALS.map((e) => {
-          const pct = Math.round((e.nbSoumis / e.nbAttendus) * 100)
+          const pct = e.nbAttendus > 0 ? Math.round((e.nbSoumis / e.nbAttendus) * 100) : 0
           return (
             <Card key={e.id} className="rounded-2xl border-border/60 shadow-sm">
               <CardContent className="flex items-center gap-4 p-4">
@@ -99,26 +99,6 @@ export default function SupervisionGlobale() {
 }
 
 /* ── Sous-composants ───────────────────────────────────────── */
-
-function StatCard({ label, value, icon: Icon, hint, dir }: {
-  label: string; value: string; icon: LucideIcon; hint?: string; dir?: "up" | "down"
-}) {
-  const hintCls = dir === "up" ? "text-primary" : dir === "down" ? "text-destructive" : "text-muted-foreground"
-  return (
-    <Card className="rounded-2xl border-border/60 shadow-sm">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
-        <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <Icon className="size-4" />
-        </span>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-extrabold tracking-tight">{value}</div>
-        {hint && <p className={`mt-0.5 text-[11px] ${hintCls}`}>{hint}</p>}
-      </CardContent>
-    </Card>
-  )
-}
 
 function AlertRow({ alerte }: { alerte: AlerteAntTriche }) {
   const IconComp = alerte.niveau === "INFO" ? Clock : AlertTriangle
