@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
 import { useAuth } from "@/context/AuthContext"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -24,8 +24,14 @@ export function LoginForm({
     setChargement(true)
 
     try {
-      await login(email, motDePasse)
-      navigate("/")
+      const loggedUser = await login(email, motDePasse)
+      if (loggedUser.role === "ADMIN") {
+        navigate("/admin")
+      } else if (loggedUser.role === "ENSEIGNANT") {
+        navigate("/enseignant")
+      } else {
+        navigate("/etudiant/dashboard")
+      }
     } catch {
       setErreur("Email ou mot de passe incorrect.")
     } finally {
@@ -60,12 +66,12 @@ export function LoginForm({
         <div className="grid gap-3">
           <div className="flex items-center">
             <Label htmlFor="password">Mot de passe</Label>
-            <a
-              href="/forgot-password"
+            <Link
+              to="/forgot-password"
               className="ml-auto text-sm underline-offset-4 hover:underline"
             >
               Mot de passe oublié ?
-            </a>
+            </Link>
           </div>
           <Input
             id="password"
@@ -84,7 +90,6 @@ export function LoginForm({
           {chargement ? "Connexion..." : "Se connecter"}
         </Button>
       </div>
-      
     </form>
   )
 }

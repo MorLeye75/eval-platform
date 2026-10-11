@@ -11,10 +11,14 @@ export function ProtectedRoute({
   const { user, isAuthenticated } = useAuth()
 
   // Pas connecté → direction login
-  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!isAuthenticated || !user) return <Navigate to="/login" replace />
 
-  // Connecté mais pas le bon rôle (ex: un étudiant tente /admin) → renvoyé
-  if (!allowedRoles.includes(user!.role)) return <Navigate to="/" replace />
+  // Connecté mais pas le bon rôle (ex: un étudiant tente /admin) → renvoyé vers son propre espace
+  if (!allowedRoles.includes(user.role)) {
+    if (user.role === "ADMIN") return <Navigate to="/admin" replace />
+    if (user.role === "ENSEIGNANT") return <Navigate to="/enseignant" replace />
+    return <Navigate to="/etudiant/dashboard" replace />
+  }
 
   return <>{children}</>
 }
