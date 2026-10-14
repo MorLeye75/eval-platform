@@ -66,7 +66,6 @@ export default function ParametresSysteme() {
 
   function handleSave() {
     // TODO : mutation API → api.put("/admin/settings", form)
-    console.log("Sauvegarde :", form)
   }
 
   return (

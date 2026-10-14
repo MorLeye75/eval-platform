@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -31,12 +31,14 @@ export default function PassationQuiz() {
   const [indexCourant, setIndexCourant] = useState(0)
   const [reponses, setReponses] = useState<Record<number, number[]>>({})
   const [tempsQuestion, setTempsQuestion] = useState(dureeQuestion)
+  // Heure de fin de la question courante (le temps affiché en est dérivé : pas de dérive)
+  const [finQuestionA, setFinQuestionA] = useState<number | null>(null)
 
   const { changementsOnglet } = useAntiCheat({ enabled: demarre })
 
-  const { tempsRestant: tempsGlobal } = useExamTimer({
+  const { tempsRestantFormate: tempsGlobalFormate } = useExamTimer({
     dureeMinutes: evaluation?.duree ?? 5,
-    onExpire: () => navigate(`/examen/${id}/expiration`),
+    onExpire: () => navigate(`/examen/${id}/expiration`, { replace: true }),
     enabled: demarre && !!evaluation,
   })
 
@@ -44,12 +46,12 @@ export default function PassationQuiz() {
   const estDerniere = indexCourant === questions.length - 1
 
   // ---------- Passage à la question suivante (ou fin) ----------
-  const questionSuivante = useCallback(() => {
-    console.log("Sauvegarde de la question", question?.id, reponses[question?.id])
-
+  // TODO : POST /api/soumissions/{id}/reponses (sauvegarde de la question)
+  function questionSuivante() {
     if (estDerniere) {
-      const nbTraitees = Object.keys(reponses).length
+      const nbTraitees = Object.values(reponses).filter((r) => r.length > 0).length
       navigate(`/examen/${id}/confirmation`, {
+        replace: true,
         state: {
           titre: evaluation?.titre ?? "Quiz chronométré",
           traitees: nbTraitees,
@@ -59,24 +61,33 @@ export default function PassationQuiz() {
     } else {
       setIndexCourant((i) => i + 1)
       setTempsQuestion(dureeQuestion)
+      setFinQuestionA(Date.now() + dureeQuestion * 1000)
     }
-  }, [estDerniere, navigate, id, dureeQuestion, question, reponses, evaluation, questions.length])
+  }
 
-  // ---------- Chrono par question ----------
+  // La fonction est relue via une ref : les effets ci-dessous ne dépendent pas
+  // des réponses et le chrono n'est pas recréé à chaque clic.
+  const questionSuivanteRef = useRef(questionSuivante)
   useEffect(() => {
-    if (!demarre || !evaluation) return
-    const timer = setInterval(() => {
-      setTempsQuestion((t) => {
-        if (t <= 1) {
-          clearInterval(timer)
-          questionSuivante()
-          return dureeQuestion
-        }
-        return t - 1
-      })
-    }, 1000)
+    questionSuivanteRef.current = questionSuivante
+  })
+
+  // ---------- Chrono par question : décompte depuis l'heure de fin ----------
+  useEffect(() => {
+    if (!demarre || finQuestionA === null) return
+    const tick = () =>
+      setTempsQuestion(Math.max(0, Math.round((finQuestionA - Date.now()) / 1000)))
+    tick()
+    const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
-  }, [demarre, indexCourant, evaluation, dureeQuestion, questionSuivante])
+  }, [demarre, finQuestionA])
+
+  // Temps écoulé → question suivante (effet séparé : la mise à jour d'état reste pure)
+  useEffect(() => {
+    if (demarre && finQuestionA !== null && tempsQuestion === 0) {
+      questionSuivanteRef.current()
+    }
+  }, [demarre, finQuestionA, tempsQuestion])
 
   // ---------- Cas d'erreur ----------
   if (!evaluation || questions.length === 0) {
@@ -135,7 +146,10 @@ export default function PassationQuiz() {
           </CardContent>
         </Card>
 
-        <Button size="lg" className="w-full shadow-md" onClick={() => setDemarre(true)}>
+        <Button size="lg" className="w-full shadow-md" onClick={() => {
+            setDemarre(true)
+            setFinQuestionA(Date.now() + dureeQuestion * 1000)
+          }}>
           <Zap className="mr-1 size-4" />
           Commencer le quiz
         </Button>
@@ -158,12 +172,6 @@ export default function PassationQuiz() {
           : actuelles.filter((c) => c !== choixId),
       }
     })
-  }
-
-  function formatTemps(secondes: number) {
-    const m = Math.floor(secondes / 60)
-    const s = secondes % 60
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
   }
 
   const pourcentageQuestion = (tempsQuestion / dureeQuestion) * 100
@@ -198,7 +206,7 @@ export default function PassationQuiz() {
             <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
               <span className="flex items-center gap-1.5">
                 <Clock className="size-3.5" />
-                Total : {formatTemps(tempsGlobal)}
+                Total : {tempsGlobalFormate}
               </span>
               <span>
                 Question {indexCourant + 1} / {questions.length}

@@ -38,9 +38,9 @@ export default function PassationQCM() {
   const [reponses, setReponses] = useState<Record<number, number[]>>({})
   const [dialogOuvert, setDialogOuvert] = useState(false)
 
-  const { tempsRestant } = useExamTimer({
+  const { tempsRestant, tempsRestantFormate } = useExamTimer({
     dureeMinutes: evaluation?.duree ?? 45,
-    onExpire: () => navigate(`/examen/${id}/expiration`),
+    onExpire: () => navigate(`/examen/${id}/expiration`, { replace: true }),
     enabled: !!evaluation,
   })
 
@@ -90,12 +90,6 @@ export default function PassationQCM() {
     })
   }
 
-  function formatTemps(secondes: number) {
-    const m = Math.floor(secondes / 60)
-    const s = secondes % 60
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
-  }
-
   const tempsCritique = tempsRestant < 300 // moins de 5 min
 
   return (
@@ -117,7 +111,7 @@ export default function PassationQCM() {
               }`}
             >
               <Clock className="size-4" />
-              {formatTemps(tempsRestant)}
+              {tempsRestantFormate}
             </span>
             <span className="text-sm text-muted-foreground">
               {nbRepondues} / {questions.length} répondues
@@ -294,6 +288,7 @@ export default function PassationQCM() {
               onClick={() => {
                 // TODO backend : POST /api/soumissions/{id}/soumettre
                 navigate(`/examen/${id}/confirmation`, {
+                  replace: true,
                   state: {
                     titre: evaluation.titre,
                     traitees: nbRepondues,

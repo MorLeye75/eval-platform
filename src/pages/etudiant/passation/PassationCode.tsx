@@ -65,9 +65,9 @@ export default function PassationCode() {
   const [execution, setExecution] = useState(false)
   const [dialogOuvert, setDialogOuvert] = useState(false)
 
-  const { tempsRestant } = useExamTimer({
+  const { tempsRestant, tempsRestantFormate } = useExamTimer({
     dureeMinutes: evaluation?.duree ?? 90,
-    onExpire: () => navigate(`/examen/${id}/expiration`),
+    onExpire: () => navigate(`/examen/${id}/expiration`, { replace: true }),
     enabled: !!evaluation,
   })
 
@@ -107,10 +107,12 @@ export default function PassationCode() {
   function changerLangage(langage: string | null) {
     if (!langage) return
     setLangages((l) => ({ ...l, [question.id]: langage }))
+    setResultats((r) => ({ ...r, [question.id]: [] }))
   }
 
   function changerCode(valeur: string | undefined) {
     setCodes((c) => ({ ...c, [question.id]: valeur ?? "" }))
+    setResultats((r) => ({ ...r, [question.id]: [] }))
   }
 
   async function executerCode() {
@@ -124,12 +126,6 @@ export default function PassationCode() {
     }))
     setResultats((r) => ({ ...r, [question.id]: resultatsSimules }))
     setExecution(false)
-  }
-
-  function formatTemps(secondes: number) {
-    const m = Math.floor(secondes / 60)
-    const s = secondes % 60
-    return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
   }
 
   const tempsCritique = tempsRestant < 300
@@ -153,7 +149,7 @@ export default function PassationCode() {
               }`}
             >
               <Clock className="size-4" />
-              {formatTemps(tempsRestant)}
+              {tempsRestantFormate}
             </span>
             <span className="text-sm text-muted-foreground">
               {nbTraitees} / {questions.length} traitées
@@ -397,6 +393,7 @@ export default function PassationCode() {
               onClick={() => {
                 // TODO backend : POST /api/soumissions/{id}/soumettre
                 navigate(`/examen/${id}/confirmation`, {
+                  replace: true,
                   state: {
                     titre: evaluation.titre,
                     traitees: nbTraitees,

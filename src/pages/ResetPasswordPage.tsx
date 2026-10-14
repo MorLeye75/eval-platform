@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,13 @@ export default function ResetPasswordPage() {
   const [erreur, setErreur] = useState<string | null>(null)
   const [succes, setSucces] = useState(false)
 
+  // Redirection après succès, annulée si l'utilisateur quitte la page
+  useEffect(() => {
+    if (!succes) return
+    const t = setTimeout(() => navigate("/login"), 2500)
+    return () => clearTimeout(t)
+  }, [succes, navigate])
+
   // Règles de validation affichées à l'utilisateur
   const regles = [
     { libelle: `Au moins ${LONGUEUR_MIN} caractères`, valide: motDePasse.length >= LONGUEUR_MIN },
@@ -54,7 +61,6 @@ export default function ResetPasswordPage() {
       // TODO backend : POST /api/auth/reinitialiser { token, motDePasse }
       await new Promise((r) => setTimeout(r, 800)) // simulation
       setSucces(true)
-      setTimeout(() => navigate("/login"), 2500)
     } catch {
       setErreur("Le lien est invalide ou a expiré. Veuillez refaire une demande.")
     } finally {

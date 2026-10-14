@@ -2,12 +2,12 @@ import { lazy, Suspense } from "react"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { ProtectedRoute } from "./ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
+import { accueilPour } from "@/lib/roles"
 import { PageLoader } from "@/components/PageLoader"
 import { EtudiantLayout } from "@/layouts/EtudiantLayout"
 import { ExamenLayout } from "@/layouts/ExamenLayout"
 import { EnseignantLayout } from "@/layouts/EnseignantLayout"
 import { AdminLayout } from "@/layouts/AdminLayout"
-import { FeaturePlaceholder } from "@/components/FeaturePlaceholder"
 
 // Lazy-loaded pages to enable code splitting and reduce initial bundle size
 const LoginPage = lazy(() => import("@/pages/LoginPage"))
@@ -33,6 +33,18 @@ const ExpirationScreen = lazy(() => import("@/pages/etudiant/passation/Expiratio
 // Enseignant
 const DashboardEnseignant = lazy(() => import("@/pages/enseignant/DashboardEnseignant"))
 const ListeEvaluationsEnseignant = lazy(() => import("@/pages/enseignant/ListeEvaluationsEnseignant"))
+const InfosGenerales = lazy(() => import("@/pages/enseignant/creation/InfosGenerales"))
+const BuilderQuestions = lazy(() => import("@/pages/enseignant/creation/BuilderQuestions"))
+const Previsualisation = lazy(() => import("@/pages/enseignant/creation/Previsualisation"))
+const SupervisionTempsReel = lazy(() => import("@/pages/enseignant/SupervisionTempsReel"))
+const ValidationIA = lazy(() => import("@/pages/enseignant/ValidationIA"))
+const StatistiquesEvaluation = lazy(() => import("@/pages/enseignant/StatistiquesEvaluation"))
+const PublicationResultats = lazy(() => import("@/pages/enseignant/PublicationResultats"))
+const ExportResultats = lazy(() => import("@/pages/enseignant/ExportResultats"))
+
+// Partagé
+const NotificationsShared = lazy(() => import("@/pages/NotificationsPage"))
+const ProfilePage = lazy(() => import("@/pages/ProfilePage"))
 
 // Admin
 const DashboardAdmin = lazy(() => import("@/pages/admin/DashboardAdmin"))
@@ -44,9 +56,7 @@ const ParametresSysteme = lazy(() => import("@/pages/admin/ParametresSysteme"))
 function IndexRedirect() {
   const { user, isAuthenticated } = useAuth()
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />
-  if (user.role === "ADMIN") return <Navigate to="/admin" replace />
-  if (user.role === "ENSEIGNANT") return <Navigate to="/enseignant" replace />
-  return <Navigate to="/etudiant/dashboard" replace />
+  return <Navigate to={accueilPour(user.role)} replace />
 }
 
 export function AppRouter() {
@@ -76,6 +86,7 @@ export function AppRouter() {
             <Route path="resultats/:id" element={<ResultatsDetail />} />
             <Route path="performances" element={<TableauBordPerformance />} />
             <Route path="notifications" element={<NotificationsPage />} />
+            <Route path="profil" element={<ProfilePage />} />
           </Route>
 
           {/* Mode examen — interface épurée sans navigation latérale */}
@@ -106,30 +117,18 @@ export function AppRouter() {
           >
             <Route index element={<DashboardEnseignant />} />
             <Route path="evaluations" element={<ListeEvaluationsEnseignant />} />
-            <Route
-              path="evaluations/creation"
-              element={<FeaturePlaceholder titre="Création d'évaluation" retourUrl="/enseignant/evaluations" />}
-            />
-            <Route
-              path="supervision"
-              element={<FeaturePlaceholder titre="Supervision Live" />}
-            />
-            <Route
-              path="validation-ia"
-              element={<FeaturePlaceholder titre="Validation des propositions IA" />}
-            />
-            <Route
-              path="statistiques"
-              element={<FeaturePlaceholder titre="Statistiques Enseignant" />}
-            />
-            <Route
-              path="publication"
-              element={<FeaturePlaceholder titre="Publication des résultats" />}
-            />
-            <Route
-              path="export"
-              element={<FeaturePlaceholder titre="Export des résultats" />}
-            />
+            <Route path="evaluations/creation" element={<InfosGenerales />} />
+            <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
+            <Route path="evaluations/creation/previsualisation" element={<Previsualisation />} />
+            {/* TODO : page d'édition dédiée — réutilise l'étape 1 en attendant */}
+            <Route path="evaluations/:id/edition" element={<InfosGenerales />} />
+            <Route path="supervision/:id?" element={<SupervisionTempsReel />} />
+            <Route path="validation-ia" element={<ValidationIA />} />
+            <Route path="statistiques/:id?" element={<StatistiquesEvaluation />} />
+            <Route path="publication" element={<PublicationResultats />} />
+            <Route path="export" element={<ExportResultats />} />
+            <Route path="notifications" element={<NotificationsShared />} />
+            <Route path="profil" element={<ProfilePage />} />
           </Route>
 
           {/* Espace admin */}
@@ -146,6 +145,7 @@ export function AppRouter() {
             <Route path="supervision" element={<SupervisionGlobale />} />
             <Route path="statistiques" element={<StatistiquesGlobales />} />
             <Route path="parametres" element={<ParametresSysteme />} />
+            <Route path="profil" element={<ProfilePage />} />
           </Route>
 
           {/* Par défaut → redirection intelligente selon statut et rôle */}

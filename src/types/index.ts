@@ -143,7 +143,7 @@ export interface TableauDeBordEtudiant {
   rang: number
 }
 
-// ADDITIONS pour l'espace Admin — à fusionner dans src/types/index.ts
+// ---------- Espace Admin ----------
 
 
 // ---------- Statut compte (§3.3 du CDC) ----------
@@ -182,7 +182,7 @@ export interface EvaluationEnCours {
 // ---------- Alerte anti-triche ----------
 export type NiveauAlerte = "INFO" | "MODERE" | "ELEVE"
 
-export interface AlerteAntTriche {
+export interface AlerteAntiTriche {
   id: number
   etudiantId: number
   evaluationId: number
@@ -190,3 +190,6 @@ export interface AlerteAntTriche {
   niveau: NiveauAlerte
   date: string             // ISO 8601
 }
+
+// ---------- Notifications ----------
+export type TypeNotification = "RESULTAT_PUBLIE" | "EVALUATION_OUVERTE" | "CORRECTION_VALIDEE"

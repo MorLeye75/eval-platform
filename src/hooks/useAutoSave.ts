@@ -3,13 +3,16 @@ import { useState, useEffect, useRef } from "react"
 interface UseAutoSaveOptions<T> {
   data: T
   intervalMs?: number
-  onSave?: (data: T) => void
+  /** Doit résoudre une fois la sauvegarde réussie, et rejeter en cas d'échec. */
+  onSave?: (data: T) => void | Promise<void>
   enabled?: boolean
 }
 
 /**
  * Hook gérant la sauvegarde automatique des réponses de l'étudiant
  * à intervalle régulier (par défaut 30 secondes).
+ * L'heure de dernière sauvegarde n'est mise à jour qu'après un `onSave` réussi,
+ * et rien n'est sauvegardé si les données n'ont pas changé.
  */
 export function useAutoSave<T>({
   data,
@@ -18,26 +21,32 @@ export function useAutoSave<T>({
   enabled = true,
 }: UseAutoSaveOptions<T>) {
   const [derniereSauvegarde, setDerniereSauvegarde] = useState<string | null>(null)
+  const [erreurSauvegarde, setErreurSauvegarde] = useState(false)
   const dataRef = useRef(data)
-  dataRef.current = data
-
   const onSaveRef = useRef(onSave)
-  onSaveRef.current = onSave
+  const dernierSerialise = useRef<string | null>(null)
+  useEffect(() => {
+    dataRef.current = data
+    onSaveRef.current = onSave
+  })
 
   useEffect(() => {
     if (!enabled) return
 
-    const autoSave = setInterval(() => {
-      const maintenant = new Date().toLocaleTimeString("fr-FR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-      setDerniereSauvegarde(maintenant)
+    const autoSave = setInterval(async () => {
+      const serialise = JSON.stringify(dataRef.current)
+      if (serialise === dernierSerialise.current) return
 
-      if (onSaveRef.current) {
-        onSaveRef.current(dataRef.current)
-      } else {
-        console.log("Sauvegarde auto (mock) :", dataRef.current)
+      try {
+        // TODO : POST /api/soumissions/{id}/sauvegarde via onSave
+        await onSaveRef.current?.(dataRef.current)
+        dernierSerialise.current = serialise
+        setErreurSauvegarde(false)
+        setDerniereSauvegarde(
+          new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+        )
+      } catch {
+        setErreurSauvegarde(true)
       }
     }, intervalMs)
 
@@ -46,6 +55,7 @@ export function useAutoSave<T>({
 
   return {
     derniereSauvegarde,
+    erreurSauvegarde,
     setDerniereSauvegarde,
   }
 }

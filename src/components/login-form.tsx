@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { accueilPour } from "@/lib/roles"
+import { isAxiosError } from "axios"
 
 export function LoginForm({
   className,
@@ -25,15 +27,15 @@ export function LoginForm({
 
     try {
       const loggedUser = await login(email, motDePasse)
-      if (loggedUser.role === "ADMIN") {
-        navigate("/admin")
-      } else if (loggedUser.role === "ENSEIGNANT") {
-        navigate("/enseignant")
+      navigate(accueilPour(loggedUser.role))
+    } catch (err) {
+      if (isAxiosError(err) && err.response?.status === 401) {
+        setErreur("Email ou mot de passe incorrect.")
+      } else if (isAxiosError(err) && !err.response) {
+        setErreur("Serveur injoignable. Réessayez dans un instant.")
       } else {
-        navigate("/etudiant/dashboard")
+        setErreur("Une erreur est survenue. Veuillez réessayer.")
       }
-    } catch {
-      setErreur("Email ou mot de passe incorrect.")
     } finally {
       setChargement(false)
     }

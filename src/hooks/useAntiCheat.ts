@@ -15,19 +15,16 @@ export function useAntiCheat({
 }: UseAntiCheatOptions = {}) {
   const [changementsOnglet, setChangementsOnglet] = useState(0)
   const onVisibilityChangeRef = useRef(onVisibilityChange)
-  onVisibilityChangeRef.current = onVisibilityChange
+  useEffect(() => {
+    onVisibilityChangeRef.current = onVisibilityChange
+  })
 
   useEffect(() => {
     if (!enabled) return
 
     function handleVisibilite() {
-      if (document.hidden) {
-        setChangementsOnglet((prev) => {
-          const next = prev + 1
-          onVisibilityChangeRef.current?.(next)
-          return next
-        })
-      }
+      if (!document.hidden) return
+      setChangementsOnglet((prev) => prev + 1)
     }
 
     document.addEventListener("visibilitychange", handleVisibilite)
@@ -35,6 +32,11 @@ export function useAntiCheat({
       document.removeEventListener("visibilitychange", handleVisibilite)
     }
   }, [enabled])
+
+  // Notification hors de la fonction de mise à jour (une seule fois par sortie)
+  useEffect(() => {
+    if (changementsOnglet > 0) onVisibilityChangeRef.current?.(changementsOnglet)
+  }, [changementsOnglet])
 
   return {
     changementsOnglet,

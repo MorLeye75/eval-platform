@@ -223,7 +223,9 @@ export default function ResultatsDetail() {
           const toutJuste =
             bonnesReponses.length === reponsesEtudiant.length &&
             bonnesReponses.every((b) => reponsesEtudiant.includes(b))
-          const pointsObtenus = toutJuste ? q.points : 0
+          // Questions ouvertes / code : on affiche la note fournie, jamais un calcul client
+          const pointsObtenus =
+            q.type === "QCM" ? (toutJuste ? q.points : 0) : (r.notesParQuestion?.[q.id] ?? 0)
 
           const reussie = pointsObtenus === q.points
           const commentaire = r.commentaires[q.id]

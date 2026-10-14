@@ -90,7 +90,7 @@ export default function GestionComptes() {
             Créez, modifiez ou désactivez les comptes utilisateurs.
           </p>
         </div>
-        <Button className="rounded-xl">
+        <Button className="rounded-xl" disabled title="Bientôt disponible">
           <Plus className="size-4" /> Nouveau compte
         </Button>
       </div>
@@ -167,12 +167,12 @@ export default function GestionComptes() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
+                      <Button variant="ghost" size="icon" disabled title="Bientôt disponible">
                         <Pencil className="size-3.5" />
-                      </button>
-                      <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
+                      </Button>
+                      <Button variant="ghost" size="icon" disabled title="Bientôt disponible">
                         <Trash2 className="size-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -186,10 +186,10 @@ export default function GestionComptes() {
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{filtered.length} sur {MOCK_USERS.length} utilisateurs</span>
         <div className="flex gap-1.5">
-          <button className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold transition-colors hover:bg-muted">
+          <button disabled className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold opacity-50">
             ← Précédent
           </button>
-          <button className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold transition-colors hover:bg-muted">
+          <button disabled className="rounded-lg border border-border bg-background px-3 py-1.5 font-semibold opacity-50">
             Suivant →
           </button>
         </div>

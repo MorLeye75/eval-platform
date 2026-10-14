@@ -58,7 +58,7 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               {menuItems.map((item) => {
-                const isActive = location.pathname === item.url
+                const isActive = location.pathname.startsWith(item.url)
                 return (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton

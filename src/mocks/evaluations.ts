@@ -56,6 +56,7 @@ export interface EvaluationMock {
     feedbackGeneral: string
     reponsesEtudiant: Record<number, number[]> // questionId -> choixIds choisis
     commentaires: Record<number, string> // questionId -> commentaire du prof
+    notesParQuestion?: Record<number, number> // questionId -> note (OUVERTE / CODE)
   }
 }
 
@@ -166,7 +167,7 @@ export const evaluationsMock: EvaluationMock[] = [
     titre: "Réseaux — questions ouvertes",
     description:
       "Questions ouvertes sur les protocoles réseau, l'adressage IP et le routage.",
-    type: "OUVERTE",
+    type: "QCM",
     duree: 60,
     dateLimite: "5 juil. 2026 à 23h59",
     statut: "terminee",

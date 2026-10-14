@@ -1,7 +1,7 @@
 import { Eye, Users, AlertTriangle, FileText, Clock } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import type { EvaluationEnCours, AlerteAntTriche, NiveauAlerte } from "@/types"
+import type { EvaluationEnCours, AlerteAntiTriche, NiveauAlerte } from "@/types"
 import { StatCard } from "@/components/admin/AdminWidgets"
 
 /* ---------------------------------------------------------------
@@ -19,7 +19,7 @@ const MOCK_EVALS: EvaluationEnCours[] = [
   { id: 3, titre: "Réseaux — questions ouvertes",     enseignant: { nom: "Mbaye", prenom: "Sokhna"  }, nbSoumis: 15, nbAttendus: 38, dateDebut: "2026-07-20T10:00:00", dateFin: "2026-07-20T11:00:00" },
 ]
 
-const MOCK_ALERTES: AlerteAntTriche[] = [
+const MOCK_ALERTES: AlerteAntiTriche[] = [
   { id: 1, etudiantId: 217, evaluationId: 3, description: "Changement d'onglet répété (4 fois)",  niveau: "MODERE", date: "2026-07-20T10:42:00" },
   { id: 2, etudiantId: 142, evaluationId: 2, description: "Perte de focus prolongée — 2 minutes", niveau: "ELEVE",  date: "2026-07-20T09:38:00" },
   { id: 3, etudiantId: 89,  evaluationId: 1, description: "Soumission auto à expiration du timer", niveau: "INFO",   date: "2026-07-20T08:58:00" },
@@ -100,7 +100,7 @@ export default function SupervisionGlobale() {
 
 /* ── Sous-composants ───────────────────────────────────────── */
 
-function AlertRow({ alerte }: { alerte: AlerteAntTriche }) {
+function AlertRow({ alerte }: { alerte: AlerteAntiTriche }) {
   const IconComp = alerte.niveau === "INFO" ? Clock : AlertTriangle
   return (
     <div className="flex items-center gap-3 border-b border-border py-3 last:border-none">
