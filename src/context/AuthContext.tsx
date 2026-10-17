@@ -16,6 +16,8 @@ interface AuthContextType {
   isAuthenticated: boolean
   login: (email: string, motDePasse: string) => Promise<User>
   logout: () => void
+  /** Met à jour l'utilisateur connecté (contexte + localStorage), ex. après édition du profil. */
+  updateUser: (patch: Partial<Pick<User, "nom" | "prenom" | "email">>) => void
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -49,8 +51,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  function updateUser(patch: Partial<Pick<User, "nom" | "prenom" | "email">>) {
+    setUser((current) => {
+      if (!current) return current
+      const next = { ...current, ...patch }
+      localStorage.setItem("user", JSON.stringify(next))
+      return next
+    })
+  }
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   )

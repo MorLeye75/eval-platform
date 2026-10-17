@@ -4,10 +4,12 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bell, CheckCheck, Award, ClipboardList, CheckCircle2 } from "lucide-react"
-import type { TypeNotification } from "@/types"
+import { useAuth } from "@/context/AuthContext"
+import type { Role, TypeNotification } from "@/types"
 
 // ============================================================
-// Données mockées — à remplacer par :
+// Page partagée par l'étudiant et l'enseignant.
+// Données mockées (par rôle) — à remplacer par :
 // const { data } = useQuery({
 //   queryKey: ["notifications"],
 //   queryFn: () => api.get("/notifications")
@@ -24,7 +26,7 @@ interface NotificationItem {
   dateEnvoi: string
 }
 
-const MOCK: NotificationItem[] = [
+const MOCK_ETUDIANT: NotificationItem[] = [
   { id: 1, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Structures de données — QCM\" ont été publiés. Votre note : 15 / 20.",             lue: false, dateEnvoi: "2026-07-13T10:00:00" },
   { id: 2, type: "EVALUATION_OUVERTE", message: "L'évaluation \"Algorithmique — exercice de code\" est maintenant disponible jusqu'au 15 juil. 23h59.", lue: false, dateEnvoi: "2026-07-12T08:00:00" },
   { id: 3, type: "CORRECTION_VALIDEE", message: "La correction IA de votre réponse à \"Génie logiciel\" a été validée par l'enseignant.",              lue: false, dateEnvoi: "2026-07-11T14:30:00" },
@@ -32,6 +34,17 @@ const MOCK: NotificationItem[] = [
   { id: 5, type: "EVALUATION_OUVERTE", message: "L'évaluation \"Bases de données — quiz\" est maintenant disponible jusqu'au 10 juil. 18h00.",         lue: true,  dateEnvoi: "2026-07-08T08:00:00" },
   { id: 6, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Systèmes d'exploitation — QCM\" ont été publiés. Votre note : 15 / 20.",           lue: true,  dateEnvoi: "2026-06-20T18:00:00" },
 ]
+
+const MOCK_ENSEIGNANT: NotificationItem[] = [
+  { id: 1, type: "EVALUATION_OUVERTE", message: "Votre évaluation \"Structures de données — QCM\" est ouverte aux étudiants jusqu'au 12 juil. 23h59.", lue: false, dateEnvoi: "2026-07-10T08:00:00" },
+  { id: 2, type: "CORRECTION_VALIDEE", message: "Toutes les corrections IA de \"Réseaux — questions ouvertes\" ont été validées.",                      lue: false, dateEnvoi: "2026-07-06T11:15:00" },
+  { id: 3, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Réseaux — questions ouvertes\" ont été publiés aux 38 étudiants.",                 lue: true,  dateEnvoi: "2026-07-05T16:00:00" },
+  { id: 4, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Systèmes d'exploitation — QCM\" ont été publiés aux 42 étudiants.",               lue: true,  dateEnvoi: "2026-06-20T18:00:00" },
+]
+
+function mockPour(role: Role | undefined): NotificationItem[] {
+  return role === "ENSEIGNANT" ? MOCK_ENSEIGNANT : MOCK_ETUDIANT
+}
 
 const TYPE_CONFIG: Record<TypeNotification, { icon: React.ElementType; cls: string; label: string }> = {
   RESULTAT_PUBLIE:    { icon: Award,         cls: "bg-primary/10 text-primary",                                    label: "Résultat"   },
@@ -51,7 +64,8 @@ function formatDate(iso: string) {
 }
 
 export default function NotificationsPage() {
-  const [notifs, setNotifs] = useState<NotificationItem[]>(MOCK)
+  const { user } = useAuth()
+  const [notifs, setNotifs] = useState<NotificationItem[]>(() => mockPour(user?.role))
   const [tab, setTab]       = useState("toutes")
 
   const nonLues = notifs.filter(n => !n.lue).length

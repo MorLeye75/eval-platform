@@ -24,6 +24,7 @@ interface CorrectionIA {
   question: string
   reponse: string
   noteProposeeIA: number
+  noteFinale?: number    // note retenue par l'enseignant (la proposition IA est conservée)
   pointsMax: number
   justificationIA: string
   statut: StatutProposition
@@ -87,6 +88,7 @@ export default function ValidationIA() {
   const [tab,         setTab]         = useState("EN_ATTENTE")
   const [expanded,    setExpanded]    = useState<number | null>(null)
   const [notes,       setNotes]       = useState<Record<number, string>>({})
+  const [erreurs,     setErreurs]     = useState<Record<number, string | undefined>>({})
 
   const filtered = corrections.filter(
     (c) => tab === "toutes" || c.statut === tab
@@ -94,23 +96,29 @@ export default function ValidationIA() {
 
   const nbEnAttente = corrections.filter((c) => c.statut === "EN_ATTENTE").length
 
-  function valider(id: number) {
-    const note = parseFloat(notes[id] ?? "")
-    const correction = corrections.find((c) => c.id === id)
-    if (!correction) return
-    const noteFinale = isNaN(note) ? correction.noteProposeeIA : note
-    // TODO : await api.put(`/enseignant/corrections-ia/${id}/valider`, { noteFinale })
-    setCorrections((cs) => cs.map((c) => c.id === id ? { ...c, statut: "VALIDEE", noteProposeeIA: noteFinale } : c))
-    setExpanded(null)
+  /**
+   * Note saisie par l'enseignant, ou `defaut` si le champ est vide.
+   * Renvoie null (et affiche une erreur) si la note sort de [0, pointsMax].
+   */
+  function lireNote(correction: CorrectionIA, defaut: number): number | null {
+    const saisie = (notes[correction.id] ?? "").trim()
+    if (saisie === "") return defaut
+    const note = Number(saisie.replace(",", "."))
+    if (!Number.isFinite(note) || note < 0 || note > correction.pointsMax) {
+      setErreurs((e) => ({ ...e, [correction.id]: `La note doit être comprise entre 0 et ${correction.pointsMax}.` }))
+      return null
+    }
+    return note
   }
 
-  function rejeter(id: number) {
-    const note = parseFloat(notes[id] ?? "")
+  function traiter(id: number, statut: "VALIDEE" | "REJETEE") {
     const correction = corrections.find((c) => c.id === id)
     if (!correction) return
-    const noteFinale = isNaN(note) ? 0 : note
-    // TODO : await api.put(`/enseignant/corrections-ia/${id}/rejeter`, { noteFinale })
-    setCorrections((cs) => cs.map((c) => c.id === id ? { ...c, statut: "REJETEE", noteProposeeIA: noteFinale } : c))
+    // Valider sans saisie = accepter la note IA ; rejeter sans saisie = 0
+    const noteFinale = lireNote(correction, statut === "VALIDEE" ? correction.noteProposeeIA : 0)
+    if (noteFinale === null) return
+    // TODO : await api.put(`/enseignant/corrections-ia/${id}/${statut === "VALIDEE" ? "valider" : "rejeter"}`, { noteFinale })
+    setCorrections((cs) => cs.map((c) => c.id === id ? { ...c, statut, noteFinale } : c))
     setExpanded(null)
   }
 
@@ -231,20 +239,27 @@ export default function ValidationIA() {
                             step={0.5}
                             placeholder={String(c.noteProposeeIA)}
                             value={notes[c.id] ?? ""}
-                            onChange={(e) => setNotes((n) => ({ ...n, [c.id]: e.target.value }))}
+                            onChange={(e) => {
+                              setNotes((n) => ({ ...n, [c.id]: e.target.value }))
+                              setErreurs((er) => ({ ...er, [c.id]: undefined }))
+                            }}
+                            aria-invalid={!!erreurs[c.id]}
                             className="w-24 rounded-lg"
                           />
                           <span className="text-sm text-muted-foreground">/ {c.pointsMax}</span>
                         </div>
+                        {erreurs[c.id] && (
+                          <p className="w-full text-xs text-destructive">{erreurs[c.id]}</p>
+                        )}
                         <div className="ml-auto flex gap-2">
                           <Button
                             variant="outline"
                             className="rounded-xl border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                            onClick={() => rejeter(c.id)}
+                            onClick={() => traiter(c.id, "REJETEE")}
                           >
                             <XCircle className="size-4" /> Rejeter
                           </Button>
-                          <Button className="rounded-xl" onClick={() => valider(c.id)}>
+                          <Button className="rounded-xl" onClick={() => traiter(c.id, "VALIDEE")}>
                             <CheckCircle2 className="size-4" /> Valider
                           </Button>
                         </div>
@@ -255,7 +270,10 @@ export default function ValidationIA() {
                     {c.statut !== "EN_ATTENTE" && (
                       <div className="flex items-center gap-2 rounded-xl bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
                         <CheckCircle2 className="size-4 text-primary" />
-                        Note attribuée : <span className="font-bold text-foreground">{c.noteProposeeIA} / {c.pointsMax}</span>
+                        Note attribuée : <span className="font-bold text-foreground">{c.noteFinale ?? c.noteProposeeIA} / {c.pointsMax}</span>
+                        {c.noteFinale !== undefined && c.noteFinale !== c.noteProposeeIA && (
+                          <span className="text-xs">(proposition IA : {c.noteProposeeIA})</span>
+                        )}
                       </div>
                     )}
 

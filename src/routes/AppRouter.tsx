@@ -20,7 +20,6 @@ const ListeEvaluations = lazy(() => import("@/pages/etudiant/ListeEvaluations"))
 const DetailEvaluation = lazy(() => import("@/pages/etudiant/DetailEvaluation"))
 const ResultatsDetail = lazy(() => import("@/pages/etudiant/ResultatsDetail"))
 const TableauBordPerformance = lazy(() => import("@/pages/etudiant/TableauBordPerformance"))
-const NotificationsPage = lazy(() => import("@/pages/etudiant/NotificationsPage"))
 
 // Passation
 const PassationQCM = lazy(() => import("@/pages/etudiant/passation/PassationQCM"))
@@ -43,7 +42,7 @@ const PublicationResultats = lazy(() => import("@/pages/enseignant/PublicationRe
 const ExportResultats = lazy(() => import("@/pages/enseignant/ExportResultats"))
 
 // Partagé
-const NotificationsShared = lazy(() => import("@/pages/NotificationsPage"))
+const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"))
 const ProfilePage = lazy(() => import("@/pages/ProfilePage"))
 
 // Admin
@@ -120,14 +119,16 @@ export function AppRouter() {
             <Route path="evaluations/creation" element={<InfosGenerales />} />
             <Route path="evaluations/creation/questions" element={<BuilderQuestions />} />
             <Route path="evaluations/creation/previsualisation" element={<Previsualisation />} />
-            {/* TODO : page d'édition dédiée — réutilise l'étape 1 en attendant */}
+            {/* Édition : même assistant, pré-rempli depuis l'évaluation :id */}
             <Route path="evaluations/:id/edition" element={<InfosGenerales />} />
+            <Route path="evaluations/:id/edition/questions" element={<BuilderQuestions />} />
+            <Route path="evaluations/:id/edition/previsualisation" element={<Previsualisation />} />
             <Route path="supervision/:id?" element={<SupervisionTempsReel />} />
             <Route path="validation-ia" element={<ValidationIA />} />
             <Route path="statistiques/:id?" element={<StatistiquesEvaluation />} />
             <Route path="publication" element={<PublicationResultats />} />
             <Route path="export" element={<ExportResultats />} />
-            <Route path="notifications" element={<NotificationsShared />} />
+            <Route path="notifications" element={<NotificationsPage />} />
             <Route path="profil" element={<ProfilePage />} />
           </Route>
 

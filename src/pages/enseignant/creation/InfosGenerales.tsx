@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useNavigate } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,31 +13,18 @@ import {
 } from "@/components/ui/select"
 import { ChevronRight, FileText } from "lucide-react"
 import type { StatutEvaluation } from "@/types"
+import {
+  useBrouillon,
+  validerInfos,
+  effacerBrouillon,
+  type InfosGeneralesForm,
+} from "./brouillon"
 
 // ============================================================
 // Étape 1 / 3 — Informations générales de l'évaluation
-// Les données sont passées via state à l'étape suivante
-// (BuilderQuestions) et envoyées en une seule fois au backend.
-// TODO : POST /api/enseignant/evaluations (depuis BuilderQuestions)
+// Les données sont conservées dans le brouillon (voir brouillon.ts)
+// et envoyées en une seule fois au backend depuis la prévisualisation.
 // ============================================================
-
-export interface InfosGeneralesForm {
-  titre: string
-  description: string
-  duree: number          // minutes
-  dateOuverture: string  // ISO 8601
-  dateFermeture: string  // ISO 8601
-  statut: StatutEvaluation
-}
-
-const DEFAULT: InfosGeneralesForm = {
-  titre: "",
-  description: "",
-  duree: 60,
-  dateOuverture: "",
-  dateFermeture: "",
-  statut: "BROUILLON",
-}
 
 // ──────────────────────────────────────────────────────────
 //  Stepper partagé (réutilisé dans les 2 étapes)
@@ -88,31 +75,41 @@ export function CreationStepper({ step }: { step: 1 | 2 | 3 }) {
 
 export default function InfosGenerales() {
   const navigate = useNavigate()
-  const [form, setForm] = useState<InfosGeneralesForm>(DEFAULT)
+  const { brouillon, setBrouillon, estEdition, evaluationIntrouvable, chemin } = useBrouillon()
+  const form = brouillon.infos
   const [errors, setErrors] = useState<Partial<Record<keyof InfosGeneralesForm, string>>>({})
 
   function set<K extends keyof InfosGeneralesForm>(key: K, val: InfosGeneralesForm[K]) {
-    setForm((f) => ({ ...f, [key]: val }))
+    setBrouillon((b) => ({ ...b, infos: { ...b.infos, [key]: val } }))
     setErrors((e) => ({ ...e, [key]: undefined }))
   }
 
-  function validate(): boolean {
-    const newErrors: typeof errors = {}
-    if (!form.titre.trim())       newErrors.titre        = "Le titre est obligatoire."
-    if (!form.description.trim()) newErrors.description  = "La description est obligatoire."
-    if (form.duree < 5)           newErrors.duree        = "La durée doit être d'au moins 5 minutes."
-    if (!form.dateOuverture)      newErrors.dateOuverture = "La date d'ouverture est obligatoire."
-    if (!form.dateFermeture)      newErrors.dateFermeture = "La date de fermeture est obligatoire."
-    if (form.dateOuverture && form.dateFermeture && form.dateFermeture <= form.dateOuverture)
-      newErrors.dateFermeture = "La fermeture doit être après l'ouverture."
+  function handleNext() {
+    const newErrors = validerInfos(form)
     setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
+    if (Object.keys(newErrors).length > 0) return
+    navigate(chemin("questions"))
   }
 
-  function handleNext() {
-    if (!validate()) return
-    // On passe les données à l'étape 2 via le state de navigation
-    navigate("/enseignant/evaluations/creation/questions", { state: { infos: form } })
+  function handleAnnuler() {
+    effacerBrouillon()
+    navigate("/enseignant/evaluations")
+  }
+
+  if (evaluationIntrouvable) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-10 text-center">
+        <Card className="w-full rounded-2xl border-border/60 shadow-sm">
+          <CardContent className="py-10 text-sm text-muted-foreground">
+            Cette évaluation est introuvable.
+          </CardContent>
+        </Card>
+        <Button
+          variant="outline"
+          render={<Link to="/enseignant/evaluations">Retour aux évaluations</Link>}
+        />
+      </div>
+    )
   }
 
   return (
@@ -120,7 +117,9 @@ export default function InfosGenerales() {
 
       {/* En-tête + stepper */}
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Nouvelle évaluation</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          {estEdition ? "Modifier l'évaluation" : "Nouvelle évaluation"}
+        </h1>
         <p className="mt-1 text-muted-foreground">Renseignez les informations générales.</p>
       </div>
       <CreationStepper step={1} />
@@ -219,7 +218,7 @@ export default function InfosGenerales() {
 
       {/* Navigation */}
       <div className="flex justify-end gap-3">
-        <Button variant="outline" className="rounded-xl" onClick={() => navigate(-1)}>
+        <Button variant="outline" className="rounded-xl" onClick={handleAnnuler}>
           Annuler
         </Button>
         <Button className="rounded-xl" onClick={handleNext}>

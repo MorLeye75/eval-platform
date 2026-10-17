@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
+import { Navigate, useNavigate } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -10,7 +10,8 @@ import {
   FileText,
   Send,
 } from "lucide-react"
-import { CreationStepper, type InfosGeneralesForm } from "./InfosGenerales"
+import { CreationStepper } from "./InfosGenerales"
+import { useBrouillon, validerInfos, erreurQuestion, effacerBrouillon } from "./brouillon"
 import type { StatutEvaluation, TypeQuestion } from "@/types"
 
 // ============================================================
@@ -42,34 +43,30 @@ function formatDT(iso: string) {
 
 export default function Previsualisation() {
   const navigate   = useNavigate()
-  const location   = useLocation()
-  const state      = location.state as { infos: InfosGeneralesForm; questions: any[] } | null
-  const infos      = state?.infos
-  const questions  = state?.questions ?? []
+  const { brouillon, estEdition, chemin } = useBrouillon()
+  const { infos, questions } = brouillon
   const [saving, setSaving] = useState(false)
 
-  const totalPoints = questions.reduce((s: number, q: any) => s + (q.points ?? 0), 0)
+  const totalPoints = questions.reduce((s, q) => s + q.points, 0)
 
   async function handlePublier() {
     setSaving(true)
     try {
-      // TODO : await api.post("/enseignant/evaluations", { infos, questions })
-      // Redirection après succès
+      // TODO : création → await api.post("/enseignant/evaluations", { infos, questions })
+      //        édition  → await api.put(`/enseignant/evaluations/${brouillon.evaluationId}`, { infos, questions })
+      effacerBrouillon()
       navigate("/enseignant/evaluations", { replace: true })
     } finally {
       setSaving(false)
     }
   }
 
-  if (!infos) {
-    return (
-      <div className="flex flex-col items-center gap-4 pt-20 text-center text-muted-foreground">
-        <p>Données manquantes. Recommencez depuis le début.</p>
-        <Button className="rounded-xl" onClick={() => navigate("/enseignant/evaluations/creation")}>
-          Recommencer
-        </Button>
-      </div>
-    )
+  // Étapes précédentes incomplètes (accès direct à l'URL) → on y renvoie
+  if (Object.keys(validerInfos(infos)).length > 0) {
+    return <Navigate to={chemin("infos")} replace />
+  }
+  if (questions.length === 0 || questions.some((q) => erreurQuestion(q) !== null)) {
+    return <Navigate to={chemin("questions")} replace />
   }
 
   const { label: statutLabel, cls: statutCls } = STATUT_CONFIG[infos.statut]
@@ -78,7 +75,9 @@ export default function Previsualisation() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
 
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Nouvelle évaluation</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          {estEdition ? "Modifier l'évaluation" : "Nouvelle évaluation"}
+        </h1>
         <p className="mt-1 text-muted-foreground">Vérifiez avant de valider.</p>
       </div>
 
@@ -127,7 +126,7 @@ export default function Previsualisation() {
           </div>
         </CardHeader>
         <CardContent className="flex flex-col gap-0 p-0 px-6 pb-4">
-          {questions.map((q: any, idx: number) => (
+          {questions.map((q, idx) => (
             <div
               key={q.localId}
               className="flex items-center gap-3 border-b border-border/60 py-3 last:border-none"
@@ -140,9 +139,10 @@ export default function Previsualisation() {
                   Q{idx + 1}. {q.enonce || <span className="italic text-muted-foreground">Sans énoncé</span>}
                 </p>
                 <p className="mt-0.5 text-[11px] text-muted-foreground">
-                  {TYPE_LABEL[q.type as TypeQuestion]}
+                  {TYPE_LABEL[q.type]}
                   {q.type === "CODE" && ` · ${q.casTests?.length ?? 0} cas de test`}
-                  {q.type === "QCM"  && ` · ${q.choix?.length ?? 0} choix`}
+                  {(q.type === "QCM" || q.type === "QUIZ_CHRONOMETREE") && ` · ${q.choix?.length ?? 0} choix`}
+                  {q.type === "QUIZ_CHRONOMETREE" && ` · ${q.dureeQuestion ?? 30} s`}
                 </p>
               </div>
               <span className="shrink-0 text-sm font-bold">{q.points} pts</span>
@@ -165,7 +165,7 @@ export default function Previsualisation() {
 
       {/* Navigation */}
       <div className="flex justify-between gap-3">
-        <Button variant="outline" className="rounded-xl" onClick={() => navigate(-1)}>
+        <Button variant="outline" className="rounded-xl" onClick={() => navigate(chemin("questions"))}>
           ← Modifier les questions
         </Button>
         <Button className="rounded-xl" onClick={handlePublier} disabled={saving}>

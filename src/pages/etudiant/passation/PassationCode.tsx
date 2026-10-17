@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import Editor from "@monaco-editor/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -64,6 +64,9 @@ export default function PassationCode() {
   const [resultats, setResultats] = useState<Record<number, ResultatExecution[]>>({})
   const [execution, setExecution] = useState(false)
   const [dialogOuvert, setDialogOuvert] = useState(false)
+  // Version du code par question : incrémentée à chaque modification, elle permet
+  // d'ignorer le résultat d'une exécution lancée sur un code devenu obsolète.
+  const versionCode = useRef<Record<number, number>>({})
 
   const { tempsRestant, tempsRestantFormate } = useExamTimer({
     dureeMinutes: evaluation?.duree ?? 90,
@@ -104,28 +107,37 @@ export default function PassationCode() {
   const nbTraitees = Object.values(codes).filter((c) => c.trim().length > 0).length
   const progression = (nbTraitees / questions.length) * 100
 
+  function invaliderResultats(questionId: number) {
+    versionCode.current[questionId] = (versionCode.current[questionId] ?? 0) + 1
+    setResultats((r) => ({ ...r, [questionId]: [] }))
+  }
+
   function changerLangage(langage: string | null) {
     if (!langage) return
     setLangages((l) => ({ ...l, [question.id]: langage }))
-    setResultats((r) => ({ ...r, [question.id]: [] }))
+    invaliderResultats(question.id)
   }
 
   function changerCode(valeur: string | undefined) {
     setCodes((c) => ({ ...c, [question.id]: valeur ?? "" }))
-    setResultats((r) => ({ ...r, [question.id]: [] }))
+    invaliderResultats(question.id)
   }
 
   async function executerCode() {
+    const questionId = question.id
+    const version = versionCode.current[questionId] ?? 0
     setExecution(true)
     // TODO backend : POST /api/judge0/executer { langage, code, casDeTests }
     await new Promise((r) => setTimeout(r, 900)) // simulation
+    setExecution(false)
+    // Code modifié pendant l'exécution : ces résultats ne correspondent plus au code affiché
+    if ((versionCode.current[questionId] ?? 0) !== version) return
     const resultatsSimules: ResultatExecution[] = casVisibles.map((c) => ({
       casId: c.id,
       reussi: true,
       sortieObtenue: c.sortieAttendue,
     }))
-    setResultats((r) => ({ ...r, [question.id]: resultatsSimules }))
-    setExecution(false)
+    setResultats((r) => ({ ...r, [questionId]: resultatsSimules }))
   }
 
   const tempsCritique = tempsRestant < 300

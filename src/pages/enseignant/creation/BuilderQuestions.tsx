@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
+import { useState, type SetStateAction } from "react"
+import { Navigate, useNavigate } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,46 +24,24 @@ import {
   Timer,
   GripVertical,
 } from "lucide-react"
-import { CreationStepper, type InfosGeneralesForm } from "./InfosGenerales"
+import { CreationStepper } from "./InfosGenerales"
+import {
+  useBrouillon,
+  validerInfos,
+  erreurQuestion,
+  nouvelId as newId,
+  type ChoixLocal,
+  type CasTestLocal,
+  type QuestionLocal,
+} from "./brouillon"
 import type { TypeQuestion } from "@/types"
 
 // ============================================================
 // Étape 2 / 3 — Builder de questions
-// Reçoit les infos générales via useLocation().state
+// Les questions sont conservées dans le brouillon (voir brouillon.ts).
 // TODO : toutes les données sont envoyées en une fois lors de
 // la prévisualisation → POST /api/enseignant/evaluations
 // ============================================================
-
-// ──────────────────────────────────────────────────────────
-//  Types locaux du builder
-// ──────────────────────────────────────────────────────────
-
-interface ChoixLocal {
-  id: number
-  texte: string
-  estCorrect: boolean
-}
-
-interface CasTestLocal {
-  id: number
-  entree: string
-  sortieAttendue: string
-  estMasque: boolean
-}
-
-interface QuestionLocal {
-  localId: number
-  type: TypeQuestion
-  enonce: string
-  points: number
-  // QCM
-  estChoixMultiple?: boolean
-  choix?: ChoixLocal[]
-  // CODE
-  casTests?: CasTestLocal[]
-  // QUIZ
-  dureeQuestion?: number  // secondes
-}
 
 const TYPE_CONFIG: Record<TypeQuestion, { label: string; icon: React.ElementType; cls: string }> = {
   QCM:              { label: "QCM",              icon: CheckSquare, cls: "bg-primary/10 text-primary border-primary/20"                        },
@@ -72,14 +50,16 @@ const TYPE_CONFIG: Record<TypeQuestion, { label: string; icon: React.ElementType
   QUIZ_CHRONOMETREE:{ label: "Quiz chronométré", icon: Timer,       cls: "bg-purple-500/10 text-purple-700 border-purple-500/20"               },
 }
 
-let nextId = 1
-function newId() { return nextId++ }
+function deuxChoixVides(): ChoixLocal[] {
+  return [{ id: newId(), texte: "", estCorrect: false }, { id: newId(), texte: "", estCorrect: false }]
+}
 
 function emptyQuestion(type: TypeQuestion): QuestionLocal {
   const base = { localId: newId(), type, enonce: "", points: 2 }
-  if (type === "QCM")               return { ...base, estChoixMultiple: false, choix: [{ id: newId(), texte: "", estCorrect: false }, { id: newId(), texte: "", estCorrect: false }] }
+  if (type === "QCM")               return { ...base, estChoixMultiple: false, choix: deuxChoixVides() }
   if (type === "CODE")              return { ...base, casTests: [{ id: newId(), entree: "", sortieAttendue: "", estMasque: false }] }
-  if (type === "QUIZ_CHRONOMETREE") return { ...base, dureeQuestion: 30 }
+  // Le quiz se répond en cochant des choix (PassationQuiz), comme un QCM
+  if (type === "QUIZ_CHRONOMETREE") return { ...base, dureeQuestion: 30, estChoixMultiple: false, choix: deuxChoixVides() }
   return base // OUVERTE
 }
 
@@ -89,12 +69,19 @@ function emptyQuestion(type: TypeQuestion): QuestionLocal {
 
 export default function BuilderQuestions() {
   const navigate  = useNavigate()
-  const location  = useLocation()
-  const infos     = (location.state as { infos: InfosGeneralesForm } | null)?.infos
+  const { brouillon, setBrouillon, estEdition, chemin } = useBrouillon()
+  const { infos, questions } = brouillon
 
-  const [questions, setQuestions] = useState<QuestionLocal[]>([])
   const [typeAjout, setTypeAjout] = useState<TypeQuestion>("QCM")
   const [expanded,  setExpanded]  = useState<number | null>(null)
+  const [tentative, setTentative] = useState(false)  // erreurs affichées après un essai de passage
+
+  function setQuestions(action: SetStateAction<QuestionLocal[]>) {
+    setBrouillon((b) => ({
+      ...b,
+      questions: typeof action === "function" ? action(b.questions) : action,
+    }))
+  }
 
   // ── helpers ─────────────────────────────────────────────
 
@@ -171,12 +158,22 @@ export default function BuilderQuestions() {
 
   function handleNext() {
     if (questions.length === 0) return
-    navigate("/enseignant/evaluations/creation/previsualisation", {
-      state: { infos, questions }
-    })
+    const premiereInvalide = questions.find((q) => erreurQuestion(q) !== null)
+    if (premiereInvalide) {
+      setTentative(true)
+      setExpanded(premiereInvalide.localId)
+      return
+    }
+    navigate(chemin("previsualisation"))
+  }
+
+  // Étape 1 incomplète (accès direct à l'URL) → retour à l'étape 1
+  if (Object.keys(validerInfos(infos)).length > 0) {
+    return <Navigate to={chemin("infos")} replace />
   }
 
   const totalPoints = questions.reduce((s, q) => s + q.points, 0)
+  const nbInvalides = questions.filter((q) => erreurQuestion(q) !== null).length
 
   // ──────────────────────────────────────────────────────
   //  Rendu
@@ -186,9 +183,11 @@ export default function BuilderQuestions() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
 
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Nouvelle évaluation</h1>
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          {estEdition ? "Modifier l'évaluation" : "Nouvelle évaluation"}
+        </h1>
         <p className="mt-1 text-muted-foreground">
-          {infos?.titre ?? "—"} · {infos?.duree ?? "—"} min
+          {infos.titre} · {infos.duree} min
         </p>
       </div>
 
@@ -230,6 +229,7 @@ export default function BuilderQuestions() {
           {questions.map((q, idx) => {
             const cfg = TYPE_CONFIG[q.type]
             const isOpen = expanded === q.localId
+            const erreur = tentative ? erreurQuestion(q) : null
             return (
               <Card key={q.localId} className="rounded-2xl border-border/60 shadow-sm">
                 {/* En-tête question */}
@@ -246,6 +246,9 @@ export default function BuilderQuestions() {
                     <span className="truncate text-sm font-medium">
                       {q.enonce || <span className="text-muted-foreground italic">Sans énoncé</span>}
                     </span>
+                    {erreur && (
+                      <span className="shrink-0 text-[11px] font-medium text-destructive">{erreur}</span>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-sm font-bold">{q.points} pts</span>
@@ -282,8 +285,8 @@ export default function BuilderQuestions() {
                       </div>
                     </div>
 
-                    {/* ── QCM ── */}
-                    {q.type === "QCM" && (
+                    {/* ── Choix : QCM et quiz chronométré ── */}
+                    {(q.type === "QCM" || q.type === "QUIZ_CHRONOMETREE") && (
                       <div className="flex flex-col gap-3">
                         <div className="flex items-center gap-2">
                           <Label>Choix multiples ?</Label>
@@ -403,11 +406,17 @@ export default function BuilderQuestions() {
         </div>
       )}
 
+      {tentative && nbInvalides > 0 && (
+        <p className="text-sm text-destructive">
+          {nbInvalides} question{nbInvalides > 1 ? "s sont incomplètes" : " est incomplète"} : corrigez-la{nbInvalides > 1 ? "s" : ""} avant de continuer.
+        </p>
+      )}
+
       {/* Navigation */}
       <div className="flex justify-between gap-3">
         <Button
           variant="outline" className="rounded-xl"
-          onClick={() => navigate(-1)}
+          onClick={() => navigate(chemin("infos"))}
         >
           ← Retour
         </Button>

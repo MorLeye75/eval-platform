@@ -91,7 +91,7 @@ export default function DashboardEnseignant() {
         <Button
           className="rounded-xl"
           render={
-            <Link to="/enseignant/evaluations/creation">
+            <Link to="/enseignant/evaluations/creation" state={{ nouveau: true }}>
               <Plus className="size-4" /> Nouvelle évaluation
             </Link>
           }

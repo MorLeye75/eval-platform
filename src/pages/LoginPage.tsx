@@ -2,14 +2,13 @@ import { Navigate } from "react-router-dom"
 import { GraduationCap } from "lucide-react"
 import { LoginForm } from "@/components/login-form"
 import { useAuth } from "@/context/AuthContext"
+import { accueilPour } from "@/lib/roles"
 
 export default function LoginPage() {
   const { user, isAuthenticated } = useAuth()
 
   if (isAuthenticated && user) {
-    if (user.role === "ADMIN") return <Navigate to="/admin" replace />
-    if (user.role === "ENSEIGNANT") return <Navigate to="/enseignant" replace />
-    return <Navigate to="/etudiant/dashboard" replace />
+    return <Navigate to={accueilPour(user.role)} replace />
   }
 
   return (

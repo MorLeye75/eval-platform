@@ -1,4 +1,6 @@
+import { Link, useParams } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Award, TrendingUp, TrendingDown, BarChart3, CheckCircle2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
@@ -7,6 +9,7 @@ import {
   LineChart, Line, CartesianGrid,
 } from "recharts"
 import type { StatistiquesEvaluation as StatsType } from "@/types"
+import { evaluationsEnseignantMock, getEvaluationEnseignant } from "@/mocks/evaluationsEnseignant"
 
 // ============================================================
 // Données mockées — à remplacer par :
@@ -15,13 +18,9 @@ import type { StatistiquesEvaluation as StatsType } from "@/types"
 //   queryKey: ["stats-evaluation", id],
 //   queryFn: () => api.get(`/enseignant/evaluations/${id}/statistiques`)
 // })
+// Les statistiques ci-dessous sont un échantillon générique : seuls le titre
+// et le nombre de participants proviennent de l'évaluation sélectionnée.
 // ============================================================
-
-const EVAL_INFO = {
-  titre: "Structures de données — QCM",
-  nbParticipants: 42,
-  dateCorrection: "2026-07-13",
-}
 
 const mockStats: StatsType = {
   moyenne: 13.4,
@@ -79,7 +78,28 @@ const DIFFICULTES = PAR_QUESTION
   .slice(0, 5)
 
 export default function StatistiquesEvaluation() {
+  const { id } = useParams<{ id: string }>()
+  // Sans id (lien du menu) : première évaluation ayant des résultats
+  const evaluation = id
+    ? getEvaluationEnseignant(id)
+    : evaluationsEnseignantMock.find((e) => e.statut === "TERMINEE" || e.statut === "PUBLIEE")
   const s = mockStats
+
+  if (!evaluation) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-10 text-center">
+        <Card className="w-full rounded-2xl border-border/60 shadow-sm">
+          <CardContent className="py-10 text-sm text-muted-foreground">
+            {id ? "Cette évaluation est introuvable." : "Aucune évaluation n'a encore de résultats."}
+          </CardContent>
+        </Card>
+        <Button
+          variant="outline"
+          render={<Link to="/enseignant/evaluations">Retour aux évaluations</Link>}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6">
@@ -87,7 +107,7 @@ export default function StatistiquesEvaluation() {
       {/* En-tête */}
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Statistiques</h1>
-        <p className="mt-1 text-muted-foreground">{EVAL_INFO.titre}</p>
+        <p className="mt-1 text-muted-foreground">{evaluation.titre}</p>
       </div>
 
       {/* Stats clés */}
@@ -104,7 +124,7 @@ export default function StatistiquesEvaluation() {
         <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold">Distribution des notes</CardTitle>
-            <p className="text-sm text-muted-foreground">{EVAL_INFO.nbParticipants} étudiants</p>
+            <p className="text-sm text-muted-foreground">{evaluation.nbSoumissions} étudiants</p>
           </CardHeader>
           <CardContent>
             <div className="h-[240px]">

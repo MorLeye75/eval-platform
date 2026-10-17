@@ -39,7 +39,7 @@ interface MdpForm {
 }
 
 export default function ProfilePage() {
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
 
   const [infos, setInfos] = useState<InfosForm>({
     nom:    user?.nom    ?? "",
@@ -75,6 +75,7 @@ export default function ProfilePage() {
     try {
       // TODO : await api.put("/utilisateurs/moi", infos)
       await new Promise(r => setTimeout(r, 600))
+      updateUser({ nom: infos.nom.trim(), prenom: infos.prenom.trim(), email: infos.email.trim() })
       setSavedInfos(true)
     } finally {
       setSavingInfos(false)
