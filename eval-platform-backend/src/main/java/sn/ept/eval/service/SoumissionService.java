@@ -1,0 +1,362 @@
+package sn.ept.eval.service;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import sn.ept.eval.dto.soumission.*;
+import sn.ept.eval.exception.AccesRefuseException;
+import sn.ept.eval.exception.RessourceNonTrouveeException;
+import sn.ept.eval.exception.SoumissionNonModifiableException;
+import sn.ept.eval.exception.TempsEcouleException;
+import sn.ept.eval.model.*;
+import sn.ept.eval.model.enums.NiveauAlerte;
+import sn.ept.eval.model.enums.StatutEvaluation;
+import sn.ept.eval.model.enums.StatutSoumission;
+import sn.ept.eval.model.enums.TypeQuestion;
+import sn.ept.eval.repository.*;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.stream.Collectors;
+
+@Service
+@Transactional
+public class SoumissionService {
+
+    private static final Logger log = LoggerFactory.getLogger(SoumissionService.class);
+    public static final int MARGE_TOLERANCE_MINUTES = 2;
+
+    @Autowired
+    private SoumissionRepository soumissionRepository;
+
+    @Autowired
+    private EvaluationRepository evaluationRepository;
+
+    @Autowired
+    private EtudiantRepository etudiantRepository;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private ChoixReponseRepository choixReponseRepository;
+
+    @Autowired
+    private ReponseEtudiantRepository reponseEtudiantRepository;
+
+    @Autowired
+    private AmenagementTempsRepository amenagementTempsRepository;
+
+    @Autowired
+    private AlerteAntiTricheRepository alerteAntiTricheRepository;
+
+    @Autowired
+    private CorrectionService correctionService;
+
+    /**
+     * Démarrer ou reprendre une session d'évaluation pour l'étudiant connecté.
+     */
+    public SoumissionDetailResponse demarrerOuReprendre(Long evaluationId, String userEmail) {
+        Etudiant etudiant = getEtudiantConnecte(userEmail);
+        Evaluation evaluation = evaluationRepository.findById(evaluationId)
+                .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + evaluationId + ")"));
+
+        LocalDateTime now = LocalDateTime.now();
+        if (now.isBefore(evaluation.getDateOuverture())) {
+            throw new IllegalArgumentException("Cette évaluation n'est pas encore ouverte.");
+        }
+        if (now.isAfter(evaluation.getDateFermeture())) {
+            throw new IllegalArgumentException("Cette évaluation est déjà clôturée.");
+        }
+        if (evaluation.getStatut() == StatutEvaluation.BROUILLON) {
+            throw new IllegalArgumentException("Cette évaluation est encore en brouillon.");
+        }
+
+        // Vérifier que l'étudiant est dans une promotion autorisée
+        if (etudiant.getPromotion() != null && evaluation.getPromotions() != null && !evaluation.getPromotions().isEmpty()) {
+            boolean promotionValide = evaluation.getPromotions().stream()
+                    .anyMatch(p -> p.getId().equals(etudiant.getPromotion().getId()));
+            if (!promotionValide) {
+                throw new AccesRefuseException("Vous n'êtes pas inscrit dans une promotion assignée à cette évaluation.");
+            }
+        }
+
+        // Vérifier si une soumission existe déjà
+        Optional<Soumission> existanteOpt = soumissionRepository.findByEvaluationIdAndEtudiantId(evaluationId, etudiant.getId());
+        Soumission soumission;
+
+        if (existanteOpt.isPresent()) {
+            soumission = existanteOpt.get();
+            log.info("Reprise de la soumission ID={} pour l'étudiant {}", soumission.getId(), userEmail);
+        } else {
+            soumission = new Soumission();
+            soumission.setEvaluation(evaluation);
+            soumission.setEtudiant(etudiant);
+            soumission.setDateDebut(now);
+            soumission.setStatut(StatutSoumission.EN_COURS);
+            soumission.setNbChangementsOnglet(0);
+            soumission = soumissionRepository.save(soumission);
+            log.info("Création d'une nouvelle soumission ID={} pour l'étudiant {}", soumission.getId(), userEmail);
+        }
+
+        return buildSoumissionDetailResponse(soumission, etudiant);
+    }
+
+    /**
+     * Sauvegarde automatique des réponses (conforme au Diagramme de Séquence 2).
+     */
+    public SauvegardeResponse sauvegarderReponses(Long soumissionId, SauvegardeReponsesRequest request, String userEmail) {
+        Etudiant etudiant = getEtudiantConnecte(userEmail);
+        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Vérifie statut == EN_COURS
+        if (soumission.getStatut() != StatutSoumission.EN_COURS) {
+            throw new SoumissionNonModifiableException("Action rejetée : la copie a déjà été soumise ou verrouillée.");
+        }
+
+        // 2. Vérifie !isExpiree()
+        int dureeTotale = getDureeEffectiveMinutes(soumission, etudiant);
+        LocalDateTime expirationAvecMarge = soumission.getDateDebut().plusMinutes(dureeTotale + MARGE_TOLERANCE_MINUTES);
+
+        if (now.isAfter(expirationAvecMarge)) {
+            log.warn("Tentative de sauvegarde tardive rejetée pour soumission ID={}", soumissionId);
+            throw new TempsEcouleException("Action rejetée : temps imparti expiré.");
+        }
+
+        // 3. Mise à jour ou création des réponses
+        int nbSauvegardees = 0;
+        if (request.getReponses() != null) {
+            for (ReponseItemDto item : request.getReponses()) {
+                if (item.getQuestionId() == null) continue;
+
+                Question question = questionRepository.findById(item.getQuestionId()).orElse(null);
+                if (question == null) continue;
+
+                ReponseEtudiant reponse = reponseEtudiantRepository
+                        .findBySoumissionIdAndQuestionId(soumission.getId(), question.getId())
+                        .orElse(null);
+
+                if (question.getType() == TypeQuestion.QCM) {
+                    ReponseQCM rq = (reponse instanceof ReponseQCM) ? (ReponseQCM) reponse : new ReponseQCM();
+                    rq.setSoumission(soumission);
+                    rq.setQuestion(question);
+                    if (item.getChoixIds() != null && !item.getChoixIds().isEmpty()) {
+                        List<ChoixReponse> choix = choixReponseRepository.findAllById(item.getChoixIds());
+                        rq.setChoixCoches(choix);
+                    } else {
+                        rq.setChoixCoches(new ArrayList<>());
+                    }
+                    reponseEtudiantRepository.save(rq);
+                    nbSauvegardees++;
+                } else if (question.getType() == TypeQuestion.CODE) {
+                    ReponseCode rc = (reponse instanceof ReponseCode) ? (ReponseCode) reponse : new ReponseCode();
+                    rc.setSoumission(soumission);
+                    rc.setQuestion(question);
+                    rc.setCodeSoumis(item.getCodeSoumis());
+                    reponseEtudiantRepository.save(rc);
+                    nbSauvegardees++;
+                } else {
+                    ReponseOuverte ro = (reponse instanceof ReponseOuverte) ? (ReponseOuverte) reponse : new ReponseOuverte();
+                    ro.setSoumission(soumission);
+                    ro.setQuestion(question);
+                    ro.setTexteSoumis(item.getTexteSoumis());
+                    reponseEtudiantRepository.save(ro);
+                    nbSauvegardees++;
+                }
+            }
+        }
+
+        return new SauvegardeResponse(LocalDateTime.now(), "Sauvegarde effectuée avec succès.", nbSauvegardees);
+    }
+
+    /**
+     * Soumission finale de la copie (conforme au Diagramme de Séquence 1).
+     */
+    public SoumissionResponse soumettreCopie(Long soumissionId, String userEmail) {
+        Etudiant etudiant = getEtudiantConnecte(userEmail);
+        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
+
+        if (soumission.getStatut() == StatutSoumission.SOUMIS || soumission.getStatut() == StatutSoumission.EVALUE) {
+            return toSoumissionResponse(soumission, "Cette copie a déjà été transmise.");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int dureeTotale = getDureeEffectiveMinutes(soumission, etudiant);
+        LocalDateTime limiteMaxAvecMarge = soumission.getDateDebut().plusMinutes(dureeTotale + MARGE_TOLERANCE_MINUTES);
+
+        // [Cas critique : Temps dépassé au-delà de la marge de tolérance]
+        if (now.isAfter(limiteMaxAvecMarge)) {
+            log.warn("[Anti-Triche] Dépassement temporel critique pour la soumission ID={}", soumissionId);
+
+            // Le serveur fige la copie à l'état du dernier auto-save
+            soumission.setStatut(StatutSoumission.SOUMIS);
+            soumission.setDateRemise(soumission.getDateDebut().plusMinutes(dureeTotale));
+            soumissionRepository.save(soumission);
+
+            // Détection anti-triche
+            AlerteAntiTriche alerte = new AlerteAntiTriche(
+                    "Soumission tardive : le temps imparti a été dépassé au-delà de la marge de tolérance.",
+                    NiveauAlerte.ELEVE,
+                    soumission
+            );
+            alerteAntiTricheRepository.save(alerte);
+
+            throw new TempsEcouleException("Temps dépassé au-delà de la marge de tolérance. Votre copie a été verrouillée à l'état de votre dernière sauvegarde.");
+        }
+
+        // [Cas Normal : Temps dans les clous ou dans la marge]
+        soumission.setStatut(StatutSoumission.SOUMIS);
+        soumission.setDateRemise(now);
+        soumission = soumissionRepository.save(soumission);
+
+        // Déclenche CorrectionService en arrière-plan (async)
+        correctionService.corrigerSoumissionAsync(soumission.getId());
+
+        return toSoumissionResponse(soumission, "Copie soumise avec succès.");
+    }
+
+    /**
+     * Journaliser une sortie d'écran / changement d'onglet (Anti-triche).
+     */
+    public void enregistrerChangementOnglet(Long soumissionId, String userEmail) {
+        Etudiant etudiant = getEtudiantConnecte(userEmail);
+        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
+
+        if (soumission.getStatut() != StatutSoumission.EN_COURS) {
+            return;
+        }
+
+        int nb = soumission.getNbChangementsOnglet() != null ? soumission.getNbChangementsOnglet() + 1 : 1;
+        soumission.setNbChangementsOnglet(nb);
+        soumissionRepository.save(soumission);
+
+        // Alerte dès 3 changements d'onglets
+        if (nb >= 3) {
+            AlerteAntiTriche alerte = new AlerteAntiTriche(
+                    "Suspicion de triche : " + nb + " changements d'onglets ou sorties de plein écran détectés.",
+                    nb >= 5 ? NiveauAlerte.ELEVE : NiveauAlerte.MODERE,
+                    soumission
+            );
+            alerteAntiTricheRepository.save(alerte);
+        }
+    }
+
+    /**
+     * Récupérer le détail complet d'une soumission.
+     */
+    @Transactional(readOnly = true)
+    public SoumissionDetailResponse getDetail(Long soumissionId, String userEmail) {
+        Etudiant etudiant = getEtudiantConnecte(userEmail);
+        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
+        return buildSoumissionDetailResponse(soumission, etudiant);
+    }
+
+    private int getDureeEffectiveMinutes(Soumission soumission, Etudiant etudiant) {
+        Optional<AmenagementTemps> amenagement = amenagementTempsRepository
+                .findByEtudiantIdAndEvaluationId(etudiant.getId(), soumission.getEvaluation().getId());
+        if (amenagement.isPresent() && amenagement.get().getDureePersonnalisee() != null) {
+            return amenagement.get().getDureePersonnalisee();
+        }
+        return soumission.getEvaluation().getDureeStandard();
+    }
+
+    private SoumissionDetailResponse buildSoumissionDetailResponse(Soumission soumission, Etudiant etudiant) {
+        Evaluation eval = soumission.getEvaluation();
+        int dureeMinutes = getDureeEffectiveMinutes(soumission, etudiant);
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expiration = soumission.getDateDebut().plusMinutes(dureeMinutes);
+        long tempsRestantSec = Math.max(0, Duration.between(now, expiration).getSeconds());
+
+        SoumissionDetailResponse resp = new SoumissionDetailResponse();
+        resp.setId(soumission.getId());
+        resp.setEvaluationId(eval.getId());
+        resp.setTitreEvaluation(eval.getTitre());
+        resp.setDescriptionEvaluation(eval.getDescription());
+        resp.setStatut(soumission.getStatut());
+        resp.setDateDebut(soumission.getDateDebut());
+        resp.setDateRemise(soumission.getDateRemise());
+        resp.setDureeMinutes(dureeMinutes);
+        resp.setTempsRestantSecondes(tempsRestantSec);
+        resp.setNbChangementsOnglet(soumission.getNbChangementsOnglet());
+
+        // Récupérer toutes les questions ordonnées
+        List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(eval.getId());
+        List<ReponseEtudiant> reponses = reponseEtudiantRepository.findBySoumissionId(soumission.getId());
+
+        Map<Long, ReponseEtudiant> reponsesParQuestion = reponses.stream()
+                .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
+
+        List<QuestionExamenDto> questionsDtos = new ArrayList<>();
+        for (Question q : questions) {
+            QuestionExamenDto qDto = new QuestionExamenDto();
+            qDto.setId(q.getId());
+            qDto.setEnonce(q.getEnonce());
+            qDto.setOrdre(q.getOrdre());
+            qDto.setPoints(q.getPoints());
+            qDto.setType(q.getType());
+
+            if (q instanceof QuestionQCM qQcm) {
+                qDto.setEstChoixMultiple(qQcm.getEstChoixMultiple());
+                List<ChoixItemDto> choixDtos = qQcm.getChoix().stream()
+                        .map(c -> new ChoixItemDto(c.getId(), c.getTexte()))
+                        .collect(Collectors.toList());
+                qDto.setChoixPossibles(choixDtos);
+            }
+
+            // Réponse actuellement enregistrée
+            ReponseEtudiant rep = reponsesParQuestion.get(q.getId());
+            if (rep != null) {
+                ReponseItemDto repDto = new ReponseItemDto();
+                repDto.setQuestionId(q.getId());
+                if (rep instanceof ReponseQCM rq) {
+                    List<Long> ids = rq.getChoixCoches().stream().map(ChoixReponse::getId).collect(Collectors.toList());
+                    repDto.setChoixIds(ids);
+                } else if (rep instanceof ReponseCode rc) {
+                    repDto.setCodeSoumis(rc.getCodeSoumis());
+                } else if (rep instanceof ReponseOuverte ro) {
+                    repDto.setTexteSoumis(ro.getTexteSoumis());
+                }
+                qDto.setReponseActuelle(repDto);
+            }
+
+            questionsDtos.add(qDto);
+        }
+
+        resp.setQuestions(questionsDtos);
+        return resp;
+    }
+
+    private SoumissionResponse toSoumissionResponse(Soumission soumission, String message) {
+        SoumissionResponse r = new SoumissionResponse();
+        r.setId(soumission.getId());
+        r.setEvaluationId(soumission.getEvaluation().getId());
+        r.setTitreEvaluation(soumission.getEvaluation().getTitre());
+        r.setStatut(soumission.getStatut());
+        r.setDateDebut(soumission.getDateDebut());
+        r.setDateRemise(soumission.getDateRemise());
+        r.setDureeMinutes(soumission.getEvaluation().getDureeStandard());
+        r.setNbChangementsOnglet(soumission.getNbChangementsOnglet());
+        r.setMessage(message);
+        return r;
+    }
+
+    private Etudiant getEtudiantConnecte(String email) {
+        return etudiantRepository.findByEmail(email)
+                .orElseThrow(() -> new RessourceNonTrouveeException("Profil étudiant introuvable pour le compte : " + email));
+    }
+
+    private Soumission getSoumissionEtudiant(Long soumissionId, Long etudiantId) {
+        Soumission s = soumissionRepository.findById(soumissionId)
+                .orElseThrow(() -> new RessourceNonTrouveeException("Soumission introuvable (ID: " + soumissionId + ")"));
+        if (!s.getEtudiant().getId().equals(etudiantId)) {
+            throw new AccesRefuseException("Accès non autorisé : cette copie appartient à un autre étudiant.");
+        }
+        return s;
+    }
+}

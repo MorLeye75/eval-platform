@@ -1,0 +1,12 @@
+package sn.ept.eval.repository;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import sn.ept.eval.model.AmenagementTemps;
+
+import java.util.Optional;
+
+@Repository
+public interface AmenagementTempsRepository extends JpaRepository<AmenagementTemps, Long> {
+    Optional<AmenagementTemps> findByEtudiantIdAndEvaluationId(Long etudiantId, Long evaluationId);
+}

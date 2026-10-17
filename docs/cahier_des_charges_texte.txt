@@ -1,0 +1,395 @@
+ÉCOLE POLYTECHNIQUE DE THIÈS
+Département Informatique et Télécommunications — DIC1 (2025–2026)
+PROJET TRANSVERSAL
+ 
+Plateforme intelligente
+d'évaluation et de
+correction automatique
+ 
+Présenté par
+Mor LEYE et Mohamed Aminou NIANG
+Encadré par
+Dr. Michel SECK  Pr. Mamadou Diallo DIOUF Pr. Abdoul Aziz CISS Pr. Ibrahima GUEYE
+Année académique
+2025 – 2026
+Classe
+DIC1-GIT
+TABLE DES MATIÈRES
+1. Introduction
+2. Présentation du projet
+3. Flux utilisateurs
+4. Besoins fonctionnels
+5. Besoins non fonctionnels
+6. Modélisation UML
+7. Technologies proposées
+8. Architecture du système
+9. Planification
+10. Risques et préoccupations
+1. INTRODUCTION
+Dans le contexte de la transformation numérique de l'éducation, les établissements d'enseignement supérieur font face à un besoin croissant d'outils capables d'automatiser et d'optimiser les processus d'évaluation des apprenants. La correction manuelle, longue et sujette à des biais, ne répond plus aux exigences de rapidité et d'objectivité attendues dans un environnement académique moderne.
+C'est dans ce cadre que s'inscrit le présent projet : concevoir et développer une Plateforme intelligente d'évaluation et de correction automatique. Cette solution vise à offrir aux enseignants un environnement complet pour créer, administrer et corriger des évaluations de différents types, tout en fournissant aux étudiants une expérience de passation fluide, sécurisée et équitable.
+La plateforme intègre des mécanismes d'intelligence artificielle pour assister la correction des questions ouvertes, un moteur d'exécution de code pour les exercices de programmation, et un tableau de bord analytique permettant de suivre les performances des apprenants en temps réel.
+2. PRÉSENTATION DU PROJET
+2.1 Contexte
+Ce projet est développé dans le cadre de notre Projet Transversal en  DIC1-GIT (2025–2026) , . Il constitue un exercice académique visant à mobiliser l'ensemble des compétences acquises en développement logiciel, modélisation, bases de données et intelligence artificielle.
+2.2 Objectif général
+Développer une application web complète permettant la création, la passation et la correction automatique d'évaluations académiques, avec génération de statistiques et assistance intelligente à la correction.
+2.3 Objectifs spécifiques
+Concevoir une interface intuitive pour chaque type d'utilisateur (Administrateur, Enseignant, Étudiant)
+Offrir un système complet de création et de gestion des évaluations multi-types
+Garantir une passation sécurisée avec sauvegarde automatique des réponses
+Automatiser la correction des QCM et des exercices de programmation
+Intégrer une assistance IA pour la correction des questions ouvertes
+Fournir des tableaux de bord analytiques et des outils d'exportation des résultats
+2.4 Périmètre du projet
+Inclus
+Application web, API REST, correction automatique, tableau de bord, exportation PDF/Excel
+Exclus
+Application mobile native, intégration LMS existant (Moodle), système de paiement
+Utilisateurs cibles
+Étudiants, Enseignants, Administrateurs de l'EPT
+3. FLUX UTILISATEURS
+Trois profils principaux sont pris en charge par la plateforme, chacun disposant d'un espace dédié et de fonctionnalités adaptées à son rôle.
+3.1 Flux de l'Étudiant
+Le parcours de l'étudiant commence dès la connexion à son espace personnel. Une fois authentifié, il peut :
+Consulter la liste des évaluations disponibles et leurs détails (type, durée, date limite)
+Démarrer une évaluation en cours de validité
+Répondre aux questions QCM, ouvertes, et aux exercices de code
+Bénéficier d'une sauvegarde automatique de ses réponses toutes les 30 secondes
+Soumettre son évaluation avant l'expiration du timer
+Consulter ses résultats et le feedback détaillé par question après publication
+Visualiser ses performances sur son tableau de bord personnel
+3.2 Flux de l'Enseignant
+L'enseignant accède à son espace de gestion après authentification. Son tableau de bord lui offre une vue d'ensemble sur :
+La liste de ses évaluations (brouillon, ouverte, fermée, corrigée)
+Les statistiques clés : taux de réussite, moyenne de la promotion, question la plus ratée
+Création d'une évaluation :
+Renseigner les informations générales (titre, description, durée, dates d'ouverture et fermeture)
+Ajouter des questions de différents types : QCM, questions ouvertes, quiz chronométrés, exercices de programmation
+Configurer la pondération de chaque question
+Définir les cas de test pour les exercices de programmation
+Publier ou programmer la publication de l'évaluation
+Gestion post-évaluation :
+Réviser les corrections assistées par IA pour les questions ouvertes
+Publier ou retenir les résultats
+Exporter les résultats au format PDF ou Excel
+3.3 Flux de l'Administrateur
+L'administrateur dispose d'un accès global à la plateforme. Après connexion sécurisée, il peut :
+Gérer les comptes utilisateurs (création, modification, désactivation)
+Superviser l'ensemble des évaluations et interventir en cas d'anomalie
+Consulter les statistiques globales de la plateforme
+Configurer les paramètres généraux du système
+4. BESOINS FONCTIONNELS
+4.1 Gestion des comptes et authentification
+Inscription et connexion sécurisée par email/mot de passe
+Gestion des rôles : ADMIN, ENSEIGNANT, ÉTUDIANT
+Réinitialisation du mot de passe par email
+Authentification par JWT (JSON Web Token)
+Déconnexion et invalidation du token
+4.2 Création et gestion des évaluations
+Création d'une évaluation avec titre, description, durée, dates d'ouverture et fermeture
+Support de 4 types de questions :
+QCM (une ou plusieurs bonnes réponses)
+Questions ouvertes (réponse textuelle libre)
+Quiz chronométrés (question à durée individuelle)
+Exercices de programmation avec cas de test
+Ajout, suppression et réordonnancement des questions
+Configuration de la pondération par question
+Sauvegarde en brouillon et publication contrôlée
+Duplication d'une évaluation existante
+4.3 Passation sécurisée des évaluations
+Accès uniquement aux étudiants authentifiés dans la fenêtre de temps définie
+Timer affiché et géré côté serveur (non manipulable)
+Sauvegarde automatique des réponses toutes les 30 secondes
+Détection de changement d'onglet ou de fenêtre (alerte et log)
+Soumission finale avec page de confirmation
+Soumission automatique à expiration du temps
+4.4 Correction automatique
+Type de question
+Mécanisme de correction
+QCM
+Comparaison directe avec la clé de réponses, gestion du barème négatif optionnel
+Exercices de programmation
+Exécution du code soumis contre des cas de test via Judge0 API
+Questions ouvertes
+Assistance IA (NLP) : suggestion de note soumise à validation de l'enseignant
+Quiz chronométré
+Correction identique au type de question, pénalité temps optionnelle
+4.5 Génération et publication des résultats
+Calcul automatique de la note finale pondérée
+Publication contrôlée par l'enseignant (immédiate ou différée)
+Feedback détaillé par question pour l'étudiant
+Notification de l'étudiant à la publication des résultats
+4.6 Tableaux de bord et statistiques
+Pour l'enseignant :
+Distribution des notes (histogramme)
+Taux de réussite et moyenne de la promotion
+Questions les plus souvent ratées
+Comparaison inter-évaluations
+Pour l'étudiant :
+Historique de ses évaluations passées et de ses notes
+Comparaison anonyme avec la moyenne de la promotion
+Évolution de ses performances dans le temps
+4.7 Exportation des résultats
+Export des résultats au format PDF (rapport par évaluation)
+Export Excel (CSV) de la liste des notes par étudiant
+Export de la liste des soumissions avec détail par question
+5. BESOINS NON FONCTIONNELS
+Exigence
+Description
+Priorité
+Sécurité
+Authentification JWT, chiffrement des données sensibles, protection CSRF/XSS
+Haute
+Performance
+Temps de réponse API < 500 ms, exécution de code < 10 s
+Haute
+Disponibilité
+La plateforme doit être accessible pendant les créneaux d'évaluation sans interruption
+Haute
+Scalabilité
+Architecture permettant l'ajout de modules futurs sans refonte
+Moyenne
+Maintenabilité
+Code documenté, respect des conventions, couverture de tests unitaires
+Moyenne
+Ergonomie
+Interface responsive, navigation intuitive, messages d'erreur explicites
+Haute
+Compatibilité
+Compatible avec les navigateurs modernes (Chrome, Firefox, Edge)
+Haute
+ 6. MODÉLISATION UML
+6.1 Diagramme de classes (aperçu)
+Le modèle de données s'articule autour des entités principales suivantes :
+Entité
+Attributs principaux
+Relations
+Utilisateur
+id, nom, prenom, email, motDePasse, role
+1 Utilisateur → N Évaluations (enseignant), N Soumissions (étudiant)
+Evaluation
+id, titre, description, duree, dateOuverture, dateFermeture, statut
+1 Évaluation → N Questions, N Soumissions
+Question
+id, type, enonce, points, ordre
+1 Question → N ChoixReponse (QCM), N CasTest (code)
+ChoixReponse
+id, texte, estCorrect
+N ChoixReponse → 1 Question
+CasTest
+id, entree, sortieAttendue
+N CasTest → 1 Question
+Soumission
+id, dateDebut, dateRemise, noteFinale, statut
+1 Soumission → N ReponseEtudiant
+ReponseEtudiant
+id, contenu, noteObtenue, feedbackIA
+1 ReponseEtudiant → 1 Question
+6.2 Diagramme des cas d'utilisation
+Les cas d'utilisation principaux par rôle sont les suivants :
+Étudiant :
+Se connecter / Se déconnecter
+Consulter les évaluations disponibles
+Passer une évaluation
+Consulter ses résultats et son historique
+Enseignant :
+Créer / modifier / supprimer une évaluation
+Publier une évaluation
+Valider les corrections IA des questions ouvertes
+Publier les résultats
+Consulter les statistiques et exporter les résultats
+Administrateur :
+Gérer les comptes utilisateurs
+Superviser les évaluations
+Consulter les statistiques globales
+6.3 Diagrammes de séquences
+Les séquences critiques modélisées sont les suivantes :
+Connexion utilisateur (authentification JWT)
+Démarrage et passation d'une évaluation (timer, sauvegarde auto)
+Soumission et correction automatique (QCM + code via Judge0)
+Correction assistée IA d'une question ouverte
+Publication et consultation des résultats
+7. TECHNOLOGIES PROPOSÉES
+La mise en place de la plateforme nécessite une architecture robuste, sécurisée et évolutive. Les technologies retenues sont les suivantes :
+7.1 Backend
+Framework
+Spring Boot (Java 21)
+API
+REST — JSON
+Sécurité
+Spring Security + JWT
+Persistance
+Spring Data JPA / Hibernate
+Validation
+Bean Validation (Jakarta)
+Exécution de code
+Judge0 API (appel HTTP depuis Spring Boot)
+Assistance IA
+OpenAI API GPT (questions ouvertes)
+Export
+iText 7 (PDF) — Apache POI (Excel)
+Email
+Spring Mail (SMTP)
+Spring Boot a été retenu pour sa maturité, son écosystème riche et la maîtrise qu'en a l'équipe. Il couvre nativement l'ensemble des besoins backend sans dépendance externe supplémentaire, à l'exception de Judge0 et de l'API OpenAI qui sont appelés via des requêtes HTTP.
+7.2 Base de données
+SGBD
+MySQL 8
+ORM
+Hibernate via Spring Data JPA
+Migrations
+Flyway
+7.3 Frontend
+Framework
+React.js (Vite)
+Styling
+Tailwind CSS + shadcn/ui
+Routing
+React Router v6
+Appels HTTP
+Axios
+Éditeur de code
+Monaco Editor (Visual Studio Code dans le navigateur)
+Graphiques
+Recharts
+Gestion d'état
+useState / useContext / React Query
+7.4 Authentification
+Mécanisme
+JWT (JSON Web Token)
+Durée de vie
+Token : 24h — Refresh token : 7 jours
+Stockage
+localStorage côté client (avec flag HttpOnly envisagé)
+7.5 Déploiement
+Conteneurisation
+Docker + Docker Compose
+Serveur
+VPS ou machine locale (développement)
+CI/CD
+GitHub Actions (optionnel)
+8. ARCHITECTURE DU SYSTÈME
+8.1 Vue d'ensemble
+La plateforme adopte une architecture client-serveur découplée en trois couches :
+Couche
+Rôle
+Technologie
+Présentation
+Interface utilisateur — affichage, interactions, timer, éditeur de code
+React.js + Tailwind + shadcn
+Métier (API)
+Logique applicative, correction, sécurité, communication services externes
+Spring Boot + Spring Security
+Données
+Persistance des entités, transactions
+MySQL + JPA/Hibernate
+8.2 Structure du projet Spring Boot
+com.evalplatform ├── controller/     → Endpoints REST (@RestController) ├── service/         → Logique métier ├── repository/      → Accès BDD (JpaRepository) ├── model/           → Entités JPA ├── dto/             → Objets de transfert ├── security/        → JWT, Spring Security └── config/          → Configuration générale
+8.3 Principaux endpoints REST
+Méthode
+Endpoint
+Description
+Rôle requis
+POST
+/api/auth/login
+Authentification
+PUBLIC
+GET
+/api/evaluations
+Liste des évaluations
+ÉTUDIANT / ENSEIGNANT
+POST
+/api/evaluations
+Créer une évaluation
+ENSEIGNANT
+GET
+/api/evaluations/{id}/questions
+Récupérer les questions
+ÉTUDIANT / ENSEIGNANT
+POST
+/api/soumissions
+Démarrer une soumission
+ÉTUDIANT
+PUT
+/api/soumissions/{id}/sauvegarder
+Sauvegarde auto
+ÉTUDIANT
+POST
+/api/soumissions/{id}/soumettre
+Soumettre définitivement
+ÉTUDIANT
+GET
+/api/soumissions/{id}/resultats
+Consulter les résultats
+ÉTUDIANT / ENSEIGNANT
+GET
+/api/evaluations/{id}/stats
+Statistiques
+ENSEIGNANT
+GET
+/api/evaluations/{id}/export/pdf
+Export PDF
+ENSEIGNANT
+9. PLANIFICATION
+9.1 Répartition des rôles
+Rôle
+Responsabilités principales
+Chef de projet 
+Architecture globale, coordination, intégration des modules, documentation
+Développeur Backend
+API REST, entités JPA, Spring Security, JWT, logique de correction QCM
+Développeur Backend 
+Intégration Judge0, OpenAI API, export PDF/Excel, gestion des notifications
+Développeur Frontend 
+Interface enseignant : création d'évaluation, tableau de bord, stats
+Développeur Frontend 
+Interface étudiant : passation, timer, éditeur de code, résultats
+9.2 Phases du projet
+Phase
+Contenu
+Durée estimée
+Phase 1 — Fondations
+Modélisation BDD, entités JPA, authentification JWT, CRUD utilisateurs
+Semaine 1–2
+Phase 2 — Core Backend
+API évaluations, questions, soumissions, correction QCM automatique
+Semaine 2–3
+Phase 3 — Intégrations
+Judge0 (code), OpenAI (IA), export PDF/Excel
+Semaine 3–4
+Phase 4 — Frontend
+Interface React : login, passation, timer, résultats, tableau de bord
+Semaine 3–5
+Phase 5 — Tests & Finalisation
+Tests unitaires, intégration, débogage, documentation finale
+Semaine 5–6
+10. RISQUES ET PRÉOCCUPATIONS
+10.1 Risques techniques
+Risque
+Impact
+Mitigation
+Exécution de code non sécurisée
+Élevé
+Utilisation de Judge0 (sandbox isolé) plutôt qu'une exécution locale
+Correction IA imprécise
+Moyen
+L'IA est une aide à la décision : l'enseignant valide toujours la note finale
+Manipulation du timer côté client
+Élevé
+Le timer est géré côté serveur avec un timestamp de début stocké en BDD
+Perte de réponses en cas de coupure réseau
+Moyen
+Sauvegarde côté localStorage en tampon + synchronisation à la reconnexion
+Surcharge lors des examens simultanés
+Moyen
+Architecture stateless + optimisation des requêtes JPA + pagination
+10.2 Risques organisationnels
+Retard dans la livraison d'un module bloquant → prévoir un MVP fonctionnel (QCM + correction auto) avant les modules avancés
+Maîtrise incomplète de React par certains membres → partage de connaissances en début de projet + utilisation de V0.dev pour accélérer la génération de composants
+Dépendance à des API tierces (Judge0, OpenAI) → prévoir des fallbacks (correction manuelle si API indisponible)
+10.3 Préoccupations ouvertes
+Les points suivants nécessitent une décision avant le démarrage du développement :
+Gestion des rôles 
+Stratégie de correction des questions ouvertes : quel seuil de confiance IA justifie une validation automatique sans intervention humaine ?
+Politique de sauvegarde des données : quelle est la durée de rétention des soumissions et résultats après la fin d'un semestre ?
+Document rédigé par Mor LEYE et Mohamed Aminou Niang — DIC1-GIT — 2025–2026
