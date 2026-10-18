@@ -8,6 +8,9 @@ spring:
     name: eval-backend
   profiles:
     active: dev
+  mvc:
+    problemdetails:
+      enabled: true
 
   datasource:
     url: jdbc:postgresql://localhost:5432/eval_platform_db

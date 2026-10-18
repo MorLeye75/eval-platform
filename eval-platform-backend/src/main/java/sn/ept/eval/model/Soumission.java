@@ -14,7 +14,7 @@ import java.util.List;
         @UniqueConstraint(columnNames = {"evaluation_id", "etudiant_id"})
     }
 )
-public class Soumission {
+public class Soumission extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

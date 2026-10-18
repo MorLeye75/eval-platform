@@ -9,7 +9,7 @@ import jakarta.persistence.*;
         @UniqueConstraint(columnNames = {"etudiant_id", "evaluation_id"})
     }
 )
-public class AmenagementTemps {
+public class AmenagementTemps extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -6,7 +6,7 @@ import jakarta.persistence.*;
 @Entity
 @Table(name = "reponses_etudiant")
 @Inheritance(strategy = InheritanceType.JOINED)
-public abstract class ReponseEtudiant {
+public abstract class ReponseEtudiant extends AuditableEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
