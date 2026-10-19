@@ -5,8 +5,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import sn.ept.eval.dto.soumission.*;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
@@ -26,8 +24,6 @@ import java.util.stream.Collectors;
 public class SoumissionService {
 
     private static final Logger log = LoggerFactory.getLogger(SoumissionService.class);
-    /** Au-delà de ce délai sans modification, une copie SOUMIS est considérée comme bloquée. */
-    public static final int DELAI_CORRECTION_BLOQUEE_MINUTES = 5;
 
     private final SoumissionRepository soumissionRepository;
     private final EvaluationRepository evaluationRepository;
@@ -35,7 +31,7 @@ public class SoumissionService {
     private final QuestionRepository questionRepository;
     private final ChoixReponseRepository choixReponseRepository;
     private final ReponseEtudiantRepository reponseEtudiantRepository;
-    private final CorrectionService correctionService;
+    private final CorrectionDeclencheur correctionDeclencheur;
     private final TempsEpreuveService tempsEpreuveService;
     private final SoumissionMapper soumissionMapper;
     private final SoumissionAccesService soumissionAccesService;
@@ -47,7 +43,7 @@ public class SoumissionService {
                              QuestionRepository questionRepository,
                              ChoixReponseRepository choixReponseRepository,
                              ReponseEtudiantRepository reponseEtudiantRepository,
-                             CorrectionService correctionService,
+                             CorrectionDeclencheur correctionDeclencheur,
                              TempsEpreuveService tempsEpreuveService,
                              SoumissionMapper soumissionMapper,
                              SoumissionAccesService soumissionAccesService,
@@ -58,7 +54,7 @@ public class SoumissionService {
         this.questionRepository = questionRepository;
         this.choixReponseRepository = choixReponseRepository;
         this.reponseEtudiantRepository = reponseEtudiantRepository;
-        this.correctionService = correctionService;
+        this.correctionDeclencheur = correctionDeclencheur;
         this.tempsEpreuveService = tempsEpreuveService;
         this.soumissionMapper = soumissionMapper;
         this.soumissionAccesService = soumissionAccesService;
@@ -224,7 +220,7 @@ public class SoumissionService {
             antiTricheService.signalerSoumissionTardive(soumission);
 
             // La copie figée est corrigée comme les autres (sinon elle resterait SOUMIS indéfiniment)
-            declencherCorrectionApresCommit(soumission.getId());
+            correctionDeclencheur.apresCommit(soumission.getId());
 
             throw new TempsEcouleException("Temps dépassé au-delà de la marge de tolérance. Votre copie a été verrouillée à l'état de votre dernière sauvegarde.");
         }
@@ -235,45 +231,9 @@ public class SoumissionService {
         soumission = soumissionRepository.save(soumission);
 
         // Déclenche CorrectionService en arrière-plan (async), une fois le statut SOUMIS commité
-        declencherCorrectionApresCommit(soumission.getId());
+        correctionDeclencheur.apresCommit(soumission.getId());
 
         return soumissionMapper.versResponse(soumission, "Copie soumise avec succès.");
-    }
-
-    /**
-     * Clôture automatique (tâche planifiée) : les copies EN_COURS dont le temps, marge comprise, est écoulé
-     * sont figées à leur dernier auto-save puis corrigées. Cas typique : l'étudiant a fermé son navigateur.
-     *
-     * @return le nombre de copies clôturées
-     */
-    public int cloturerCopiesExpirees() {
-        int nbCloturees = 0;
-        for (Soumission soumission : soumissionRepository.findByStatut(StatutSoumission.EN_COURS)) {
-            if (tempsEpreuveService.estExpiree(soumission)) {
-                soumission.setStatut(StatutSoumission.SOUMIS);
-                soumission.setDateRemise(tempsEpreuveService.finEpreuve(soumission));
-                declencherCorrectionApresCommit(soumission.getId());
-                log.info("Clôture automatique de la soumission ID={} (temps écoulé)", soumission.getId());
-                nbCloturees++;
-            }
-        }
-        return nbCloturees;
-    }
-
-    /**
-     * Reprise (tâche planifiée) des copies restées SOUMIS : la correction asynchrone a échoué
-     * ou le serveur a redémarré entre la soumission et la correction.
-     *
-     * @return le nombre de corrections relancées
-     */
-    public int relancerCorrectionsBloquees() {
-        LocalDateTime seuil = tempsEpreuveService.maintenant().minusMinutes(DELAI_CORRECTION_BLOQUEE_MINUTES);
-        List<Soumission> bloquees = soumissionRepository.findByStatutAndDateModificationBefore(StatutSoumission.SOUMIS, seuil);
-        bloquees.forEach(s -> {
-            log.warn("Relance de la correction de la soumission ID={} (bloquée en SOUMIS)", s.getId());
-            declencherCorrectionApresCommit(s.getId());
-        });
-        return bloquees.size();
     }
 
     /**
@@ -282,19 +242,6 @@ public class SoumissionService {
     @Transactional(readOnly = true)
     public SoumissionDetailResponse getDetail(Long soumissionId, String userEmail) {
         return soumissionMapper.versDetail(soumissionAccesService.copieConsultable(soumissionId, userEmail));
-    }
-
-    private void declencherCorrectionApresCommit(Long soumissionId) {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    correctionService.corrigerSoumissionAsync(soumissionId);
-                }
-            });
-        } else {
-            correctionService.corrigerSoumissionAsync(soumissionId);
-        }
     }
 
     private List<ChoixReponse> getChoixValides(QuestionQCM question, List<Long> choixIds) {

@@ -41,6 +41,9 @@ class SoumissionIntegrationTest {
     private SoumissionService soumissionService;
 
     @Autowired
+    private ClotureCopiesService clotureCopiesService;
+
+    @Autowired
     private SoumissionRepository soumissionRepository;
 
     @Autowired
@@ -185,7 +188,7 @@ class SoumissionIntegrationTest {
         LocalDateTime debut = LocalDateTime.now().minusMinutes(60).truncatedTo(ChronoUnit.SECONDS);
         jdbcTemplate.update("update soumissions set date_debut = ? where id = ?", debut, soumissionId);
 
-        assertThat(soumissionService.cloturerCopiesExpirees()).isGreaterThanOrEqualTo(1);
+        assertThat(clotureCopiesService.cloturerCopiesExpirees()).isGreaterThanOrEqualTo(1);
 
         assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
         Soumission soumission = soumissionRepository.findById(soumissionId).orElseThrow();
@@ -198,7 +201,7 @@ class SoumissionIntegrationTest {
     void cloture_CopieDansLesTemps_Intacte() {
         Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
 
-        soumissionService.cloturerCopiesExpirees();
+        clotureCopiesService.cloturerCopiesExpirees();
 
         assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getStatut()).isEqualTo(StatutSoumission.EN_COURS);
     }
@@ -211,7 +214,7 @@ class SoumissionIntegrationTest {
         jdbcTemplate.update("update soumissions set statut = 'SOUMIS', date_modification = ? where id = ?",
                 LocalDateTime.now().minusMinutes(10), soumissionId);
 
-        assertThat(soumissionService.relancerCorrectionsBloquees()).isGreaterThanOrEqualTo(1);
+        assertThat(clotureCopiesService.relancerCorrectionsBloquees()).isGreaterThanOrEqualTo(1);
 
         assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
     }

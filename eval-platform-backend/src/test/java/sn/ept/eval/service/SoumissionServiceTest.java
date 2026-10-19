@@ -83,7 +83,7 @@ class SoumissionServiceTest {
                 accesService, tempsEpreuveService);
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
                 questionRepository, choixReponseRepository, reponseEtudiantRepository,
-                correctionService, tempsEpreuveService, soumissionMapper, accesService, antiTricheService);
+                new CorrectionDeclencheur(correctionService), tempsEpreuveService, soumissionMapper, accesService, antiTricheService);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
         etudiant.setId(1L);

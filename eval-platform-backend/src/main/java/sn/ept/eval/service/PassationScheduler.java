@@ -16,10 +16,10 @@ public class PassationScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(PassationScheduler.class);
 
-    private final SoumissionService soumissionService;
+    private final ClotureCopiesService clotureCopiesService;
 
-    public PassationScheduler(SoumissionService soumissionService) {
-        this.soumissionService = soumissionService;
+    public PassationScheduler(ClotureCopiesService clotureCopiesService) {
+        this.clotureCopiesService = clotureCopiesService;
     }
 
     @Scheduled(fixedDelayString = "${passation.taches-planifiees.intervalle-ms:60000}",
@@ -27,7 +27,7 @@ public class PassationScheduler {
     public void executer() {
         // Deux appels distincts : un échec de l'un n'empêche pas l'autre
         try {
-            int cloturees = soumissionService.cloturerCopiesExpirees();
+            int cloturees = clotureCopiesService.cloturerCopiesExpirees();
             if (cloturees > 0) {
                 log.info("[Planifié] {} copie(s) clôturée(s) automatiquement", cloturees);
             }
@@ -36,7 +36,7 @@ public class PassationScheduler {
         }
 
         try {
-            soumissionService.relancerCorrectionsBloquees();
+            clotureCopiesService.relancerCorrectionsBloquees();
         } catch (Exception e) {
             log.error("[Planifié] Échec de la relance des corrections bloquées", e);
         }
