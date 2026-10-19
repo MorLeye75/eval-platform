@@ -243,6 +243,15 @@ class SoumissionIntegrationTest {
         }
     }
 
+    @Test
+    @DisplayName("Audit : un utilisateur créé reçoit sa date de création et son créateur")
+    void audit_Utilisateur() {
+        Utilisateur utilisateur = utilisateurRepository.findByEmail(emailEtudiant).orElseThrow();
+
+        assertThat(utilisateur.getDateCreation()).isNotNull();
+        assertThat(utilisateur.getCreePar()).isEqualTo("SYSTEM"); // créé hors requête authentifiée
+    }
+
     /** Évaluation ouverte composée d'un seul quiz chronométré (4 points). */
     private Long creerEvaluationQuiz() {
         return transactionTemplate.execute(tx -> {
