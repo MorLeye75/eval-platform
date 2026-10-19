@@ -97,6 +97,10 @@ public class SoumissionService {
             throw new AccesRefuseException("Vous n'êtes pas inscrit dans une promotion assignée à cette évaluation.");
         }
 
+        // Verrou sur l'étudiant : deux démarrages simultanés (double clic, deux onglets) ne doivent pas créer
+        // deux copies ; le second attend la fin du premier puis reprend la copie qu'il a créée
+        etudiantRepository.findByIdForUpdate(etudiant.getId());
+
         // Vérifier si une soumission existe déjà
         Optional<Soumission> existanteOpt = soumissionRepository.findByEvaluationIdAndEtudiantId(evaluationId, etudiant.getId());
         Soumission soumission;

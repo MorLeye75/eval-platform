@@ -21,6 +21,11 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -209,6 +214,33 @@ class SoumissionIntegrationTest {
         assertThat(soumissionService.relancerCorrectionsBloquees()).isGreaterThanOrEqualTo(1);
 
         assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
+    }
+
+    @Test
+    @DisplayName("Démarrage : deux appels simultanés renvoient la même copie, sans erreur")
+    void demarrage_Simultane_MemeCopie() throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            // Plusieurs essais avec un nouvel étudiant à chaque fois : une course n'est pas reproductible à coup sûr
+            for (int essai = 0; essai < 5; essai++) {
+                String email = "etu-concurrent-" + UUID.randomUUID() + "@ept.sn";
+                utilisateurRepository.save(new Etudiant("Test", "Concurrent", email, "x", "ETU-" + UUID.randomUUID(),
+                        promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
+
+                CountDownLatch depart = new CountDownLatch(1);
+                Callable<Long> demarrer = () -> {
+                    depart.await();
+                    return soumissionService.demarrerOuReprendre(evalQcmId, email).getId();
+                };
+                Future<Long> premier = pool.submit(demarrer);
+                Future<Long> second = pool.submit(demarrer);
+                depart.countDown();
+
+                assertThat(premier.get()).isEqualTo(second.get());
+            }
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     /** Évaluation ouverte composée d'un seul quiz chronométré (4 points). */
