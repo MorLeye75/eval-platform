@@ -81,9 +81,11 @@ class SoumissionServiceTest {
         SoumissionAccesService accesService = new SoumissionAccesService(etudiantRepository, utilisateurRepository, soumissionRepository);
         AntiTricheService antiTricheService = new AntiTricheService(soumissionRepository, alerteAntiTricheRepository,
                 accesService, tempsEpreuveService);
+        EnregistrementReponsesService enregistrementReponses = new EnregistrementReponsesService(questionRepository,
+                choixReponseRepository, reponseEtudiantRepository);
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
-                questionRepository, choixReponseRepository, reponseEtudiantRepository,
-                new CorrectionDeclencheur(correctionService), tempsEpreuveService, soumissionMapper, accesService, antiTricheService);
+                enregistrementReponses, new CorrectionDeclencheur(correctionService), tempsEpreuveService,
+                soumissionMapper, accesService, antiTricheService);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
         etudiant.setId(1L);
