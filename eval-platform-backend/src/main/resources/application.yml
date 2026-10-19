@@ -24,6 +24,10 @@ spring:
       ddl-auto: ${DDL_AUTO:update}
     show-sql: false
     open-in-view: false
+    properties:
+      hibernate:
+        # Les collections LAZY (choix, choix cochés...) sont chargées par lots au lieu d'une requête par élément
+        default_batch_fetch_size: 50
 
 # Configuration JWT & Sécurité
 jwt:

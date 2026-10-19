@@ -18,6 +18,9 @@ spring:
     hibernate:
       ddl-auto: create-drop
     show-sql: false
+    properties:
+      hibernate:
+        default_batch_fetch_size: 50
 
 # Les tâches planifiées sont testées en appelant directement le service
 passation:

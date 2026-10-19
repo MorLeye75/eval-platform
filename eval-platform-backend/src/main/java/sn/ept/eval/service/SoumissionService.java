@@ -145,24 +145,28 @@ public class SoumissionService {
         }
 
         // 3. Mise à jour ou création des réponses
+        // Questions de l'évaluation et réponses existantes chargées en une requête chacune (pas de N+1)
+        Map<Long, Question> questionsEvaluation = questionRepository
+                .findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId()).stream()
+                .collect(Collectors.toMap(Question::getId, q -> (Question) Hibernate.unproxy(q)));
+        Map<Long, ReponseEtudiant> reponsesExistantes = reponseEtudiantRepository.findBySoumissionId(soumission.getId()).stream()
+                .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
+
         int nbSauvegardees = 0;
         if (request.getReponses() != null) {
             for (ReponseItemDto item : request.getReponses()) {
                 if (item.getQuestionId() == null) continue;
 
-                Question question = questionRepository.findById(item.getQuestionId())
-                        .map(q -> (Question) Hibernate.unproxy(q))
-                        .orElse(null);
-                if (question == null) continue;
-
-                // La question doit appartenir à l'évaluation de cette copie
-                if (!question.getEvaluation().getId().equals(soumission.getEvaluation().getId())) {
-                    throw new IllegalArgumentException("La question " + question.getId() + " n'appartient pas à cette évaluation.");
+                Question question = questionsEvaluation.get(item.getQuestionId());
+                if (question == null) {
+                    // La question doit appartenir à l'évaluation de cette copie ; un id inexistant est ignoré
+                    if (questionRepository.existsById(item.getQuestionId())) {
+                        throw new IllegalArgumentException("La question " + item.getQuestionId() + " n'appartient pas à cette évaluation.");
+                    }
+                    continue;
                 }
 
-                ReponseEtudiant reponse = reponseEtudiantRepository
-                        .findBySoumissionIdAndQuestionId(soumission.getId(), question.getId())
-                        .orElse(null);
+                ReponseEtudiant reponse = reponsesExistantes.get(question.getId());
 
                 // Une réponse existante d'un autre type (ex. question modifiée) est remplacée, pas dupliquée
                 if (reponse != null && !estDuBonType(reponse, question)) {
