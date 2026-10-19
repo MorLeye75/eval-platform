@@ -32,6 +32,8 @@ public class SoumissionService {
     public static final int MARGE_TOLERANCE_MINUTES = 2;
     public static final int SEUIL_ALERTE_MODEREE = 3;
     public static final int SEUIL_ALERTE_ELEVEE = 5;
+    /** Au-delà de ce délai sans modification, une copie SOUMIS est considérée comme bloquée. */
+    public static final int DELAI_CORRECTION_BLOQUEE_MINUTES = 5;
 
     private final SoumissionRepository soumissionRepository;
     private final EvaluationRepository evaluationRepository;
@@ -234,6 +236,9 @@ public class SoumissionService {
             alerte.setDateDetection(now);
             alerteAntiTricheRepository.save(alerte);
 
+            // La copie figée est corrigée comme les autres (sinon elle resterait SOUMIS indéfiniment)
+            declencherCorrectionApresCommit(soumission.getId());
+
             throw new TempsEcouleException("Temps dépassé au-delà de la marge de tolérance. Votre copie a été verrouillée à l'état de votre dernière sauvegarde.");
         }
 
@@ -246,6 +251,44 @@ public class SoumissionService {
         declencherCorrectionApresCommit(soumission.getId());
 
         return toSoumissionResponse(soumission, etudiant, "Copie soumise avec succès.");
+    }
+
+    /**
+     * Clôture automatique (tâche planifiée) : les copies EN_COURS dont le temps, marge comprise, est écoulé
+     * sont figées à leur dernier auto-save puis corrigées. Cas typique : l'étudiant a fermé son navigateur.
+     *
+     * @return le nombre de copies clôturées
+     */
+    public int cloturerCopiesExpirees() {
+        LocalDateTime now = LocalDateTime.now(clock);
+        int nbCloturees = 0;
+        for (Soumission soumission : soumissionRepository.findByStatut(StatutSoumission.EN_COURS)) {
+            LocalDateTime finEpreuve = getFinEpreuve(soumission, soumission.getEtudiant());
+            if (now.isAfter(finEpreuve.plusMinutes(MARGE_TOLERANCE_MINUTES))) {
+                soumission.setStatut(StatutSoumission.SOUMIS);
+                soumission.setDateRemise(finEpreuve);
+                declencherCorrectionApresCommit(soumission.getId());
+                log.info("Clôture automatique de la soumission ID={} (temps écoulé)", soumission.getId());
+                nbCloturees++;
+            }
+        }
+        return nbCloturees;
+    }
+
+    /**
+     * Reprise (tâche planifiée) des copies restées SOUMIS : la correction asynchrone a échoué
+     * ou le serveur a redémarré entre la soumission et la correction.
+     *
+     * @return le nombre de corrections relancées
+     */
+    public int relancerCorrectionsBloquees() {
+        LocalDateTime seuil = LocalDateTime.now(clock).minusMinutes(DELAI_CORRECTION_BLOQUEE_MINUTES);
+        List<Soumission> bloquees = soumissionRepository.findByStatutAndDateModificationBefore(StatutSoumission.SOUMIS, seuil);
+        bloquees.forEach(s -> {
+            log.warn("Relance de la correction de la soumission ID={} (bloquée en SOUMIS)", s.getId());
+            declencherCorrectionApresCommit(s.getId());
+        });
+        return bloquees.size();
     }
 
     /**

@@ -172,8 +172,8 @@ class SoumissionServiceTest {
                 alerte.getDescription().contains("Soumission tardive")
         ));
 
-        // Vérifie que la correction automatique N'EST PAS déclenchée
-        verify(correctionService, never()).corrigerSoumissionAsync(any());
+        // La copie figée à son dernier auto-save est tout de même corrigée
+        verify(correctionService).corrigerSoumissionAsync(100L);
     }
 
     @Test

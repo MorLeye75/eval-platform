@@ -19,6 +19,11 @@ spring:
       ddl-auto: create-drop
     show-sql: false
 
+# Les tâches planifiées sont testées en appelant directement le service
+passation:
+  taches-planifiees:
+    actif: false
+
 jwt:
   secret: dGVzdC1vbmx5LXNlY3JldC1ldmFsLXBsYXRmb3JtLWp1bml0LXRlc3RzLW9ubHkh
   expiration-ms: 86400000

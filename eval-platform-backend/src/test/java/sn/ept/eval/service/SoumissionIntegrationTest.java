@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
@@ -17,6 +18,7 @@ import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -54,6 +56,9 @@ class SoumissionIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     private String emailEtudiant;
     private Long evalQcmId;
     private Long evalCodeId;
@@ -73,7 +78,7 @@ class SoumissionIntegrationTest {
 
     @Test
     @DisplayName("DS-01 (Cas critique) : le verrouillage et l'alerte sont bien persistés malgré l'exception")
-    void soumissionTardive_EstPersisteeMalgreException() {
+    void soumissionTardive_EstPersisteeMalgreException() throws InterruptedException {
         Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
         transactionTemplate.executeWithoutResult(tx -> {
             Soumission s = soumissionRepository.findById(soumissionId).orElseThrow();
@@ -84,8 +89,10 @@ class SoumissionIntegrationTest {
                 .isInstanceOf(TempsEcouleException.class);
 
         assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getStatut())
-                .isEqualTo(StatutSoumission.SOUMIS);
+                .isNotEqualTo(StatutSoumission.EN_COURS);
         assertThat(alerteAntiTricheRepository.findBySoumissionId(soumissionId)).hasSize(1);
+        // La copie figée est corrigée comme les autres
+        assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
     }
 
     @Test
@@ -163,6 +170,45 @@ class SoumissionIntegrationTest {
 
         assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
         assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getNoteFinale()).isEqualTo(4.0);
+    }
+
+    @Test
+    @DisplayName("Tâche planifiée : une copie abandonnée après expiration est clôturée puis corrigée")
+    void cloture_CopieAbandonnee() throws InterruptedException {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(reponsesCorrectes()), emailEtudiant);
+        LocalDateTime debut = LocalDateTime.now().minusMinutes(60).truncatedTo(ChronoUnit.SECONDS);
+        jdbcTemplate.update("update soumissions set date_debut = ? where id = ?", debut, soumissionId);
+
+        assertThat(soumissionService.cloturerCopiesExpirees()).isGreaterThanOrEqualTo(1);
+
+        assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
+        Soumission soumission = soumissionRepository.findById(soumissionId).orElseThrow();
+        assertThat(soumission.getDateRemise()).isEqualTo(debut.plusMinutes(45)); // figée à la fin théorique
+        assertThat(soumission.getNoteFinale()).isEqualTo(5.0);
+    }
+
+    @Test
+    @DisplayName("Tâche planifiée : une copie en cours dans les temps n'est pas clôturée")
+    void cloture_CopieDansLesTemps_Intacte() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+
+        soumissionService.cloturerCopiesExpirees();
+
+        assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getStatut()).isEqualTo(StatutSoumission.EN_COURS);
+    }
+
+    @Test
+    @DisplayName("Tâche planifiée : une copie restée SOUMIS (correction perdue) est corrigée à la relance")
+    void relance_CorrectionBloquee() throws InterruptedException {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        // Simule une correction jamais exécutée : statut SOUMIS, dernière modification il y a 10 min
+        jdbcTemplate.update("update soumissions set statut = 'SOUMIS', date_modification = ? where id = ?",
+                LocalDateTime.now().minusMinutes(10), soumissionId);
+
+        assertThat(soumissionService.relancerCorrectionsBloquees()).isGreaterThanOrEqualTo(1);
+
+        assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
     }
 
     /** Évaluation ouverte composée d'un seul quiz chronométré (4 points). */
