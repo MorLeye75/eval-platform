@@ -115,7 +115,7 @@ class SoumissionServiceTest {
     }
 
     @Test
-    @DisplayName("DS-02 (Cas d'erreur) : Rejet avec HTTP 403 (TempsEcouleException) si le temps imparti est expiré")
+    @DisplayName("DS-02 (Cas d'erreur) : Rejet avec HTTP 409 (TempsEcouleException) si le temps imparti est expiré")
     void sauvegarderReponses_TempsExpire_LèveTempsEcouleException() {
         // Débuté il y a 40 minutes pour une épreuve de 30 minutes (+ 2 min de marge = 32 min max)
         soumission.setDateDebut(MAINTENANT.minusMinutes(40));
@@ -149,7 +149,7 @@ class SoumissionServiceTest {
     }
 
     @Test
-    @DisplayName("DS-01 (Cas critique) : Soumission hors délai -> Verrouillage copie, alerte anti-triche et HTTP 403")
+    @DisplayName("DS-01 (Cas critique) : Soumission hors délai -> Verrouillage copie, alerte anti-triche et HTTP 409")
     void soumettreCopie_TempsDepasseCritique_VerrouilleEtDeclencheAlerte() {
         // Débuté il y a 45 min pour une épreuve de 30 min (+ 2 min marge = 32 min max)
         soumission.setDateDebut(MAINTENANT.minusMinutes(45));

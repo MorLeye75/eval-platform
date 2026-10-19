@@ -23,7 +23,7 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("RFC 7807 : TempsEcouleException produit un ProblemDetail standardisé avec status 403 et URI")
+    @DisplayName("RFC 7807 : TempsEcouleException produit un ProblemDetail standardisé avec status 409 et URI")
     void handleTempsEcoule_ConformeRfc7807() {
         request.setRequestURI("/api/soumissions/100/soumettre");
         TempsEcouleException ex = new TempsEcouleException("Le temps imparti au-delà de la marge de tolérance est écoulé. La copie a été figée.");
@@ -31,7 +31,7 @@ class GlobalExceptionHandlerTest {
         ProblemDetail problem = exceptionHandler.handleTempsEcoule(ex, request);
 
         assertThat(problem).isNotNull();
-        assertThat(problem.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
         assertThat(problem.getTitle()).isEqualTo("Temps d'examen dépassé");
         assertThat(problem.getDetail()).isEqualTo("Le temps imparti au-delà de la marge de tolérance est écoulé. La copie a été figée.");
         assertThat(problem.getType()).isEqualTo(URI.create("https://eval.ept.sn/errors/temps-expire"));
@@ -42,14 +42,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    @DisplayName("RFC 7807 : SoumissionNonModifiableException renvoie HTTP 403 SOUMISSION_VERROUILLEE")
+    @DisplayName("RFC 7807 : SoumissionNonModifiableException renvoie HTTP 409 SOUMISSION_VERROUILLEE")
     void handleSoumissionNonModifiable_ConformeRfc7807() {
         request.setRequestURI("/api/soumissions/100/sauvegarder");
         SoumissionNonModifiableException ex = new SoumissionNonModifiableException("Copie déjà soumise.");
 
         ProblemDetail problem = exceptionHandler.handleSoumissionNonModifiable(ex, request);
 
-        assertThat(problem.getStatus()).isEqualTo(HttpStatus.FORBIDDEN.value());
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
         assertThat(problem.getTitle()).isEqualTo("Soumission verrouillée");
         assertThat(problem.getType()).isEqualTo(URI.create("https://eval.ept.sn/errors/soumission-verrouillee"));
         assertThat(problem.getProperties().get("code")).isEqualTo("SOUMISSION_VERROUILLEE");

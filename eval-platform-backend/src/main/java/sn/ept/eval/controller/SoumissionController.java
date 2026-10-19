@@ -90,15 +90,15 @@ public class SoumissionController {
                     content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
             ),
             @ApiResponse(
-                    responseCode = "403",
-                    description = "Temps d'examen écoulé ou copie déjà verrouillée (norme RFC 7807)",
+                    responseCode = "409",
+                    description = "Conflit avec l'état de la copie : temps d'examen écoulé ou copie déjà verrouillée (norme RFC 7807)",
                     content = @Content(
                             mediaType = "application/problem+json",
                             schema = @Schema(implementation = ProblemDetail.class),
                             examples = @ExampleObject(
                                     name = "TempsExpireSauvegarde",
                                     summary = "Temps d'examen dépassé",
-                                    value = "{\n  \"type\": \"https://eval.ept.sn/errors/temps-expire\",\n  \"title\": \"Temps d'examen dépassé\",\n  \"status\": 403,\n  \"detail\": \"Action rejetée : temps imparti expiré.\",\n  \"instance\": \"/api/soumissions/100/sauvegarder\",\n  \"code\": \"TEMPS_EXPIRE\",\n  \"timestamp\": \"2026-10-18T12:00:00\"\n}"
+                                    value = "{\n  \"type\": \"https://eval.ept.sn/errors/temps-expire\",\n  \"title\": \"Temps d'examen dépassé\",\n  \"status\": 409,\n  \"detail\": \"Action rejetée : temps imparti expiré.\",\n  \"instance\": \"/api/soumissions/100/sauvegarder\",\n  \"code\": \"TEMPS_EXPIRE\",\n  \"timestamp\": \"2026-10-18T12:00:00\"\n}"
                             )
                     )
             ),
@@ -133,15 +133,15 @@ public class SoumissionController {
                     content = @Content(mediaType = "application/json", schema = @Schema(implementation = SoumissionResponse.class))
             ),
             @ApiResponse(
-                    responseCode = "403",
-                    description = "Dépassement temporel critique anti-triche (norme RFC 7807)",
+                    responseCode = "409",
+                    description = "Dépassement temporel critique : copie figée à son dernier auto-save et alerte anti-triche (norme RFC 7807)",
                     content = @Content(
                             mediaType = "application/problem+json",
                             schema = @Schema(implementation = ProblemDetail.class),
                             examples = @ExampleObject(
                                     name = "TempsExpireCritique",
                                     summary = "Dépassement temporel critique",
-                                    value = "{\n  \"type\": \"https://eval.ept.sn/errors/temps-expire\",\n  \"title\": \"Temps d'examen dépassé\",\n  \"status\": 403,\n  \"detail\": \"Temps dépassé au-delà de la marge de tolérance. Votre copie a été verrouillée à l'état de votre dernière sauvegarde.\",\n  \"instance\": \"/api/soumissions/100/soumettre\",\n  \"code\": \"TEMPS_EXPIRE\",\n  \"timestamp\": \"2026-10-18T12:00:00\"\n}"
+                                    value = "{\n  \"type\": \"https://eval.ept.sn/errors/temps-expire\",\n  \"title\": \"Temps d'examen dépassé\",\n  \"status\": 409,\n  \"detail\": \"Temps dépassé au-delà de la marge de tolérance. Votre copie a été verrouillée à l'état de votre dernière sauvegarde.\",\n  \"instance\": \"/api/soumissions/100/soumettre\",\n  \"code\": \"TEMPS_EXPIRE\",\n  \"timestamp\": \"2026-10-18T12:00:00\"\n}"
                             )
                     )
             ),

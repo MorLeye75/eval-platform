@@ -33,9 +33,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String ERROR_BASE_URL = "https://eval.ept.sn/errors/";
 
+    /**
+     * 409 Conflict (et non 403) : l'utilisateur a bien le droit d'agir sur sa copie,
+     * c'est l'état de la ressource (temps écoulé, copie verrouillée) qui empêche l'action.
+     */
     @ExceptionHandler(TempsEcouleException.class)
     public ProblemDetail handleTempsEcoule(TempsEcouleException ex, HttpServletRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Temps d'examen dépassé");
         problem.setType(URI.create(ERROR_BASE_URL + "temps-expire"));
         problem.setInstance(URI.create(request.getRequestURI()));
@@ -46,7 +50,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(SoumissionNonModifiableException.class)
     public ProblemDetail handleSoumissionNonModifiable(SoumissionNonModifiableException ex, HttpServletRequest request) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
         problem.setTitle("Soumission verrouillée");
         problem.setType(URI.create(ERROR_BASE_URL + "soumission-verrouillee"));
         problem.setInstance(URI.create(request.getRequestURI()));

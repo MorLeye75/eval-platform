@@ -21,7 +21,7 @@ public class OpenApiConfig {
                 .description("Format international d'erreur d'API RFC 7807 (Problem Details for HTTP APIs)")
                 .addProperty("type", new StringSchema().example("https://eval.ept.sn/errors/temps-expire"))
                 .addProperty("title", new StringSchema().example("Temps d'examen dépassé"))
-                .addProperty("status", new IntegerSchema().example(403))
+                .addProperty("status", new IntegerSchema().example(409))
                 .addProperty("detail", new StringSchema().example("Le temps imparti au-delà de la marge de tolérance est écoulé. La copie a été figée."))
                 .addProperty("instance", new StringSchema().example("/api/soumissions/100/soumettre"))
                 .addProperty("code", new StringSchema().example("TEMPS_EXPIRE"))
