@@ -18,8 +18,6 @@ import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
-import java.time.Clock;
-import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -29,7 +27,6 @@ import java.util.stream.Collectors;
 public class SoumissionService {
 
     private static final Logger log = LoggerFactory.getLogger(SoumissionService.class);
-    public static final int MARGE_TOLERANCE_MINUTES = 2;
     public static final int SEUIL_ALERTE_MODEREE = 3;
     public static final int SEUIL_ALERTE_ELEVEE = 5;
     /** Au-delà de ce délai sans modification, une copie SOUMIS est considérée comme bloquée. */
@@ -41,11 +38,10 @@ public class SoumissionService {
     private final QuestionRepository questionRepository;
     private final ChoixReponseRepository choixReponseRepository;
     private final ReponseEtudiantRepository reponseEtudiantRepository;
-    private final AmenagementTempsRepository amenagementTempsRepository;
     private final AlerteAntiTricheRepository alerteAntiTricheRepository;
     private final CorrectionService correctionService;
     private final UtilisateurRepository utilisateurRepository;
-    private final Clock clock;
+    private final TempsEpreuveService tempsEpreuveService;
 
     public SoumissionService(SoumissionRepository soumissionRepository,
                              EvaluationRepository evaluationRepository,
@@ -53,22 +49,20 @@ public class SoumissionService {
                              QuestionRepository questionRepository,
                              ChoixReponseRepository choixReponseRepository,
                              ReponseEtudiantRepository reponseEtudiantRepository,
-                             AmenagementTempsRepository amenagementTempsRepository,
                              AlerteAntiTricheRepository alerteAntiTricheRepository,
                              CorrectionService correctionService,
                              UtilisateurRepository utilisateurRepository,
-                             Clock clock) {
+                             TempsEpreuveService tempsEpreuveService) {
         this.soumissionRepository = soumissionRepository;
         this.evaluationRepository = evaluationRepository;
         this.etudiantRepository = etudiantRepository;
         this.questionRepository = questionRepository;
         this.choixReponseRepository = choixReponseRepository;
         this.reponseEtudiantRepository = reponseEtudiantRepository;
-        this.amenagementTempsRepository = amenagementTempsRepository;
         this.alerteAntiTricheRepository = alerteAntiTricheRepository;
         this.correctionService = correctionService;
         this.utilisateurRepository = utilisateurRepository;
-        this.clock = clock;
+        this.tempsEpreuveService = tempsEpreuveService;
     }
 
     /**
@@ -79,7 +73,7 @@ public class SoumissionService {
         Evaluation evaluation = evaluationRepository.findById(evaluationId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + evaluationId + ")"));
 
-        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime now = tempsEpreuveService.maintenant();
         if (now.isBefore(evaluation.getDateOuverture())) {
             throw new IllegalArgumentException("Cette évaluation n'est pas encore ouverte.");
         }
@@ -119,7 +113,7 @@ public class SoumissionService {
             log.info("Création d'une nouvelle soumission ID={} pour l'étudiant {}", soumission.getId(), userEmail);
         }
 
-        return buildSoumissionDetailResponse(soumission, etudiant);
+        return buildSoumissionDetailResponse(soumission);
     }
 
     /**
@@ -129,17 +123,13 @@ public class SoumissionService {
         Etudiant etudiant = getEtudiantConnecte(userEmail);
         Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
 
-        LocalDateTime now = LocalDateTime.now(clock);
-
         // 1. Vérifie statut == EN_COURS
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
             throw new SoumissionNonModifiableException("Action rejetée : la copie a déjà été soumise ou verrouillée.");
         }
 
         // 2. Vérifie !isExpiree()
-        LocalDateTime expirationAvecMarge = getFinEpreuve(soumission, etudiant).plusMinutes(MARGE_TOLERANCE_MINUTES);
-
-        if (now.isAfter(expirationAvecMarge)) {
+        if (tempsEpreuveService.estExpiree(soumission)) {
             log.warn("Tentative de sauvegarde tardive rejetée pour soumission ID={}", soumissionId);
             throw new TempsEcouleException("Action rejetée : temps imparti expiré.");
         }
@@ -206,7 +196,7 @@ public class SoumissionService {
             }
         }
 
-        return new SauvegardeResponse(LocalDateTime.now(clock), "Sauvegarde effectuée avec succès.", nbSauvegardees);
+        return new SauvegardeResponse(tempsEpreuveService.maintenant(), "Sauvegarde effectuée avec succès.", nbSauvegardees);
     }
 
     /**
@@ -219,15 +209,14 @@ public class SoumissionService {
         Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
 
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
-            return toSoumissionResponse(soumission, etudiant, "Cette copie a déjà été transmise.");
+            return toSoumissionResponse(soumission, "Cette copie a déjà été transmise.");
         }
 
-        LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime finEpreuve = getFinEpreuve(soumission, etudiant);
-        LocalDateTime limiteMaxAvecMarge = finEpreuve.plusMinutes(MARGE_TOLERANCE_MINUTES);
+        LocalDateTime now = tempsEpreuveService.maintenant();
+        LocalDateTime finEpreuve = tempsEpreuveService.finEpreuve(soumission);
 
         // [Cas critique : Temps dépassé au-delà de la marge de tolérance]
-        if (now.isAfter(limiteMaxAvecMarge)) {
+        if (tempsEpreuveService.estExpiree(soumission)) {
             log.warn("[Anti-Triche] Dépassement temporel critique pour la soumission ID={}", soumissionId);
 
             // Le serveur fige la copie à l'état du dernier auto-save
@@ -258,7 +247,7 @@ public class SoumissionService {
         // Déclenche CorrectionService en arrière-plan (async), une fois le statut SOUMIS commité
         declencherCorrectionApresCommit(soumission.getId());
 
-        return toSoumissionResponse(soumission, etudiant, "Copie soumise avec succès.");
+        return toSoumissionResponse(soumission, "Copie soumise avec succès.");
     }
 
     /**
@@ -268,13 +257,11 @@ public class SoumissionService {
      * @return le nombre de copies clôturées
      */
     public int cloturerCopiesExpirees() {
-        LocalDateTime now = LocalDateTime.now(clock);
         int nbCloturees = 0;
         for (Soumission soumission : soumissionRepository.findByStatut(StatutSoumission.EN_COURS)) {
-            LocalDateTime finEpreuve = getFinEpreuve(soumission, soumission.getEtudiant());
-            if (now.isAfter(finEpreuve.plusMinutes(MARGE_TOLERANCE_MINUTES))) {
+            if (tempsEpreuveService.estExpiree(soumission)) {
                 soumission.setStatut(StatutSoumission.SOUMIS);
-                soumission.setDateRemise(finEpreuve);
+                soumission.setDateRemise(tempsEpreuveService.finEpreuve(soumission));
                 declencherCorrectionApresCommit(soumission.getId());
                 log.info("Clôture automatique de la soumission ID={} (temps écoulé)", soumission.getId());
                 nbCloturees++;
@@ -290,7 +277,7 @@ public class SoumissionService {
      * @return le nombre de corrections relancées
      */
     public int relancerCorrectionsBloquees() {
-        LocalDateTime seuil = LocalDateTime.now(clock).minusMinutes(DELAI_CORRECTION_BLOQUEE_MINUTES);
+        LocalDateTime seuil = tempsEpreuveService.maintenant().minusMinutes(DELAI_CORRECTION_BLOQUEE_MINUTES);
         List<Soumission> bloquees = soumissionRepository.findByStatutAndDateModificationBefore(StatutSoumission.SOUMIS, seuil);
         bloquees.forEach(s -> {
             log.warn("Relance de la correction de la soumission ID={} (bloquée en SOUMIS)", s.getId());
@@ -324,7 +311,7 @@ public class SoumissionService {
                     nb == SEUIL_ALERTE_ELEVEE ? NiveauAlerte.ELEVE : NiveauAlerte.MODERE,
                     soumission
             );
-            alerte.setDateDetection(LocalDateTime.now(clock));
+            alerte.setDateDetection(tempsEpreuveService.maintenant());
             alerteAntiTricheRepository.save(alerte);
         }
     }
@@ -348,7 +335,7 @@ public class SoumissionService {
             throw new AccesRefuseException("Accès non autorisé à cette copie.");
         }
 
-        return buildSoumissionDetailResponse(soumission, soumission.getEtudiant());
+        return buildSoumissionDetailResponse(soumission);
     }
 
     private void declencherCorrectionApresCommit(Long soumissionId) {
@@ -378,35 +365,16 @@ public class SoumissionService {
         return choix;
     }
 
-    private int getDureeEffectiveMinutes(Soumission soumission, Etudiant etudiant) {
-        Optional<AmenagementTemps> amenagement = amenagementTempsRepository
-                .findByEtudiantIdAndEvaluationId(etudiant.getId(), soumission.getEvaluation().getId());
-        if (amenagement.isPresent() && amenagement.get().getDureePersonnalisee() != null) {
-            return amenagement.get().getDureePersonnalisee();
-        }
-        return soumission.getEvaluation().getDureeStandard();
-    }
-
     private boolean estDuBonType(ReponseEtudiant reponse, Question question) {
         if (question instanceof QuestionQCM) return reponse instanceof ReponseQCM;
         if (question instanceof QuestionCode) return reponse instanceof ReponseCode;
         return reponse instanceof ReponseOuverte;
     }
 
-    /** Fin de l'épreuve : durée effective (aménagement inclus), plafonnée par la fermeture de l'évaluation. */
-    private LocalDateTime getFinEpreuve(Soumission soumission, Etudiant etudiant) {
-        LocalDateTime fin = soumission.getDateDebut().plusMinutes(getDureeEffectiveMinutes(soumission, etudiant));
-        LocalDateTime fermeture = soumission.getEvaluation().getDateFermeture();
-        return (fermeture != null && fermeture.isBefore(fin)) ? fermeture : fin;
-    }
-
-    private SoumissionDetailResponse buildSoumissionDetailResponse(Soumission soumission, Etudiant etudiant) {
+    private SoumissionDetailResponse buildSoumissionDetailResponse(Soumission soumission) {
         Evaluation eval = soumission.getEvaluation();
-        int dureeMinutes = getDureeEffectiveMinutes(soumission, etudiant);
-
-        LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime expiration = getFinEpreuve(soumission, etudiant);
-        long tempsRestantSec = Math.max(0, Duration.between(now, expiration).getSeconds());
+        int dureeMinutes = tempsEpreuveService.dureeEffectiveMinutes(soumission);
+        long tempsRestantSec = tempsEpreuveService.tempsRestantSecondes(soumission);
 
         SoumissionDetailResponse resp = new SoumissionDetailResponse();
         resp.setId(soumission.getId());
@@ -467,7 +435,7 @@ public class SoumissionService {
         return resp;
     }
 
-    private SoumissionResponse toSoumissionResponse(Soumission soumission, Etudiant etudiant, String message) {
+    private SoumissionResponse toSoumissionResponse(Soumission soumission, String message) {
         SoumissionResponse r = new SoumissionResponse();
         r.setId(soumission.getId());
         r.setEvaluationId(soumission.getEvaluation().getId());
@@ -475,7 +443,7 @@ public class SoumissionService {
         r.setStatut(soumission.getStatut());
         r.setDateDebut(soumission.getDateDebut());
         r.setDateRemise(soumission.getDateRemise());
-        r.setDureeMinutes(getDureeEffectiveMinutes(soumission, etudiant));
+        r.setDureeMinutes(tempsEpreuveService.dureeEffectiveMinutes(soumission));
         r.setNbChangementsOnglet(soumission.getNbChangementsOnglet());
         r.setMessage(message);
         return r;
