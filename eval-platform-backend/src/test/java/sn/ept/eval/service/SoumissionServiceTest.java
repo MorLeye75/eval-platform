@@ -77,9 +77,10 @@ class SoumissionServiceTest {
         Clock horlogeFigee = Clock.fixed(MAINTENANT.atZone(ZONE).toInstant(), ZONE);
         // Collaborateurs réels (règles de temps) branchés sur les dépôts simulés et une horloge figée
         TempsEpreuveService tempsEpreuveService = new TempsEpreuveService(amenagementTempsRepository, horlogeFigee);
+        SoumissionMapper soumissionMapper = new SoumissionMapper(questionRepository, reponseEtudiantRepository, tempsEpreuveService);
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
                 questionRepository, choixReponseRepository, reponseEtudiantRepository,
-                alerteAntiTricheRepository, correctionService, utilisateurRepository, tempsEpreuveService);
+                alerteAntiTricheRepository, correctionService, utilisateurRepository, tempsEpreuveService, soumissionMapper);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
         etudiant.setId(1L);

@@ -42,6 +42,7 @@ public class SoumissionService {
     private final CorrectionService correctionService;
     private final UtilisateurRepository utilisateurRepository;
     private final TempsEpreuveService tempsEpreuveService;
+    private final SoumissionMapper soumissionMapper;
 
     public SoumissionService(SoumissionRepository soumissionRepository,
                              EvaluationRepository evaluationRepository,
@@ -52,7 +53,8 @@ public class SoumissionService {
                              AlerteAntiTricheRepository alerteAntiTricheRepository,
                              CorrectionService correctionService,
                              UtilisateurRepository utilisateurRepository,
-                             TempsEpreuveService tempsEpreuveService) {
+                             TempsEpreuveService tempsEpreuveService,
+                             SoumissionMapper soumissionMapper) {
         this.soumissionRepository = soumissionRepository;
         this.evaluationRepository = evaluationRepository;
         this.etudiantRepository = etudiantRepository;
@@ -63,6 +65,7 @@ public class SoumissionService {
         this.correctionService = correctionService;
         this.utilisateurRepository = utilisateurRepository;
         this.tempsEpreuveService = tempsEpreuveService;
+        this.soumissionMapper = soumissionMapper;
     }
 
     /**
@@ -113,7 +116,7 @@ public class SoumissionService {
             log.info("Création d'une nouvelle soumission ID={} pour l'étudiant {}", soumission.getId(), userEmail);
         }
 
-        return buildSoumissionDetailResponse(soumission);
+        return soumissionMapper.versDetail(soumission);
     }
 
     /**
@@ -209,7 +212,7 @@ public class SoumissionService {
         Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
 
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
-            return toSoumissionResponse(soumission, "Cette copie a déjà été transmise.");
+            return soumissionMapper.versResponse(soumission, "Cette copie a déjà été transmise.");
         }
 
         LocalDateTime now = tempsEpreuveService.maintenant();
@@ -247,7 +250,7 @@ public class SoumissionService {
         // Déclenche CorrectionService en arrière-plan (async), une fois le statut SOUMIS commité
         declencherCorrectionApresCommit(soumission.getId());
 
-        return toSoumissionResponse(soumission, "Copie soumise avec succès.");
+        return soumissionMapper.versResponse(soumission, "Copie soumise avec succès.");
     }
 
     /**
@@ -335,7 +338,7 @@ public class SoumissionService {
             throw new AccesRefuseException("Accès non autorisé à cette copie.");
         }
 
-        return buildSoumissionDetailResponse(soumission);
+        return soumissionMapper.versDetail(soumission);
     }
 
     private void declencherCorrectionApresCommit(Long soumissionId) {
@@ -369,84 +372,6 @@ public class SoumissionService {
         if (question instanceof QuestionQCM) return reponse instanceof ReponseQCM;
         if (question instanceof QuestionCode) return reponse instanceof ReponseCode;
         return reponse instanceof ReponseOuverte;
-    }
-
-    private SoumissionDetailResponse buildSoumissionDetailResponse(Soumission soumission) {
-        Evaluation eval = soumission.getEvaluation();
-        int dureeMinutes = tempsEpreuveService.dureeEffectiveMinutes(soumission);
-        long tempsRestantSec = tempsEpreuveService.tempsRestantSecondes(soumission);
-
-        SoumissionDetailResponse resp = new SoumissionDetailResponse();
-        resp.setId(soumission.getId());
-        resp.setEvaluationId(eval.getId());
-        resp.setTitreEvaluation(eval.getTitre());
-        resp.setDescriptionEvaluation(eval.getDescription());
-        resp.setStatut(soumission.getStatut());
-        resp.setDateDebut(soumission.getDateDebut());
-        resp.setDateRemise(soumission.getDateRemise());
-        resp.setDureeMinutes(dureeMinutes);
-        resp.setTempsRestantSecondes(tempsRestantSec);
-        resp.setNbChangementsOnglet(soumission.getNbChangementsOnglet());
-
-        // Récupérer toutes les questions ordonnées
-        List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(eval.getId());
-        List<ReponseEtudiant> reponses = reponseEtudiantRepository.findBySoumissionId(soumission.getId());
-
-        Map<Long, ReponseEtudiant> reponsesParQuestion = reponses.stream()
-                .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
-
-        List<QuestionExamenDto> questionsDtos = new ArrayList<>();
-        for (Question q : questions) {
-            QuestionExamenDto qDto = new QuestionExamenDto();
-            qDto.setId(q.getId());
-            qDto.setEnonce(q.getEnonce());
-            qDto.setOrdre(q.getOrdre());
-            qDto.setPoints(q.getPoints());
-            qDto.setType(q.getType());
-
-            if (q instanceof QuestionQCM qQcm) {
-                qDto.setEstChoixMultiple(qQcm.getEstChoixMultiple());
-                List<ChoixItemDto> choixDtos = qQcm.getChoix().stream()
-                        .map(c -> new ChoixItemDto(c.getId(), c.getTexte()))
-                        .collect(Collectors.toList());
-                qDto.setChoixPossibles(choixDtos);
-            }
-
-            // Réponse actuellement enregistrée
-            ReponseEtudiant rep = reponsesParQuestion.get(q.getId());
-            if (rep != null) {
-                ReponseItemDto repDto = new ReponseItemDto();
-                repDto.setQuestionId(q.getId());
-                if (rep instanceof ReponseQCM rq) {
-                    List<Long> ids = rq.getChoixCoches().stream().map(ChoixReponse::getId).collect(Collectors.toList());
-                    repDto.setChoixIds(ids);
-                } else if (rep instanceof ReponseCode rc) {
-                    repDto.setCodeSoumis(rc.getCodeSoumis());
-                } else if (rep instanceof ReponseOuverte ro) {
-                    repDto.setTexteSoumis(ro.getTexteSoumis());
-                }
-                qDto.setReponseActuelle(repDto);
-            }
-
-            questionsDtos.add(qDto);
-        }
-
-        resp.setQuestions(questionsDtos);
-        return resp;
-    }
-
-    private SoumissionResponse toSoumissionResponse(Soumission soumission, String message) {
-        SoumissionResponse r = new SoumissionResponse();
-        r.setId(soumission.getId());
-        r.setEvaluationId(soumission.getEvaluation().getId());
-        r.setTitreEvaluation(soumission.getEvaluation().getTitre());
-        r.setStatut(soumission.getStatut());
-        r.setDateDebut(soumission.getDateDebut());
-        r.setDateRemise(soumission.getDateRemise());
-        r.setDureeMinutes(tempsEpreuveService.dureeEffectiveMinutes(soumission));
-        r.setNbChangementsOnglet(soumission.getNbChangementsOnglet());
-        r.setMessage(message);
-        return r;
     }
 
     private Etudiant getEtudiantConnecte(String email) {
