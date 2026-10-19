@@ -16,7 +16,6 @@ import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.NiveauAlerte;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
-import sn.ept.eval.model.enums.TypeQuestion;
 import sn.ept.eval.repository.*;
 
 import java.time.Duration;
@@ -141,7 +140,9 @@ public class SoumissionService {
             for (ReponseItemDto item : request.getReponses()) {
                 if (item.getQuestionId() == null) continue;
 
-                Question question = questionRepository.findById(item.getQuestionId()).orElse(null);
+                Question question = questionRepository.findById(item.getQuestionId())
+                        .map(q -> (Question) Hibernate.unproxy(q))
+                        .orElse(null);
                 if (question == null) continue;
 
                 // La question doit appartenir à l'évaluation de cette copie
@@ -153,18 +154,27 @@ public class SoumissionService {
                         .findBySoumissionIdAndQuestionId(soumission.getId(), question.getId())
                         .orElse(null);
 
-                if (question.getType() == TypeQuestion.QCM) {
+                // Une réponse existante d'un autre type (ex. question modifiée) est remplacée, pas dupliquée
+                if (reponse != null && !estDuBonType(reponse, question)) {
+                    soumission.getReponses().remove(reponse);
+                    reponseEtudiantRepository.delete(reponse);
+                    reponseEtudiantRepository.flush();
+                    reponse = null;
+                }
+
+                // Dispatch sur la classe : QuestionQuiz hérite de QuestionQCM (même stockage par choix cochés)
+                if (question instanceof QuestionQCM questionQcm) {
                     ReponseQCM rq = (reponse instanceof ReponseQCM) ? (ReponseQCM) reponse : new ReponseQCM();
                     rq.setSoumission(soumission);
                     rq.setQuestion(question);
                     if (item.getChoixIds() != null && !item.getChoixIds().isEmpty()) {
-                        rq.setChoixCoches(getChoixValides((QuestionQCM) Hibernate.unproxy(question), item.getChoixIds()));
+                        rq.setChoixCoches(getChoixValides(questionQcm, item.getChoixIds()));
                     } else {
                         rq.setChoixCoches(new ArrayList<>());
                     }
                     reponseEtudiantRepository.save(rq);
                     nbSauvegardees++;
-                } else if (question.getType() == TypeQuestion.CODE) {
+                } else if (question instanceof QuestionCode) {
                     ReponseCode rc = (reponse instanceof ReponseCode) ? (ReponseCode) reponse : new ReponseCode();
                     rc.setSoumission(soumission);
                     rc.setQuestion(question);
@@ -318,6 +328,12 @@ public class SoumissionService {
             return amenagement.get().getDureePersonnalisee();
         }
         return soumission.getEvaluation().getDureeStandard();
+    }
+
+    private boolean estDuBonType(ReponseEtudiant reponse, Question question) {
+        if (question instanceof QuestionQCM) return reponse instanceof ReponseQCM;
+        if (question instanceof QuestionCode) return reponse instanceof ReponseCode;
+        return reponse instanceof ReponseOuverte;
     }
 
     /** Fin de l'épreuve : durée effective (aménagement inclus), plafonnée par la fermeture de l'évaluation. */

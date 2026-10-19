@@ -12,6 +12,7 @@ import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.TempsEcouleException;
 import sn.ept.eval.model.*;
+import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
@@ -95,13 +96,7 @@ class SoumissionIntegrationTest {
 
         soumissionService.soumettreCopie(soumissionId, emailEtudiant);
 
-        // Correction asynchrone : on attend au plus 5 s
-        StatutSoumission statut = null;
-        for (int i = 0; i < 50 && statut != StatutSoumission.EVALUE; i++) {
-            Thread.sleep(100);
-            statut = soumissionRepository.findById(soumissionId).orElseThrow().getStatut();
-        }
-        assertThat(statut).isEqualTo(StatutSoumission.EVALUE);
+        assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
 
         Double note = transactionTemplate.execute(tx ->
                 soumissionRepository.findById(soumissionId).orElseThrow().getNoteFinale());
@@ -145,6 +140,59 @@ class SoumissionIntegrationTest {
 
         assertThatThrownBy(() -> soumissionService.getDetail(soumissionId, "etudiant@ept.sn"))
                 .isInstanceOf(AccesRefuseException.class);
+    }
+
+    @Test
+    @DisplayName("Quiz chronométré : les choix cochés sont enregistrés et corrigés automatiquement")
+    void quizChronometre_SauvegardeEtCorrection() throws InterruptedException {
+        Long evalQuizId = creerEvaluationQuiz();
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQuizId, emailEtudiant).getId();
+
+        List<ReponseItemDto> reponses = transactionTemplate.execute(tx -> {
+            QuestionQCM quiz = (QuestionQCM) questionRepository.findByEvaluationIdOrderByOrdreAsc(evalQuizId).get(0);
+            Long bonChoix = quiz.getChoix().stream().filter(ChoixReponse::getEstCorrect).findFirst().orElseThrow().getId();
+            return List.of(new ReponseItemDto(quiz.getId(), null, null, List.of(bonChoix)));
+        });
+        soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(reponses), emailEtudiant);
+
+        // Les choix doivent revenir dans le détail de la copie (et non être perdus dans une réponse texte)
+        SoumissionDetailResponse detail = soumissionService.getDetail(soumissionId, emailEtudiant);
+        assertThat(detail.getQuestions().get(0).getReponseActuelle().getChoixIds()).hasSize(1);
+
+        soumissionService.soumettreCopie(soumissionId, emailEtudiant);
+
+        assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
+        assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getNoteFinale()).isEqualTo(4.0);
+    }
+
+    /** Évaluation ouverte composée d'un seul quiz chronométré (4 points). */
+    private Long creerEvaluationQuiz() {
+        return transactionTemplate.execute(tx -> {
+            Evaluation evaluation = new Evaluation();
+            evaluation.setTitre("Quiz " + UUID.randomUUID());
+            evaluation.setDureeStandard(30);
+            evaluation.setDateOuverture(LocalDateTime.now().minusHours(1));
+            evaluation.setDateFermeture(LocalDateTime.now().plusHours(2));
+            evaluation.setStatut(StatutEvaluation.EN_COURS);
+            evaluation.setEnseignant((Enseignant) utilisateurRepository.findByEmail("prof@ept.sn").orElseThrow());
+            evaluation.setPromotions(List.of(promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
+
+            QuestionQuiz quiz = new QuestionQuiz("Complexité d'une recherche dichotomique ?", 1, 4.0, false, 30);
+            quiz.addChoix(new ChoixReponse("O(n)", false));
+            quiz.addChoix(new ChoixReponse("O(log n)", true));
+            evaluation.addQuestion(quiz);
+            return evaluationRepository.save(evaluation).getId();
+        });
+    }
+
+    /** La correction est asynchrone : attend au plus 5 s que la copie atteigne le statut voulu. */
+    private StatutSoumission attendreStatut(Long soumissionId, StatutSoumission attendu) throws InterruptedException {
+        StatutSoumission statut = null;
+        for (int i = 0; i < 50 && statut != attendu; i++) {
+            Thread.sleep(100);
+            statut = soumissionRepository.findById(soumissionId).orElseThrow().getStatut();
+        }
+        return statut;
     }
 
     /** Bonnes réponses de l'évaluation QCM initialisée par DataInitializer. */

@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutSoumission;
-import sn.ept.eval.model.enums.TypeQuestion;
 import sn.ept.eval.repository.SoumissionRepository;
 
 import java.util.HashSet;
@@ -56,7 +55,7 @@ public class CorrectionService {
             // Copie entièrement corrigeable automatiquement seulement si TOUTES les questions de l'évaluation
             // sont des QCM (une question ouverte ou de code sans réponse exige quand même l'enseignant)
             boolean toutesQuestionsSontQcm = soumission.getEvaluation().getQuestions().stream()
-                    .allMatch(q -> q.getType() == TypeQuestion.QCM);
+                    .allMatch(q -> Hibernate.unproxy(q) instanceof QuestionQCM); // QCM et quiz chronométrés
 
             if (toutesQuestionsSontQcm) {
                 double note = soumission.getReponses().stream()
