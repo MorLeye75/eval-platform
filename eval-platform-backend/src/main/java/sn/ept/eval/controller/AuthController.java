@@ -7,7 +7,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -29,14 +28,15 @@ import java.time.LocalDateTime;
 @Tag(name = "Authentification", description = "Endpoints d'authentification JWT et profil utilisateur")
 public class AuthController {
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
+    private final AuthenticationManager authenticationManager;
+    private final UtilisateurRepository utilisateurRepository;
+    private final JwtUtils jwtUtils;
 
-    @Autowired
-    private UtilisateurRepository utilisateurRepository;
-
-    @Autowired
-    private JwtUtils jwtUtils;
+    public AuthController(AuthenticationManager authenticationManager, UtilisateurRepository utilisateurRepository, JwtUtils jwtUtils) {
+        this.authenticationManager = authenticationManager;
+        this.utilisateurRepository = utilisateurRepository;
+        this.jwtUtils = jwtUtils;
+    }
 
     @Operation(
             summary = "Authentification de l'utilisateur (Login)",
@@ -65,7 +65,6 @@ public class AuthController {
                 new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
         );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();

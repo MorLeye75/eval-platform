@@ -8,7 +8,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,8 +26,11 @@ import java.util.Map;
 @Tag(name = "Soumissions", description = "Endpoints de passation d'examen : sauvegarde périodique (DS-02), soumission finale (DS-01) et anti-triche")
 public class SoumissionController {
 
-    @Autowired
-    private SoumissionService soumissionService;
+    private final SoumissionService soumissionService;
+
+    public SoumissionController(SoumissionService soumissionService) {
+        this.soumissionService = soumissionService;
+    }
 
     /**
      * Démarrer ou reprendre une session d'évaluation (étudiant).

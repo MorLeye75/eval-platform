@@ -1,6 +1,8 @@
 spring:
   application:
     name: eval-backend-test
+  profiles:
+    active: test
   mvc:
     problemdetails:
       enabled: true
@@ -18,5 +20,5 @@ spring:
     show-sql: false
 
 jwt:
-  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+  secret: dGVzdC1vbmx5LXNlY3JldC1ldmFsLXBsYXRmb3JtLWp1bml0LXRlc3RzLW9ubHkh
   expiration-ms: 86400000

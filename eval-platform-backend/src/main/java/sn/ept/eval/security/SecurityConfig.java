@@ -1,7 +1,7 @@
 package sn.ept.eval.security;
 
 import jakarta.servlet.DispatcherType;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,6 +20,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import sn.ept.eval.security.jwt.AuthEntryPointJwt;
 import sn.ept.eval.security.jwt.AuthTokenFilter;
+import sn.ept.eval.security.jwt.JwtUtils;
 import sn.ept.eval.security.services.UserDetailsServiceImpl;
 
 import java.util.List;
@@ -29,15 +30,18 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
-    @Autowired
-    private UserDetailsServiceImpl userDetailsService;
+    private final UserDetailsServiceImpl userDetailsService;
+    private final AuthEntryPointJwt unauthorizedHandler;
+    private final JwtUtils jwtUtils;
 
-    @Autowired
-    private AuthEntryPointJwt unauthorizedHandler;
+    /** Vrai uniquement avec le profil h2-dev. */
+    @Value("${spring.h2.console.enabled:false}")
+    private boolean h2ConsoleEnabled;
 
-    @Bean
-    public AuthTokenFilter authenticationJwtTokenFilter() {
-        return new AuthTokenFilter();
+    public SecurityConfig(UserDetailsServiceImpl userDetailsService, AuthEntryPointJwt unauthorizedHandler, JwtUtils jwtUtils) {
+        this.userDetailsService = userDetailsService;
+        this.unauthorizedHandler = unauthorizedHandler;
+        this.jwtUtils = jwtUtils;
     }
 
     @Bean
@@ -65,18 +69,24 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
+            .authorizeHttpRequests(auth -> {
                 // Laisse passer le dispatch d'erreur pour ne pas transformer chaque erreur serveur en 401
-                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-                .requestMatchers("/auth/**", "/h2-console/**", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-                .anyRequest().authenticated()
-            );
+                auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
+                auth.requestMatchers("/auth/login", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
+                if (h2ConsoleEnabled) {
+                    auth.requestMatchers("/h2-console/**").permitAll();
+                }
+                auth.anyRequest().authenticated();
+            });
 
-        // Configuration pour la console H2
-        http.headers(headers -> headers.frameOptions(frameOptions -> frameOptions.disable()));
+        // La console H2 s'affiche dans des iframes : autorisées seulement depuis la même origine, et seulement en h2-dev
+        if (h2ConsoleEnabled) {
+            http.headers(headers -> headers.frameOptions(frameOptions -> frameOptions.sameOrigin()));
+        }
 
         http.authenticationProvider(authenticationProvider());
-        http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
+        // Instancié ici (pas en @Bean) pour éviter son enregistrement en double comme filtre servlet
+        http.addFilterBefore(new AuthTokenFilter(jwtUtils, userDetailsService), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

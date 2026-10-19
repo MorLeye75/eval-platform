@@ -81,22 +81,11 @@ public class Soumission extends AuditableEntity {
     public Integer getNbChangementsOnglet() { return nbChangementsOnglet; }
     public void setNbChangementsOnglet(Integer nbChangementsOnglet) { this.nbChangementsOnglet = nbChangementsOnglet; }
 
-    public Double getNoteFinale() {
-        if (noteFinale != null) {
-            return noteFinale;
-        }
-        if (reponses != null && !reponses.isEmpty()) {
-            return reponses.stream()
-                .filter(r -> r.getNoteObtenue() != null)
-                .mapToDouble(ReponseEtudiant::getNoteObtenue)
-                .sum();
-        }
-        return null;
-    }
+    /** Renseignée à la fin de la correction ; null tant que la copie n'est pas entièrement évaluée. */
+    public Double getNoteFinale() { return noteFinale; }
     public void setNoteFinale(Double noteFinale) { this.noteFinale = noteFinale; }
 
     public List<ReponseEtudiant> getReponses() { return reponses; }
-    public List<ReponseEtudiant> getReponse() { return reponses; }
     public void setReponses(List<ReponseEtudiant> reponses) { this.reponses = reponses; }
 
     public List<AlerteAntiTriche> getAlertes() { return alertes; }

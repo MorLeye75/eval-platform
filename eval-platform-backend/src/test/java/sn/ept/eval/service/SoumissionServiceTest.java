@@ -11,9 +11,11 @@ import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.dto.soumission.SauvegardeResponse;
 import sn.ept.eval.dto.soumission.SoumissionResponse;
+import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.TempsEcouleException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.NiveauAlerte;
+import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
@@ -55,6 +57,9 @@ class SoumissionServiceTest {
 
     @Mock
     private CorrectionService correctionService;
+
+    @Mock
+    private UtilisateurRepository utilisateurRepository;
 
     @InjectMocks
     private SoumissionService soumissionService;
@@ -168,7 +173,7 @@ class SoumissionServiceTest {
         soumission.setNbChangementsOnglet(2);
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
 
         soumissionService.enregistrerChangementOnglet(100L, "etudiant@ept.sn");
 
@@ -178,5 +183,62 @@ class SoumissionServiceTest {
                 alerte.getNiveau() == NiveauAlerte.MODERE &&
                 alerte.getDescription().contains("3 changements d'onglets")
         ));
+    }
+
+    @Test
+    @DisplayName("Anti-Triche : pas de nouvelle alerte entre deux seuils, alerte ELEVE au 5e changement")
+    void enregistrerChangementOnglet_AlerteUniquementAuxSeuils() {
+        soumission.setNbChangementsOnglet(3);
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
+
+        soumissionService.enregistrerChangementOnglet(100L, "etudiant@ept.sn"); // 4e : aucune alerte
+        verify(alerteAntiTricheRepository, never()).save(any());
+
+        soumissionService.enregistrerChangementOnglet(100L, "etudiant@ept.sn"); // 5e : alerte ELEVE
+        verify(alerteAntiTricheRepository).save(argThat(alerte -> alerte.getNiveau() == NiveauAlerte.ELEVE));
+    }
+
+    @Test
+    @DisplayName("DS-02 : la fin de l'épreuve est plafonnée par la date de fermeture de l'évaluation")
+    void sauvegarderReponses_ApresFermeture_Rejetee() {
+        // 10 min écoulées sur 30, mais l'évaluation a fermé il y a 5 min (au-delà de la marge de 2 min)
+        evaluation.setDateFermeture(LocalDateTime.now().minusMinutes(5));
+
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
+        when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> soumissionService.sauvegarderReponses(100L, new SauvegardeReponsesRequest(), "etudiant@ept.sn"))
+                .isInstanceOf(TempsEcouleException.class);
+    }
+
+    @Test
+    @DisplayName("Démarrage : une évaluation TERMINEE est refusée même si la date de fermeture n'est pas passée")
+    void demarrer_EvaluationTerminee_Refusee() {
+        evaluation.setDateOuverture(LocalDateTime.now().minusHours(1));
+        evaluation.setDateFermeture(LocalDateTime.now().plusHours(1));
+        evaluation.setStatut(StatutEvaluation.TERMINEE);
+
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+
+        assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("Démarrage : un étudiant sans promotion ne peut pas passer une évaluation")
+    void demarrer_EtudiantSansPromotion_Refuse() {
+        evaluation.setDateOuverture(LocalDateTime.now().minusHours(1));
+        evaluation.setDateFermeture(LocalDateTime.now().plusHours(1));
+        evaluation.setStatut(StatutEvaluation.EN_COURS);
+        evaluation.setPromotions(List.of(new Promotion("DIC2 Informatique", "2025/2026")));
+
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+
+        assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
+                .isInstanceOf(AccesRefuseException.class);
     }
 }

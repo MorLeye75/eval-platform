@@ -1,9 +1,8 @@
 package sn.ept.eval.service;
 
-import org.slf4j.Logger;
 import org.hibernate.Hibernate;
+import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -31,36 +30,41 @@ public class SoumissionService {
 
     private static final Logger log = LoggerFactory.getLogger(SoumissionService.class);
     public static final int MARGE_TOLERANCE_MINUTES = 2;
+    public static final int SEUIL_ALERTE_MODEREE = 3;
+    public static final int SEUIL_ALERTE_ELEVEE = 5;
 
-    @Autowired
-    private SoumissionRepository soumissionRepository;
+    private final SoumissionRepository soumissionRepository;
+    private final EvaluationRepository evaluationRepository;
+    private final EtudiantRepository etudiantRepository;
+    private final QuestionRepository questionRepository;
+    private final ChoixReponseRepository choixReponseRepository;
+    private final ReponseEtudiantRepository reponseEtudiantRepository;
+    private final AmenagementTempsRepository amenagementTempsRepository;
+    private final AlerteAntiTricheRepository alerteAntiTricheRepository;
+    private final CorrectionService correctionService;
+    private final UtilisateurRepository utilisateurRepository;
 
-    @Autowired
-    private EvaluationRepository evaluationRepository;
-
-    @Autowired
-    private EtudiantRepository etudiantRepository;
-
-    @Autowired
-    private QuestionRepository questionRepository;
-
-    @Autowired
-    private ChoixReponseRepository choixReponseRepository;
-
-    @Autowired
-    private ReponseEtudiantRepository reponseEtudiantRepository;
-
-    @Autowired
-    private AmenagementTempsRepository amenagementTempsRepository;
-
-    @Autowired
-    private AlerteAntiTricheRepository alerteAntiTricheRepository;
-
-    @Autowired
-    private CorrectionService correctionService;
-
-    @Autowired
-    private UtilisateurRepository utilisateurRepository;
+    public SoumissionService(SoumissionRepository soumissionRepository,
+                             EvaluationRepository evaluationRepository,
+                             EtudiantRepository etudiantRepository,
+                             QuestionRepository questionRepository,
+                             ChoixReponseRepository choixReponseRepository,
+                             ReponseEtudiantRepository reponseEtudiantRepository,
+                             AmenagementTempsRepository amenagementTempsRepository,
+                             AlerteAntiTricheRepository alerteAntiTricheRepository,
+                             CorrectionService correctionService,
+                             UtilisateurRepository utilisateurRepository) {
+        this.soumissionRepository = soumissionRepository;
+        this.evaluationRepository = evaluationRepository;
+        this.etudiantRepository = etudiantRepository;
+        this.questionRepository = questionRepository;
+        this.choixReponseRepository = choixReponseRepository;
+        this.reponseEtudiantRepository = reponseEtudiantRepository;
+        this.amenagementTempsRepository = amenagementTempsRepository;
+        this.alerteAntiTricheRepository = alerteAntiTricheRepository;
+        this.correctionService = correctionService;
+        this.utilisateurRepository = utilisateurRepository;
+    }
 
     /**
      * Démarrer ou reprendre une session d'évaluation pour l'étudiant connecté.
@@ -77,17 +81,15 @@ public class SoumissionService {
         if (now.isAfter(evaluation.getDateFermeture())) {
             throw new IllegalArgumentException("Cette évaluation est déjà clôturée.");
         }
-        if (evaluation.getStatut() == StatutEvaluation.BROUILLON) {
-            throw new IllegalArgumentException("Cette évaluation est encore en brouillon.");
+        if (evaluation.getStatut() != StatutEvaluation.PUBLIEE && evaluation.getStatut() != StatutEvaluation.EN_COURS) {
+            throw new IllegalArgumentException("Cette évaluation n'est pas accessible (statut : " + evaluation.getStatut() + ").");
         }
 
-        // Vérifier que l'étudiant est dans une promotion autorisée
-        if (etudiant.getPromotion() != null && evaluation.getPromotions() != null && !evaluation.getPromotions().isEmpty()) {
-            boolean promotionValide = evaluation.getPromotions().stream()
-                    .anyMatch(p -> p.getId().equals(etudiant.getPromotion().getId()));
-            if (!promotionValide) {
-                throw new AccesRefuseException("Vous n'êtes pas inscrit dans une promotion assignée à cette évaluation.");
-            }
+        // L'étudiant doit appartenir à l'une des promotions assignées à l'évaluation
+        boolean promotionValide = etudiant.getPromotion() != null && evaluation.getPromotions().stream()
+                .anyMatch(p -> p.getId().equals(etudiant.getPromotion().getId()));
+        if (!promotionValide) {
+            throw new AccesRefuseException("Vous n'êtes pas inscrit dans une promotion assignée à cette évaluation.");
         }
 
         // Vérifier si une soumission existe déjà
@@ -126,8 +128,7 @@ public class SoumissionService {
         }
 
         // 2. Vérifie !isExpiree()
-        int dureeTotale = getDureeEffectiveMinutes(soumission, etudiant);
-        LocalDateTime expirationAvecMarge = soumission.getDateDebut().plusMinutes(dureeTotale + MARGE_TOLERANCE_MINUTES);
+        LocalDateTime expirationAvecMarge = getFinEpreuve(soumission, etudiant).plusMinutes(MARGE_TOLERANCE_MINUTES);
 
         if (now.isAfter(expirationAvecMarge)) {
             log.warn("Tentative de sauvegarde tardive rejetée pour soumission ID={}", soumissionId);
@@ -193,13 +194,13 @@ public class SoumissionService {
         Etudiant etudiant = getEtudiantConnecte(userEmail);
         Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
 
-        if (soumission.getStatut() == StatutSoumission.SOUMIS || soumission.getStatut() == StatutSoumission.EVALUE) {
-            return toSoumissionResponse(soumission, "Cette copie a déjà été transmise.");
+        if (soumission.getStatut() != StatutSoumission.EN_COURS) {
+            return toSoumissionResponse(soumission, etudiant, "Cette copie a déjà été transmise.");
         }
 
         LocalDateTime now = LocalDateTime.now();
-        int dureeTotale = getDureeEffectiveMinutes(soumission, etudiant);
-        LocalDateTime limiteMaxAvecMarge = soumission.getDateDebut().plusMinutes(dureeTotale + MARGE_TOLERANCE_MINUTES);
+        LocalDateTime finEpreuve = getFinEpreuve(soumission, etudiant);
+        LocalDateTime limiteMaxAvecMarge = finEpreuve.plusMinutes(MARGE_TOLERANCE_MINUTES);
 
         // [Cas critique : Temps dépassé au-delà de la marge de tolérance]
         if (now.isAfter(limiteMaxAvecMarge)) {
@@ -207,7 +208,7 @@ public class SoumissionService {
 
             // Le serveur fige la copie à l'état du dernier auto-save
             soumission.setStatut(StatutSoumission.SOUMIS);
-            soumission.setDateRemise(soumission.getDateDebut().plusMinutes(dureeTotale));
+            soumission.setDateRemise(finEpreuve);
             soumissionRepository.save(soumission);
 
             // Détection anti-triche
@@ -229,7 +230,7 @@ public class SoumissionService {
         // Déclenche CorrectionService en arrière-plan (async), une fois le statut SOUMIS commité
         declencherCorrectionApresCommit(soumission.getId());
 
-        return toSoumissionResponse(soumission, "Copie soumise avec succès.");
+        return toSoumissionResponse(soumission, etudiant, "Copie soumise avec succès.");
     }
 
     /**
@@ -237,7 +238,10 @@ public class SoumissionService {
      */
     public void enregistrerChangementOnglet(Long soumissionId, String userEmail) {
         Etudiant etudiant = getEtudiantConnecte(userEmail);
-        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
+        // Verrou pessimiste : des signalements simultanés ne doivent pas perdre d'incrément
+        Soumission soumission = soumissionRepository.findByIdForUpdate(soumissionId)
+                .orElseThrow(() -> new RessourceNonTrouveeException("Soumission introuvable (ID: " + soumissionId + ")"));
+        verifierProprietaire(soumission, etudiant.getId());
 
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
             return;
@@ -247,11 +251,11 @@ public class SoumissionService {
         soumission.setNbChangementsOnglet(nb);
         soumissionRepository.save(soumission);
 
-        // Alerte dès 3 changements d'onglets
-        if (nb >= 3) {
+        // Une alerte au franchissement de chaque seuil (et non à chaque événement suivant)
+        if (nb == SEUIL_ALERTE_MODEREE || nb == SEUIL_ALERTE_ELEVEE) {
             AlerteAntiTriche alerte = new AlerteAntiTriche(
                     "Suspicion de triche : " + nb + " changements d'onglets ou sorties de plein écran détectés.",
-                    nb >= 5 ? NiveauAlerte.ELEVE : NiveauAlerte.MODERE,
+                    nb == SEUIL_ALERTE_ELEVEE ? NiveauAlerte.ELEVE : NiveauAlerte.MODERE,
                     soumission
             );
             alerteAntiTricheRepository.save(alerte);
@@ -316,12 +320,19 @@ public class SoumissionService {
         return soumission.getEvaluation().getDureeStandard();
     }
 
+    /** Fin de l'épreuve : durée effective (aménagement inclus), plafonnée par la fermeture de l'évaluation. */
+    private LocalDateTime getFinEpreuve(Soumission soumission, Etudiant etudiant) {
+        LocalDateTime fin = soumission.getDateDebut().plusMinutes(getDureeEffectiveMinutes(soumission, etudiant));
+        LocalDateTime fermeture = soumission.getEvaluation().getDateFermeture();
+        return (fermeture != null && fermeture.isBefore(fin)) ? fermeture : fin;
+    }
+
     private SoumissionDetailResponse buildSoumissionDetailResponse(Soumission soumission, Etudiant etudiant) {
         Evaluation eval = soumission.getEvaluation();
         int dureeMinutes = getDureeEffectiveMinutes(soumission, etudiant);
 
         LocalDateTime now = LocalDateTime.now();
-        LocalDateTime expiration = soumission.getDateDebut().plusMinutes(dureeMinutes);
+        LocalDateTime expiration = getFinEpreuve(soumission, etudiant);
         long tempsRestantSec = Math.max(0, Duration.between(now, expiration).getSeconds());
 
         SoumissionDetailResponse resp = new SoumissionDetailResponse();
@@ -383,7 +394,7 @@ public class SoumissionService {
         return resp;
     }
 
-    private SoumissionResponse toSoumissionResponse(Soumission soumission, String message) {
+    private SoumissionResponse toSoumissionResponse(Soumission soumission, Etudiant etudiant, String message) {
         SoumissionResponse r = new SoumissionResponse();
         r.setId(soumission.getId());
         r.setEvaluationId(soumission.getEvaluation().getId());
@@ -391,7 +402,7 @@ public class SoumissionService {
         r.setStatut(soumission.getStatut());
         r.setDateDebut(soumission.getDateDebut());
         r.setDateRemise(soumission.getDateRemise());
-        r.setDureeMinutes(soumission.getEvaluation().getDureeStandard());
+        r.setDureeMinutes(getDureeEffectiveMinutes(soumission, etudiant));
         r.setNbChangementsOnglet(soumission.getNbChangementsOnglet());
         r.setMessage(message);
         return r;
@@ -405,9 +416,13 @@ public class SoumissionService {
     private Soumission getSoumissionEtudiant(Long soumissionId, Long etudiantId) {
         Soumission s = soumissionRepository.findById(soumissionId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Soumission introuvable (ID: " + soumissionId + ")"));
-        if (!s.getEtudiant().getId().equals(etudiantId)) {
+        verifierProprietaire(s, etudiantId);
+        return s;
+    }
+
+    private void verifierProprietaire(Soumission soumission, Long etudiantId) {
+        if (!soumission.getEtudiant().getId().equals(etudiantId)) {
             throw new AccesRefuseException("Accès non autorisé : cette copie appartient à un autre étudiant.");
         }
-        return s;
     }
 }

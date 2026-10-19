@@ -3,12 +3,12 @@ package sn.ept.eval.service;
 import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutSoumission;
+import sn.ept.eval.model.enums.TypeQuestion;
 import sn.ept.eval.repository.SoumissionRepository;
 
 import java.util.HashSet;
@@ -22,8 +22,11 @@ public class CorrectionService {
 
     private static final Logger log = LoggerFactory.getLogger(CorrectionService.class);
 
-    @Autowired
-    private SoumissionRepository soumissionRepository;
+    private final SoumissionRepository soumissionRepository;
+
+    public CorrectionService(SoumissionRepository soumissionRepository) {
+        this.soumissionRepository = soumissionRepository;
+    }
 
     /**
      * Correction asynchrone en arrière-plan déclenchée dès la soumission de la copie
@@ -41,20 +44,26 @@ public class CorrectionService {
                 return CompletableFuture.completedFuture(null);
             }
 
-            boolean toutesQuestionsSontQcm = true;
-
             for (ReponseEtudiant reponse : soumission.getReponses()) {
                 // La question est un proxy LAZY de Question (classe abstraite) : il faut le déballer avant le cast
                 Question question = (Question) Hibernate.unproxy(reponse.getQuestion());
 
                 if (question instanceof QuestionQCM questionQcm && reponse instanceof ReponseQCM reponseQCM) {
                     corrigerQuestionQcm(reponseQCM, questionQcm);
-                } else {
-                    toutesQuestionsSontQcm = false;
                 }
             }
 
-            if (toutesQuestionsSontQcm && !soumission.getReponses().isEmpty()) {
+            // Copie entièrement corrigeable automatiquement seulement si TOUTES les questions de l'évaluation
+            // sont des QCM (une question ouverte ou de code sans réponse exige quand même l'enseignant)
+            boolean toutesQuestionsSontQcm = soumission.getEvaluation().getQuestions().stream()
+                    .allMatch(q -> q.getType() == TypeQuestion.QCM);
+
+            if (toutesQuestionsSontQcm) {
+                double note = soumission.getReponses().stream()
+                        .filter(r -> r.getNoteObtenue() != null)
+                        .mapToDouble(ReponseEtudiant::getNoteObtenue)
+                        .sum();
+                soumission.setNoteFinale(note);
                 soumission.setStatut(StatutSoumission.EVALUE);
             } else {
                 soumission.setStatut(StatutSoumission.EN_CORRECTION);

@@ -2,8 +2,8 @@ package sn.ept.eval.config;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,22 +16,29 @@ import sn.ept.eval.repository.UtilisateurRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Jeu de données de démonstration : uniquement pour le développement local et les tests.
+ */
 @Component
+@Profile({"dev", "h2-dev", "test"})
 public class DataInitializer implements CommandLineRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
 
-    @Autowired
-    private UtilisateurRepository utilisateurRepository;
+    private final UtilisateurRepository utilisateurRepository;
+    private final PromotionRepository promotionRepository;
+    private final EvaluationRepository evaluationRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    @Autowired
-    private PromotionRepository promotionRepository;
-
-    @Autowired
-    private EvaluationRepository evaluationRepository;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    public DataInitializer(UtilisateurRepository utilisateurRepository,
+                           PromotionRepository promotionRepository,
+                           EvaluationRepository evaluationRepository,
+                           PasswordEncoder passwordEncoder) {
+        this.utilisateurRepository = utilisateurRepository;
+        this.promotionRepository = promotionRepository;
+        this.evaluationRepository = evaluationRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
 
     @Override
     @Transactional
@@ -104,6 +111,6 @@ public class DataInitializer implements CommandLineRunner {
         evaluationRepository.save(eval2);
 
         logger.info("Données de test initialisées avec succès !");
-        logger.info("Comptes créés : admin@ept.sn / admin123 | prof@ept.sn / prof123 | etudiant@ept.sn / etudiant123");
+        logger.info("Comptes de démonstration créés : admin@ept.sn, prof@ept.sn, etudiant@ept.sn");
     }
 }

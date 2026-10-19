@@ -66,11 +66,11 @@ public class UserDetailsImpl implements UserDetails {
     public boolean isAccountNonExpired() { return true; }
 
     @Override
-    public boolean isAccountNonLocked() { return actif; }
+    public boolean isAccountNonLocked() { return Boolean.TRUE.equals(actif); }
 
     @Override
     public boolean isCredentialsNonExpired() { return true; }
 
     @Override
-    public boolean isEnabled() { return actif; }
+    public boolean isEnabled() { return Boolean.TRUE.equals(actif); }
 }

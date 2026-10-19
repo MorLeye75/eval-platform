@@ -73,9 +73,6 @@ public class Evaluation extends AuditableEntity {
     public Integer getDureeStandard() { return dureeStandard; }
     public void setDureeStandard(Integer dureeStandard) { this.dureeStandard = dureeStandard; }
 
-    // Alias pour compatibilité
-    public Integer getDuree() { return dureeStandard; }
-    public void setDuree(Integer duree) { this.dureeStandard = duree; }
 
     public LocalDateTime getDateOuverture() { return dateOuverture; }
     public void setDateOuverture(LocalDateTime dateOuverture) { this.dateOuverture = dateOuverture; }
