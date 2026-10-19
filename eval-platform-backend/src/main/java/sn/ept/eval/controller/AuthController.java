@@ -21,6 +21,7 @@ import sn.ept.eval.repository.UtilisateurRepository;
 import sn.ept.eval.security.jwt.JwtUtils;
 import sn.ept.eval.security.services.UserDetailsImpl;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 
 @RestController
@@ -31,11 +32,14 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final UtilisateurRepository utilisateurRepository;
     private final JwtUtils jwtUtils;
+    private final Clock clock;
 
-    public AuthController(AuthenticationManager authenticationManager, UtilisateurRepository utilisateurRepository, JwtUtils jwtUtils) {
+    public AuthController(AuthenticationManager authenticationManager, UtilisateurRepository utilisateurRepository,
+                          JwtUtils jwtUtils, Clock clock) {
         this.authenticationManager = authenticationManager;
         this.utilisateurRepository = utilisateurRepository;
         this.jwtUtils = jwtUtils;
+        this.clock = clock;
     }
 
     @Operation(
@@ -71,7 +75,7 @@ public class AuthController {
 
         // Mettre à jour la date de dernière connexion
         utilisateurRepository.findById(userDetails.getId()).ifPresent(u -> {
-            u.setDerniereConnexion(LocalDateTime.now());
+            u.setDerniereConnexion(LocalDateTime.now(clock));
             utilisateurRepository.save(u);
         });
 

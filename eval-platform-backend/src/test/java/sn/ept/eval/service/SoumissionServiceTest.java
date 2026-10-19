@@ -4,7 +4,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
@@ -19,7 +18,9 @@ import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,7 +62,10 @@ class SoumissionServiceTest {
     @Mock
     private UtilisateurRepository utilisateurRepository;
 
-    @InjectMocks
+    /** Instant de référence figé : les tests ne dépendent plus de l'heure d'exécution. */
+    private static final LocalDateTime MAINTENANT = LocalDateTime.of(2026, 10, 19, 10, 0);
+    private static final ZoneId ZONE = ZoneId.systemDefault();
+
     private SoumissionService soumissionService;
 
     private Etudiant etudiant;
@@ -70,6 +74,11 @@ class SoumissionServiceTest {
 
     @BeforeEach
     void setUp() {
+        Clock horlogeFigee = Clock.fixed(MAINTENANT.atZone(ZONE).toInstant(), ZONE);
+        soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
+                questionRepository, choixReponseRepository, reponseEtudiantRepository, amenagementTempsRepository,
+                alerteAntiTricheRepository, correctionService, utilisateurRepository, horlogeFigee);
+
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
         etudiant.setId(1L);
 
@@ -82,7 +91,7 @@ class SoumissionServiceTest {
         soumission.setId(100L);
         soumission.setEtudiant(etudiant);
         soumission.setEvaluation(evaluation);
-        soumission.setDateDebut(LocalDateTime.now().minusMinutes(10)); // débuté il y a 10 min
+        soumission.setDateDebut(MAINTENANT.minusMinutes(10)); // débuté il y a 10 min
         soumission.setStatut(StatutSoumission.EN_COURS);
         soumission.setNbChangementsOnglet(0);
     }
@@ -109,7 +118,7 @@ class SoumissionServiceTest {
     @DisplayName("DS-02 (Cas d'erreur) : Rejet avec HTTP 403 (TempsEcouleException) si le temps imparti est expiré")
     void sauvegarderReponses_TempsExpire_LèveTempsEcouleException() {
         // Débuté il y a 40 minutes pour une épreuve de 30 minutes (+ 2 min de marge = 32 min max)
-        soumission.setDateDebut(LocalDateTime.now().minusMinutes(40));
+        soumission.setDateDebut(MAINTENANT.minusMinutes(40));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
         when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
@@ -143,7 +152,7 @@ class SoumissionServiceTest {
     @DisplayName("DS-01 (Cas critique) : Soumission hors délai -> Verrouillage copie, alerte anti-triche et HTTP 403")
     void soumettreCopie_TempsDepasseCritique_VerrouilleEtDeclencheAlerte() {
         // Débuté il y a 45 min pour une épreuve de 30 min (+ 2 min marge = 32 min max)
-        soumission.setDateDebut(LocalDateTime.now().minusMinutes(45));
+        soumission.setDateDebut(MAINTENANT.minusMinutes(45));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
         when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
@@ -203,7 +212,7 @@ class SoumissionServiceTest {
     @DisplayName("DS-02 : la fin de l'épreuve est plafonnée par la date de fermeture de l'évaluation")
     void sauvegarderReponses_ApresFermeture_Rejetee() {
         // 10 min écoulées sur 30, mais l'évaluation a fermé il y a 5 min (au-delà de la marge de 2 min)
-        evaluation.setDateFermeture(LocalDateTime.now().minusMinutes(5));
+        evaluation.setDateFermeture(MAINTENANT.minusMinutes(5));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
         when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
@@ -216,8 +225,8 @@ class SoumissionServiceTest {
     @Test
     @DisplayName("Démarrage : une évaluation TERMINEE est refusée même si la date de fermeture n'est pas passée")
     void demarrer_EvaluationTerminee_Refusee() {
-        evaluation.setDateOuverture(LocalDateTime.now().minusHours(1));
-        evaluation.setDateFermeture(LocalDateTime.now().plusHours(1));
+        evaluation.setDateOuverture(MAINTENANT.minusHours(1));
+        evaluation.setDateFermeture(MAINTENANT.plusHours(1));
         evaluation.setStatut(StatutEvaluation.TERMINEE);
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
@@ -230,8 +239,8 @@ class SoumissionServiceTest {
     @Test
     @DisplayName("Démarrage : un étudiant sans promotion ne peut pas passer une évaluation")
     void demarrer_EtudiantSansPromotion_Refuse() {
-        evaluation.setDateOuverture(LocalDateTime.now().minusHours(1));
-        evaluation.setDateFermeture(LocalDateTime.now().plusHours(1));
+        evaluation.setDateOuverture(MAINTENANT.minusHours(1));
+        evaluation.setDateFermeture(MAINTENANT.plusHours(1));
         evaluation.setStatut(StatutEvaluation.EN_COURS);
         evaluation.setPromotions(List.of(new Promotion("DIC2 Informatique", "2025/2026")));
 
