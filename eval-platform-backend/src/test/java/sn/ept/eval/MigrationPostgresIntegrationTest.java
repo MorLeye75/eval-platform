@@ -13,6 +13,7 @@ import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.model.Evaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.EvaluationRepository;
+import sn.ept.eval.service.AntiTricheService;
 import sn.ept.eval.service.SoumissionService;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +43,9 @@ class MigrationPostgresIntegrationTest {
     private SoumissionService soumissionService;
 
     @Autowired
+    private AntiTricheService antiTricheService;
+
+    @Autowired
     private EvaluationRepository evaluationRepository;
 
     @Test
@@ -58,7 +62,7 @@ class MigrationPostgresIntegrationTest {
                 .filter(e -> e.getTitre().contains("QCM")).map(Evaluation::getId).findFirst().orElseThrow();
 
         Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, "etudiant@ept.sn").getId();
-        soumissionService.enregistrerChangementOnglet(soumissionId, "etudiant@ept.sn");
+        antiTricheService.enregistrerChangementOnglet(soumissionId, "etudiant@ept.sn");
         soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(), "etudiant@ept.sn");
 
         assertThat(soumissionService.soumettreCopie(soumissionId, "etudiant@ept.sn").getStatut())

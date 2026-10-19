@@ -13,7 +13,6 @@ import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.exception.SoumissionNonModifiableException;
 import sn.ept.eval.exception.TempsEcouleException;
 import sn.ept.eval.model.*;
-import sn.ept.eval.model.enums.NiveauAlerte;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
@@ -27,8 +26,6 @@ import java.util.stream.Collectors;
 public class SoumissionService {
 
     private static final Logger log = LoggerFactory.getLogger(SoumissionService.class);
-    public static final int SEUIL_ALERTE_MODEREE = 3;
-    public static final int SEUIL_ALERTE_ELEVEE = 5;
     /** Au-delà de ce délai sans modification, une copie SOUMIS est considérée comme bloquée. */
     public static final int DELAI_CORRECTION_BLOQUEE_MINUTES = 5;
 
@@ -38,11 +35,11 @@ public class SoumissionService {
     private final QuestionRepository questionRepository;
     private final ChoixReponseRepository choixReponseRepository;
     private final ReponseEtudiantRepository reponseEtudiantRepository;
-    private final AlerteAntiTricheRepository alerteAntiTricheRepository;
     private final CorrectionService correctionService;
-    private final UtilisateurRepository utilisateurRepository;
     private final TempsEpreuveService tempsEpreuveService;
     private final SoumissionMapper soumissionMapper;
+    private final SoumissionAccesService soumissionAccesService;
+    private final AntiTricheService antiTricheService;
 
     public SoumissionService(SoumissionRepository soumissionRepository,
                              EvaluationRepository evaluationRepository,
@@ -50,29 +47,29 @@ public class SoumissionService {
                              QuestionRepository questionRepository,
                              ChoixReponseRepository choixReponseRepository,
                              ReponseEtudiantRepository reponseEtudiantRepository,
-                             AlerteAntiTricheRepository alerteAntiTricheRepository,
                              CorrectionService correctionService,
-                             UtilisateurRepository utilisateurRepository,
                              TempsEpreuveService tempsEpreuveService,
-                             SoumissionMapper soumissionMapper) {
+                             SoumissionMapper soumissionMapper,
+                             SoumissionAccesService soumissionAccesService,
+                             AntiTricheService antiTricheService) {
         this.soumissionRepository = soumissionRepository;
         this.evaluationRepository = evaluationRepository;
         this.etudiantRepository = etudiantRepository;
         this.questionRepository = questionRepository;
         this.choixReponseRepository = choixReponseRepository;
         this.reponseEtudiantRepository = reponseEtudiantRepository;
-        this.alerteAntiTricheRepository = alerteAntiTricheRepository;
         this.correctionService = correctionService;
-        this.utilisateurRepository = utilisateurRepository;
         this.tempsEpreuveService = tempsEpreuveService;
         this.soumissionMapper = soumissionMapper;
+        this.soumissionAccesService = soumissionAccesService;
+        this.antiTricheService = antiTricheService;
     }
 
     /**
      * Démarrer ou reprendre une session d'évaluation pour l'étudiant connecté.
      */
     public SoumissionDetailResponse demarrerOuReprendre(Long evaluationId, String userEmail) {
-        Etudiant etudiant = getEtudiantConnecte(userEmail);
+        Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
         Evaluation evaluation = evaluationRepository.findById(evaluationId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + evaluationId + ")"));
 
@@ -123,8 +120,8 @@ public class SoumissionService {
      * Sauvegarde automatique des réponses (conforme au Diagramme de Séquence 2).
      */
     public SauvegardeResponse sauvegarderReponses(Long soumissionId, SauvegardeReponsesRequest request, String userEmail) {
-        Etudiant etudiant = getEtudiantConnecte(userEmail);
-        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
+        Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
+        Soumission soumission = soumissionAccesService.copieDeLEtudiant(soumissionId, etudiant);
 
         // 1. Vérifie statut == EN_COURS
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
@@ -208,8 +205,8 @@ public class SoumissionService {
      */
     @Transactional(noRollbackFor = TempsEcouleException.class)
     public SoumissionResponse soumettreCopie(Long soumissionId, String userEmail) {
-        Etudiant etudiant = getEtudiantConnecte(userEmail);
-        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
+        Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
+        Soumission soumission = soumissionAccesService.copieDeLEtudiant(soumissionId, etudiant);
 
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
             return soumissionMapper.versResponse(soumission, "Cette copie a déjà été transmise.");
@@ -220,21 +217,11 @@ public class SoumissionService {
 
         // [Cas critique : Temps dépassé au-delà de la marge de tolérance]
         if (tempsEpreuveService.estExpiree(soumission)) {
-            log.warn("[Anti-Triche] Dépassement temporel critique pour la soumission ID={}", soumissionId);
-
             // Le serveur fige la copie à l'état du dernier auto-save
             soumission.setStatut(StatutSoumission.SOUMIS);
             soumission.setDateRemise(finEpreuve);
             soumissionRepository.save(soumission);
-
-            // Détection anti-triche
-            AlerteAntiTriche alerte = new AlerteAntiTriche(
-                    "Soumission tardive : le temps imparti a été dépassé au-delà de la marge de tolérance.",
-                    NiveauAlerte.ELEVE,
-                    soumission
-            );
-            alerte.setDateDetection(now);
-            alerteAntiTricheRepository.save(alerte);
+            antiTricheService.signalerSoumissionTardive(soumission);
 
             // La copie figée est corrigée comme les autres (sinon elle resterait SOUMIS indéfiniment)
             declencherCorrectionApresCommit(soumission.getId());
@@ -290,55 +277,11 @@ public class SoumissionService {
     }
 
     /**
-     * Journaliser une sortie d'écran / changement d'onglet (Anti-triche).
-     */
-    public void enregistrerChangementOnglet(Long soumissionId, String userEmail) {
-        Etudiant etudiant = getEtudiantConnecte(userEmail);
-        // Verrou pessimiste : des signalements simultanés ne doivent pas perdre d'incrément
-        Soumission soumission = soumissionRepository.findByIdForUpdate(soumissionId)
-                .orElseThrow(() -> new RessourceNonTrouveeException("Soumission introuvable (ID: " + soumissionId + ")"));
-        verifierProprietaire(soumission, etudiant.getId());
-
-        if (soumission.getStatut() != StatutSoumission.EN_COURS) {
-            return;
-        }
-
-        int nb = soumission.getNbChangementsOnglet() != null ? soumission.getNbChangementsOnglet() + 1 : 1;
-        soumission.setNbChangementsOnglet(nb);
-        soumissionRepository.save(soumission);
-
-        // Une alerte au franchissement de chaque seuil (et non à chaque événement suivant)
-        if (nb == SEUIL_ALERTE_MODEREE || nb == SEUIL_ALERTE_ELEVEE) {
-            AlerteAntiTriche alerte = new AlerteAntiTriche(
-                    "Suspicion de triche : " + nb + " changements d'onglets ou sorties de plein écran détectés.",
-                    nb == SEUIL_ALERTE_ELEVEE ? NiveauAlerte.ELEVE : NiveauAlerte.MODERE,
-                    soumission
-            );
-            alerte.setDateDetection(tempsEpreuveService.maintenant());
-            alerteAntiTricheRepository.save(alerte);
-        }
-    }
-
-    /**
      * Récupérer le détail complet d'une soumission.
      */
     @Transactional(readOnly = true)
     public SoumissionDetailResponse getDetail(Long soumissionId, String userEmail) {
-        Utilisateur utilisateur = utilisateurRepository.findByEmail(userEmail)
-                .orElseThrow(() -> new RessourceNonTrouveeException("Utilisateur introuvable pour le compte : " + userEmail));
-        Soumission soumission = soumissionRepository.findById(soumissionId)
-                .orElseThrow(() -> new RessourceNonTrouveeException("Soumission introuvable (ID: " + soumissionId + ")"));
-
-        boolean autorise = switch (utilisateur.getRole()) {
-            case ETUDIANT -> soumission.getEtudiant().getId().equals(utilisateur.getId());
-            case ENSEIGNANT -> soumission.getEvaluation().getEnseignant().getId().equals(utilisateur.getId());
-            case ADMIN -> true;
-        };
-        if (!autorise) {
-            throw new AccesRefuseException("Accès non autorisé à cette copie.");
-        }
-
-        return soumissionMapper.versDetail(soumission);
+        return soumissionMapper.versDetail(soumissionAccesService.copieConsultable(soumissionId, userEmail));
     }
 
     private void declencherCorrectionApresCommit(Long soumissionId) {
@@ -372,23 +315,5 @@ public class SoumissionService {
         if (question instanceof QuestionQCM) return reponse instanceof ReponseQCM;
         if (question instanceof QuestionCode) return reponse instanceof ReponseCode;
         return reponse instanceof ReponseOuverte;
-    }
-
-    private Etudiant getEtudiantConnecte(String email) {
-        return etudiantRepository.findByEmail(email)
-                .orElseThrow(() -> new RessourceNonTrouveeException("Profil étudiant introuvable pour le compte : " + email));
-    }
-
-    private Soumission getSoumissionEtudiant(Long soumissionId, Long etudiantId) {
-        Soumission s = soumissionRepository.findById(soumissionId)
-                .orElseThrow(() -> new RessourceNonTrouveeException("Soumission introuvable (ID: " + soumissionId + ")"));
-        verifierProprietaire(s, etudiantId);
-        return s;
-    }
-
-    private void verifierProprietaire(Soumission soumission, Long etudiantId) {
-        if (!soumission.getEtudiant().getId().equals(etudiantId)) {
-            throw new AccesRefuseException("Accès non autorisé : cette copie appartient à un autre étudiant.");
-        }
     }
 }

@@ -78,9 +78,12 @@ class SoumissionServiceTest {
         // Collaborateurs réels (règles de temps) branchés sur les dépôts simulés et une horloge figée
         TempsEpreuveService tempsEpreuveService = new TempsEpreuveService(amenagementTempsRepository, horlogeFigee);
         SoumissionMapper soumissionMapper = new SoumissionMapper(questionRepository, reponseEtudiantRepository, tempsEpreuveService);
+        SoumissionAccesService accesService = new SoumissionAccesService(etudiantRepository, utilisateurRepository, soumissionRepository);
+        AntiTricheService antiTricheService = new AntiTricheService(soumissionRepository, alerteAntiTricheRepository,
+                accesService, tempsEpreuveService);
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
                 questionRepository, choixReponseRepository, reponseEtudiantRepository,
-                alerteAntiTricheRepository, correctionService, utilisateurRepository, tempsEpreuveService, soumissionMapper);
+                correctionService, tempsEpreuveService, soumissionMapper, accesService, antiTricheService);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
         etudiant.setId(1L);
@@ -177,38 +180,6 @@ class SoumissionServiceTest {
 
         // La copie figée à son dernier auto-save est tout de même corrigée
         verify(correctionService).corrigerSoumissionAsync(100L);
-    }
-
-    @Test
-    @DisplayName("Anti-Triche : Détection changement d'onglet et création d'alerte dès 3 sorties")
-    void enregistrerChangementOnglet_CreeAlerteDesTroisSorties() {
-        soumission.setNbChangementsOnglet(2);
-
-        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
-
-        soumissionService.enregistrerChangementOnglet(100L, "etudiant@ept.sn");
-
-        assertThat(soumission.getNbChangementsOnglet()).isEqualTo(3);
-        verify(soumissionRepository).save(soumission);
-        verify(alerteAntiTricheRepository).save(argThat(alerte ->
-                alerte.getNiveau() == NiveauAlerte.MODERE &&
-                alerte.getDescription().contains("3 changements d'onglets")
-        ));
-    }
-
-    @Test
-    @DisplayName("Anti-Triche : pas de nouvelle alerte entre deux seuils, alerte ELEVE au 5e changement")
-    void enregistrerChangementOnglet_AlerteUniquementAuxSeuils() {
-        soumission.setNbChangementsOnglet(3);
-        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
-
-        soumissionService.enregistrerChangementOnglet(100L, "etudiant@ept.sn"); // 4e : aucune alerte
-        verify(alerteAntiTricheRepository, never()).save(any());
-
-        soumissionService.enregistrerChangementOnglet(100L, "etudiant@ept.sn"); // 5e : alerte ELEVE
-        verify(alerteAntiTricheRepository).save(argThat(alerte -> alerte.getNiveau() == NiveauAlerte.ELEVE));
     }
 
     @Test

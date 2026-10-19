@@ -17,6 +17,7 @@ import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.dto.soumission.SauvegardeResponse;
 import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
 import sn.ept.eval.dto.soumission.SoumissionResponse;
+import sn.ept.eval.service.AntiTricheService;
 import sn.ept.eval.service.SoumissionService;
 
 import java.util.Map;
@@ -27,9 +28,11 @@ import java.util.Map;
 public class SoumissionController {
 
     private final SoumissionService soumissionService;
+    private final AntiTricheService antiTricheService;
 
-    public SoumissionController(SoumissionService soumissionService) {
+    public SoumissionController(SoumissionService soumissionService, AntiTricheService antiTricheService) {
         this.soumissionService = soumissionService;
+        this.antiTricheService = antiTricheService;
     }
 
     /**
@@ -184,7 +187,7 @@ public class SoumissionController {
     public ResponseEntity<Map<String, String>> signalerChangementOnglet(
             @PathVariable Long id,
             Authentication authentication) {
-        soumissionService.enregistrerChangementOnglet(id, authentication.getName());
+        antiTricheService.enregistrerChangementOnglet(id, authentication.getName());
         return ResponseEntity.ok(Map.of("message", "Événement enregistré."));
     }
 
