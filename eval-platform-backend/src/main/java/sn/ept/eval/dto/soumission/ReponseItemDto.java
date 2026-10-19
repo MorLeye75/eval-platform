@@ -1,14 +1,28 @@
 package sn.ept.eval.dto.soumission;
 
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class ReponseItemDto {
 
+    // Limites : une sauvegarde toutes les 30 s ne doit pas pouvoir saturer le serveur ou la base
+    public static final int TAILLE_MAX_TEXTE = 20_000;
+    public static final int TAILLE_MAX_CODE = 50_000;
+    public static final int NB_MAX_CHOIX = 20;
+
     private Long questionId;
+
+    @Size(max = TAILLE_MAX_TEXTE, message = "La réponse texte ne peut pas dépasser " + TAILLE_MAX_TEXTE + " caractères")
     private String texteSoumis;
+
+    @Size(max = TAILLE_MAX_CODE, message = "Le code ne peut pas dépasser " + TAILLE_MAX_CODE + " caractères")
     private String codeSoumis;
-    private List<Long> choixIds = new ArrayList<>();
+
+    @Size(max = NB_MAX_CHOIX, message = "Trop de choix cochés")
+    private List<@NotNull Long> choixIds = new ArrayList<>();
 
     public ReponseItemDto() {}
 
