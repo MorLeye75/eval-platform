@@ -19,9 +19,12 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
+  # Le schéma est géré par Flyway (src/main/resources/db/migration) ; Hibernate se contente de le vérifier
+  flyway:
+    enabled: true
   jpa:
     hibernate:
-      ddl-auto: ${DDL_AUTO:update}
+      ddl-auto: ${DDL_AUTO:validate}
     show-sql: false
     open-in-view: false
     properties:
@@ -66,6 +69,9 @@ spring:
     console:
       enabled: true
       path: /h2-console
+  # Base H2 en mémoire recréée à chaque démarrage : Flyway (SQL PostgreSQL) n'y est pas utilisé
+  flyway:
+    enabled: false
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:

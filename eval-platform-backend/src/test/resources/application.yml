@@ -13,6 +13,10 @@ spring:
     username: sa
     password: 
 
+  # H2 recréée à chaque contexte ; la migration Flyway est testée sur PostgreSQL (MigrationPostgresIntegrationTest)
+  flyway:
+    enabled: false
+
   jpa:
     database-platform: org.hibernate.dialect.H2Dialect
     hibernate:
