@@ -98,6 +98,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /** Force brute sur le login : 429 avec l'en-tête standard Retry-After. */
+    @ExceptionHandler(TropDeTentativesException.class)
+    public ResponseEntity<ProblemDetail> handleTropDeTentatives(TropDeTentativesException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage());
+        problem.setTitle("Trop de tentatives");
+        problem.setType(URI.create(ERROR_BASE_URL + "trop-de-tentatives"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "TROP_DE_TENTATIVES");
+        problem.setProperty("timestamp", LocalDateTime.now());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getSecondesAvantNouvelEssai()))
+                .body(problem);
+    }
+
     /** Refus d'un @PreAuthorize (rôle insuffisant). */
     @ExceptionHandler(AccessDeniedException.class)
     public ProblemDetail handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {

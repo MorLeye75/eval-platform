@@ -6,12 +6,14 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import sn.ept.eval.dto.auth.LoginRequest;
@@ -19,6 +21,7 @@ import sn.ept.eval.dto.auth.LoginResponse;
 import sn.ept.eval.model.Utilisateur;
 import sn.ept.eval.repository.UtilisateurRepository;
 import sn.ept.eval.security.jwt.JwtUtils;
+import sn.ept.eval.security.services.TentativesConnexionService;
 import sn.ept.eval.security.services.UserDetailsImpl;
 
 import java.time.Clock;
@@ -33,13 +36,15 @@ public class AuthController {
     private final UtilisateurRepository utilisateurRepository;
     private final JwtUtils jwtUtils;
     private final Clock clock;
+    private final TentativesConnexionService tentativesConnexionService;
 
     public AuthController(AuthenticationManager authenticationManager, UtilisateurRepository utilisateurRepository,
-                          JwtUtils jwtUtils, Clock clock) {
+                          JwtUtils jwtUtils, Clock clock, TentativesConnexionService tentativesConnexionService) {
         this.authenticationManager = authenticationManager;
         this.utilisateurRepository = utilisateurRepository;
         this.jwtUtils = jwtUtils;
         this.clock = clock;
+        this.tentativesConnexionService = tentativesConnexionService;
     }
 
     @Operation(
@@ -61,13 +66,30 @@ public class AuthController {
                     responseCode = "401",
                     description = "Identifiants invalides (email ou mot de passe incorrect)",
                     content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
+            ),
+            @ApiResponse(
+                    responseCode = "429",
+                    description = "Trop de tentatives échouées pour cet email depuis cette adresse IP (en-tête Retry-After)",
+                    content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))
             )
     })
     @PostMapping("/login")
-    public ResponseEntity<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
-        );
+    public ResponseEntity<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
+                                                          HttpServletRequest request) {
+        // Adresse de la connexion TCP : derrière un reverse proxy, configurer server.forward-headers-strategy
+        String cle = TentativesConnexionService.cle(loginRequest.getEmail(), request.getRemoteAddr());
+        tentativesConnexionService.verifierNonBloque(cle);
+
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
+            );
+        } catch (AuthenticationException e) {
+            tentativesConnexionService.enregistrerEchec(cle);
+            throw e;
+        }
+        tentativesConnexionService.reinitialiser(cle);
 
         String jwt = jwtUtils.generateJwtToken(authentication);
 
