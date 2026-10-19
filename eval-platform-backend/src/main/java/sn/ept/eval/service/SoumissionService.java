@@ -1,10 +1,13 @@
 package sn.ept.eval.service;
 
 import org.slf4j.Logger;
+import org.hibernate.Hibernate;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import sn.ept.eval.dto.soumission.*;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
@@ -55,6 +58,9 @@ public class SoumissionService {
 
     @Autowired
     private CorrectionService correctionService;
+
+    @Autowired
+    private UtilisateurRepository utilisateurRepository;
 
     /**
      * Démarrer ou reprendre une session d'évaluation pour l'étudiant connecté.
@@ -137,6 +143,11 @@ public class SoumissionService {
                 Question question = questionRepository.findById(item.getQuestionId()).orElse(null);
                 if (question == null) continue;
 
+                // La question doit appartenir à l'évaluation de cette copie
+                if (!question.getEvaluation().getId().equals(soumission.getEvaluation().getId())) {
+                    throw new IllegalArgumentException("La question " + question.getId() + " n'appartient pas à cette évaluation.");
+                }
+
                 ReponseEtudiant reponse = reponseEtudiantRepository
                         .findBySoumissionIdAndQuestionId(soumission.getId(), question.getId())
                         .orElse(null);
@@ -146,8 +157,7 @@ public class SoumissionService {
                     rq.setSoumission(soumission);
                     rq.setQuestion(question);
                     if (item.getChoixIds() != null && !item.getChoixIds().isEmpty()) {
-                        List<ChoixReponse> choix = choixReponseRepository.findAllById(item.getChoixIds());
-                        rq.setChoixCoches(choix);
+                        rq.setChoixCoches(getChoixValides((QuestionQCM) Hibernate.unproxy(question), item.getChoixIds()));
                     } else {
                         rq.setChoixCoches(new ArrayList<>());
                     }
@@ -176,7 +186,9 @@ public class SoumissionService {
 
     /**
      * Soumission finale de la copie (conforme au Diagramme de Séquence 1).
+     * Pas de rollback sur TempsEcouleException : le verrouillage de la copie et l'alerte doivent être persistés.
      */
+    @Transactional(noRollbackFor = TempsEcouleException.class)
     public SoumissionResponse soumettreCopie(Long soumissionId, String userEmail) {
         Etudiant etudiant = getEtudiantConnecte(userEmail);
         Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
@@ -214,8 +226,8 @@ public class SoumissionService {
         soumission.setDateRemise(now);
         soumission = soumissionRepository.save(soumission);
 
-        // Déclenche CorrectionService en arrière-plan (async)
-        correctionService.corrigerSoumissionAsync(soumission.getId());
+        // Déclenche CorrectionService en arrière-plan (async), une fois le statut SOUMIS commité
+        declencherCorrectionApresCommit(soumission.getId());
 
         return toSoumissionResponse(soumission, "Copie soumise avec succès.");
     }
@@ -251,9 +263,48 @@ public class SoumissionService {
      */
     @Transactional(readOnly = true)
     public SoumissionDetailResponse getDetail(Long soumissionId, String userEmail) {
-        Etudiant etudiant = getEtudiantConnecte(userEmail);
-        Soumission soumission = getSoumissionEtudiant(soumissionId, etudiant.getId());
-        return buildSoumissionDetailResponse(soumission, etudiant);
+        Utilisateur utilisateur = utilisateurRepository.findByEmail(userEmail)
+                .orElseThrow(() -> new RessourceNonTrouveeException("Utilisateur introuvable pour le compte : " + userEmail));
+        Soumission soumission = soumissionRepository.findById(soumissionId)
+                .orElseThrow(() -> new RessourceNonTrouveeException("Soumission introuvable (ID: " + soumissionId + ")"));
+
+        boolean autorise = switch (utilisateur.getRole()) {
+            case ETUDIANT -> soumission.getEtudiant().getId().equals(utilisateur.getId());
+            case ENSEIGNANT -> soumission.getEvaluation().getEnseignant().getId().equals(utilisateur.getId());
+            case ADMIN -> true;
+        };
+        if (!autorise) {
+            throw new AccesRefuseException("Accès non autorisé à cette copie.");
+        }
+
+        return buildSoumissionDetailResponse(soumission, soumission.getEtudiant());
+    }
+
+    private void declencherCorrectionApresCommit(Long soumissionId) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    correctionService.corrigerSoumissionAsync(soumissionId);
+                }
+            });
+        } else {
+            correctionService.corrigerSoumissionAsync(soumissionId);
+        }
+    }
+
+    private List<ChoixReponse> getChoixValides(QuestionQCM question, List<Long> choixIds) {
+        Set<Long> idsDemandes = new HashSet<>(choixIds);
+        List<ChoixReponse> choix = choixReponseRepository.findAllById(idsDemandes);
+        boolean tousValides = choix.size() == idsDemandes.size()
+                && choix.stream().allMatch(c -> c.getQuestion().getId().equals(question.getId()));
+        if (!tousValides) {
+            throw new IllegalArgumentException("Choix invalides pour la question " + question.getId() + ".");
+        }
+        if (!Boolean.TRUE.equals(question.getEstChoixMultiple()) && choix.size() > 1) {
+            throw new IllegalArgumentException("La question " + question.getId() + " n'accepte qu'un seul choix.");
+        }
+        return choix;
     }
 
     private int getDureeEffectiveMinutes(Soumission soumission, Etudiant etudiant) {

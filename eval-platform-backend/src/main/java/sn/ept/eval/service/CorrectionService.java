@@ -1,5 +1,6 @@
 package sn.ept.eval.service;
 
+import org.hibernate.Hibernate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,7 +9,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutSoumission;
-import sn.ept.eval.model.enums.TypeQuestion;
 import sn.ept.eval.repository.SoumissionRepository;
 
 import java.util.HashSet;
@@ -44,10 +44,10 @@ public class CorrectionService {
             boolean toutesQuestionsSontQcm = true;
 
             for (ReponseEtudiant reponse : soumission.getReponses()) {
-                Question question = reponse.getQuestion();
+                // La question est un proxy LAZY de Question (classe abstraite) : il faut le déballer avant le cast
+                Question question = (Question) Hibernate.unproxy(reponse.getQuestion());
 
-                if (question.getType() == TypeQuestion.QCM && reponse instanceof ReponseQCM reponseQCM) {
-                    QuestionQCM questionQcm = (QuestionQCM) question;
+                if (question instanceof QuestionQCM questionQcm && reponse instanceof ReponseQCM reponseQCM) {
                     corrigerQuestionQcm(reponseQCM, questionQcm);
                 } else {
                     toutesQuestionsSontQcm = false;
