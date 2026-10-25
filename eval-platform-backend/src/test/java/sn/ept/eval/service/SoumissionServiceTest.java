@@ -15,6 +15,7 @@ import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
 import sn.ept.eval.dto.soumission.SoumissionResponse;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.TempsEcouleException;
+import sn.ept.eval.exception.VersionObsoleteException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.NiveauAlerte;
 import sn.ept.eval.model.enums.StatutEvaluation;
@@ -313,6 +314,36 @@ class SoumissionServiceTest {
         assertThat(soumissionService.sauvegarderReponses(100L, vide, "etudiant@ept.sn").getVersionReponses()).isEqualTo(1);
         assertThat(soumissionService.sauvegarderReponses(100L, vide, "etudiant@ept.sn").getVersionReponses()).isEqualTo(2);
         assertThat(soumission.getVersionReponses()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("DS-02 : une sauvegarde sur une version périmée est refusée avant tout enregistrement")
+    void sauvegarderReponses_VersionPerimee_Refusee() {
+        soumission.setVersionReponses(3);
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
+
+        SauvegardeReponsesRequest perimee = new SauvegardeReponsesRequest(
+                List.of(new ReponseItemDto(1L, "texte", null, null)), 2);
+
+        assertThatThrownBy(() -> soumissionService.sauvegarderReponses(100L, perimee, "etudiant@ept.sn"))
+                .isInstanceOf(VersionObsoleteException.class)
+                .satisfies(e -> assertThat(((VersionObsoleteException) e).getVersionActuelle()).isEqualTo(3));
+        assertThat(soumission.getVersionReponses()).isEqualTo(3);
+        verify(questionRepository, never()).findByEvaluationIdOrderByOrdreAsc(any());
+    }
+
+    @Test
+    @DisplayName("DS-02 : sans versionAttendue (client non versionné), la sauvegarde est acceptée")
+    void sauvegarderReponses_SansVersion_Acceptee() {
+        soumission.setVersionReponses(3);
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
+
+        SauvegardeResponse response = soumissionService.sauvegarderReponses(
+                100L, new SauvegardeReponsesRequest(List.of(), null), "etudiant@ept.sn");
+
+        assertThat(response.getVersionReponses()).isEqualTo(4);
     }
 
     /** Place l'étudiant dans la promotion ciblée par l'évaluation. */
