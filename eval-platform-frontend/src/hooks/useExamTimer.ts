@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react"
 
 interface UseExamTimerOptions {
-  dureeMinutes: number
+  dureeSecondes: number
   onExpire: () => void
   enabled?: boolean
 }
@@ -21,12 +21,12 @@ export function formatTemps(secondesTotal: number) {
  * (l'intervalle n'est pas recréé à chaque rendu).
  */
 export function useExamTimer({
-  dureeMinutes,
+  dureeSecondes,
   onExpire,
   enabled = true,
 }: UseExamTimerOptions) {
   const [finA, setFinA] = useState<number | null>(null)
-  const [tempsRestant, setTempsRestant] = useState(dureeMinutes * 60)
+  const [tempsRestant, setTempsRestant] = useState(dureeSecondes)
   const onExpireRef = useRef(onExpire)
   useEffect(() => {
     onExpireRef.current = onExpire
@@ -34,8 +34,8 @@ export function useExamTimer({
 
   // Fixe l'heure de fin une seule fois, au démarrage
   useEffect(() => {
-    if (enabled && finA === null) setFinA(Date.now() + dureeMinutes * 60_000)
-  }, [enabled, finA, dureeMinutes])
+    if (enabled && finA === null) setFinA(Date.now() + dureeSecondes * 1000)
+  }, [enabled, finA, dureeSecondes])
 
   useEffect(() => {
     if (finA === null) return

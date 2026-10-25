@@ -112,6 +112,48 @@ export interface ReponseEtudiant {
   valideParProf: boolean
 }
 
+// ---------- Passation (DS-01 soumission, DS-02 auto-save) ----------
+// Copie vue par l'étudiant : jamais de bonne réponse ni de cas de test masqué
+
+export interface ReponseItem {
+  questionId: number
+  texteSoumis?: string
+  codeSoumis?: string
+  choixIds?: number[]
+}
+
+export interface QuestionExamen {
+  id: number
+  enonce: string
+  ordre: number
+  points: number
+  type: TypeQuestion
+  estChoixMultiple: boolean | null
+  choixPossibles: { id: number; texte: string }[]
+  casDeTestsVisibles: { id: number; entree: string; sortieAttendue: string }[]
+  reponseActuelle: ReponseItem | null
+}
+
+export interface CopieEnCours {
+  id: number
+  evaluationId: number
+  titreEvaluation: string
+  descriptionEvaluation: string | null
+  statut: StatutSoumission
+  dateDebut: string
+  dateRemise: string | null
+  dureeMinutes: number
+  tempsRestantSecondes: number
+  nbChangementsOnglet: number
+  questions: QuestionExamen[]
+}
+
+export interface SauvegardeResponse {
+  dateSauvegarde: string // ISO 8601
+  message: string
+  nbReponses: number
+}
+
 // ---------- Correction IA ----------
 export interface PropositionIA {
   id: number

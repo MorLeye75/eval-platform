@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useParams, useNavigate, Link } from "react-router-dom"
+import { useParams } from "react-router-dom"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -12,10 +12,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { getEvaluation } from "@/mocks/evaluations"
-import { useExamTimer } from "@/hooks/useExamTimer"
-import { useAutoSave } from "@/hooks/useAutoSave"
+import { usePassation } from "@/hooks/usePassation"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
+import EtatPassation from "./EtatPassation"
+import type { QuestionExamen } from "@/types"
 import {
   Clock,
   ChevronLeft,
@@ -24,54 +24,61 @@ import {
   Send,
   CircleCheck,
   Eye,
-  Info,
 } from "lucide-react"
+
+type ReponsesOuvertes = Record<number, string> // questionId -> texte rédigé
+
+function depuisCopie(questions: QuestionExamen[]): ReponsesOuvertes {
+  return Object.fromEntries(
+    questions.map((q) => [q.id, q.reponseActuelle?.texteSoumis ?? ""])
+  )
+}
+
+function versReponses(reponses: ReponsesOuvertes) {
+  return Object.entries(reponses).map(([questionId, texteSoumis]) => ({
+    questionId: Number(questionId),
+    texteSoumis,
+  }))
+}
+
+function compterTraitees(reponses: ReponsesOuvertes) {
+  return Object.values(reponses).filter((r) => r.trim().length > 0).length
+}
 
 export default function PassationOuverte() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-
-  const evaluation = getEvaluation(id)
-  const questions = evaluation?.questions ?? []
 
   const [indexCourant, setIndexCourant] = useState(0)
-  const [reponses, setReponses] = useState<Record<number, string>>({})
   const [dialogOuvert, setDialogOuvert] = useState(false)
 
-  const { tempsRestant, tempsRestantFormate } = useExamTimer({
-    dureeMinutes: evaluation?.duree ?? 60,
-    onExpire: () => navigate(`/examen/${id}/expiration`, { replace: true }),
-    enabled: !!evaluation,
-  })
-
-  const { derniereSauvegarde } = useAutoSave({
-    data: reponses,
-  })
+  const {
+    copie,
+    questions,
+    chargement,
+    erreur,
+    reponses,
+    setReponses,
+    tempsRestant,
+    tempsRestantFormate,
+    derniereSauvegarde,
+    erreurSauvegarde,
+    soumettre,
+    soumissionEnCours,
+    erreurSoumission,
+  } = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
 
   const { changementsOnglet } = useAntiCheat()
 
-  // ---------- Cas d'erreur ----------
-  if (!evaluation || questions.length === 0) {
-    return (
-      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-10 text-center">
-        <Card className="w-full rounded-2xl border-border/60 shadow-sm">
-          <CardContent className="py-10 text-sm text-muted-foreground">
-            Cette évaluation est introuvable ou ne contient aucune question.
-          </CardContent>
-        </Card>
-        <Button
-          variant="outline"
-          render={<Link to="/etudiant/evaluations">Retour aux évaluations</Link>}
-        />
-      </div>
-    )
+  // ---------- Chargement / cas d'erreur ----------
+  if (chargement) return <EtatPassation message="Chargement de votre copie..." retour={false} />
+  if (erreur || !copie) return <EtatPassation message={erreur ?? "Évaluation introuvable."} />
+  if (questions.length === 0) {
+    return <EtatPassation message="Cette évaluation ne contient aucune question." />
   }
 
   const question = questions[indexCourant]
   const reponseCourante = reponses[question.id] ?? ""
-  const nbRepondues = Object.values(reponses).filter(
-    (r) => r.trim().length > 0
-  ).length
+  const nbRepondues = compterTraitees(reponses)
   const progression = (nbRepondues / questions.length) * 100
 
   const nbMots = reponseCourante.trim()
@@ -84,7 +91,7 @@ export default function PassationOuverte() {
     <div className="mx-auto flex max-w-3xl flex-col gap-5">
       {/* Titre de l'évaluation */}
       <p className="text-sm font-semibold text-muted-foreground">
-        {evaluation.titre}
+        {copie.titreEvaluation}
       </p>
 
       {/* Barre supérieure : timer + sauvegarde */}
@@ -108,9 +115,11 @@ export default function PassationOuverte() {
 
           <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <Save className="size-3.5" />
-            {derniereSauvegarde
-              ? `Sauvegardé à ${derniereSauvegarde}`
-              : "Sauvegarde auto activée"}
+            {erreurSauvegarde
+              ? "Hors ligne : réponses conservées sur cet appareil"
+              : derniereSauvegarde
+                ? `Sauvegardé à ${derniereSauvegarde}`
+                : "Sauvegarde auto activée"}
           </span>
         </CardContent>
       </Card>
@@ -147,13 +156,6 @@ export default function PassationOuverte() {
           <p className="text-base font-medium leading-relaxed">
             {question.enonce}
           </p>
-
-          {question.consigne && (
-            <div className="flex items-start gap-2 rounded-xl bg-muted/60 p-3 text-sm text-muted-foreground">
-              <Info className="mt-0.5 size-4 shrink-0" />
-              <span>{question.consigne}</span>
-            </div>
-          )}
 
           <Textarea
             value={reponseCourante}
@@ -246,6 +248,10 @@ export default function PassationOuverte() {
             </DialogDescription>
           </DialogHeader>
 
+          {erreurSoumission && (
+            <p className="mt-3 text-sm text-destructive">{erreurSoumission}</p>
+          )}
+
           <div className="mt-4 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:justify-end">
             <Button
               variant="outline"
@@ -256,20 +262,11 @@ export default function PassationOuverte() {
             </Button>
             <Button
               className="w-full shadow-md sm:w-auto"
-              onClick={() => {
-                // TODO backend : POST /api/soumissions/{id}/soumettre
-                navigate(`/examen/${id}/confirmation`, {
-                  replace: true,
-                  state: {
-                    titre: evaluation.titre,
-                    traitees: nbRepondues,
-                    total: questions.length,
-                  },
-                })
-              }}
+              disabled={soumissionEnCours}
+              onClick={() => soumettre()}
             >
               <CircleCheck className="mr-1 size-4 shrink-0" />
-              Soumettre
+              {soumissionEnCours ? "Envoi..." : "Soumettre"}
             </Button>
           </div>
         </DialogContent>

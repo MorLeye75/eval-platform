@@ -37,7 +37,7 @@ export default function PassationQuiz() {
   const { changementsOnglet } = useAntiCheat({ enabled: demarre })
 
   const { tempsRestantFormate: tempsGlobalFormate } = useExamTimer({
-    dureeMinutes: evaluation?.duree ?? 5,
+    dureeSecondes: (evaluation?.duree ?? 5) * 60,
     onExpire: () => navigate(`/examen/${id}/expiration`, { replace: true }),
     enabled: demarre && !!evaluation,
   })
