@@ -141,6 +141,15 @@ export function usePassation<T>({
       setSoumissionEnCours(false)
       return
     }
+    if (sauvegarde === "echec" && fin === "confirmation") {
+      // Soumettre maintenant figerait la copie sans les dernières réponses, restées dans le tampon local
+      setErreurSoumission(
+        "Vos dernières réponses ne sont pas encore enregistrées. Vérifiez votre connexion puis réessayez."
+      )
+      setSoumissionEnCours(false)
+      return
+    }
+    // Fin du chrono : soumission quoi qu'il arrive, seules les réponses déjà enregistrées sur le serveur sont garanties
 
     try {
       await soumettreCopie(copie.id)
