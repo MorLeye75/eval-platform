@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 
 /**
  * Conversion des copies en DTO de passation. Ne renvoie jamais les bonnes réponses (estCorrect)
- * ni les cas de test : ces DTO sont destinés à l'étudiant pendant l'épreuve.
+ * ni les cas de test masqués : ces DTO sont destinés à l'étudiant pendant l'épreuve.
  * Doit être appelé dans une transaction (chargement LAZY des choix et des réponses).
  */
 @Component
@@ -86,6 +86,13 @@ public class SoumissionMapper {
             qDto.setEstChoixMultiple(qQcm.getEstChoixMultiple());
             qDto.setChoixPossibles(qQcm.getChoix().stream()
                     .map(c -> new ChoixItemDto(c.getId(), c.getTexte()))
+                    .collect(Collectors.toList()));
+        }
+
+        if (q instanceof QuestionCode qCode) {
+            qDto.setCasDeTestsVisibles(qCode.getCasTests().stream()
+                    .filter(c -> !Boolean.TRUE.equals(c.getEstMasque()))
+                    .map(c -> new CasDeTestVisibleDto(c.getId(), c.getEntree(), c.getSortieAttendue()))
                     .collect(Collectors.toList()));
         }
 

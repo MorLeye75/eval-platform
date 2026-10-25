@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import sn.ept.eval.dto.soumission.QuestionExamenDto;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.dto.soumission.SauvegardeResponse;
@@ -67,6 +68,7 @@ class SoumissionServiceTest {
     private static final ZoneId ZONE = ZoneId.systemDefault();
 
     private SoumissionService soumissionService;
+    private SoumissionMapper soumissionMapper;
 
     private Etudiant etudiant;
     private Evaluation evaluation;
@@ -77,7 +79,7 @@ class SoumissionServiceTest {
         Clock horlogeFigee = Clock.fixed(MAINTENANT.atZone(ZONE).toInstant(), ZONE);
         // Collaborateurs réels (règles de temps) branchés sur les dépôts simulés et une horloge figée
         TempsEpreuveService tempsEpreuveService = new TempsEpreuveService(amenagementTempsRepository, horlogeFigee);
-        SoumissionMapper soumissionMapper = new SoumissionMapper(questionRepository, reponseEtudiantRepository, tempsEpreuveService);
+        soumissionMapper = new SoumissionMapper(questionRepository, reponseEtudiantRepository, tempsEpreuveService);
         SoumissionAccesService accesService = new SoumissionAccesService(etudiantRepository, utilisateurRepository, soumissionRepository);
         AntiTricheService antiTricheService = new AntiTricheService(soumissionRepository, alerteAntiTricheRepository,
                 accesService, tempsEpreuveService);
@@ -225,5 +227,27 @@ class SoumissionServiceTest {
 
         assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
                 .isInstanceOf(AccesRefuseException.class);
+    }
+
+    @Test
+    @DisplayName("Copie de passation : seuls les cas de test non masqués sont envoyés à l'étudiant")
+    void versDetail_QuestionCode_NeRenvoieQueLesCasVisibles() {
+        QuestionCode question = new QuestionCode("estPalindrome(s)", 1, 5.0);
+        question.setId(20L);
+        CasDeTest visible = new CasDeTest("radar", "true", false);
+        visible.setId(1L);
+        CasDeTest masque = new CasDeTest("kayak", "true", true);
+        masque.setId(2L);
+        question.addCasDeTest(visible);
+        question.addCasDeTest(masque);
+
+        when(questionRepository.findByEvaluationIdOrderByOrdreAsc(10L)).thenReturn(List.of(question));
+        when(reponseEtudiantRepository.findBySoumissionId(100L)).thenReturn(List.of());
+
+        QuestionExamenDto dto = soumissionMapper.versDetail(soumission).getQuestions().get(0);
+
+        assertThat(dto.getCasDeTestsVisibles()).hasSize(1);
+        assertThat(dto.getCasDeTestsVisibles().get(0).getEntree()).isEqualTo("radar");
+        assertThat(dto.getCasDeTestsVisibles().get(0).getSortieAttendue()).isEqualTo("true");
     }
 }

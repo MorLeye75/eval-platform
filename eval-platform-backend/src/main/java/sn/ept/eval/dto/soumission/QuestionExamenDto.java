@@ -14,6 +14,7 @@ public class QuestionExamenDto {
     private TypeQuestion type;
     private Boolean estChoixMultiple;
     private List<ChoixItemDto> choixPossibles = new ArrayList<>();
+    private List<CasDeTestVisibleDto> casDeTestsVisibles = new ArrayList<>();
     private ReponseItemDto reponseActuelle;
 
     public QuestionExamenDto() {}
@@ -38,6 +39,9 @@ public class QuestionExamenDto {
 
     public List<ChoixItemDto> getChoixPossibles() { return choixPossibles; }
     public void setChoixPossibles(List<ChoixItemDto> choixPossibles) { this.choixPossibles = choixPossibles; }
+
+    public List<CasDeTestVisibleDto> getCasDeTestsVisibles() { return casDeTestsVisibles; }
+    public void setCasDeTestsVisibles(List<CasDeTestVisibleDto> casDeTestsVisibles) { this.casDeTestsVisibles = casDeTestsVisibles; }
 
     public ReponseItemDto getReponseActuelle() { return reponseActuelle; }
     public void setReponseActuelle(ReponseItemDto reponseActuelle) { this.reponseActuelle = reponseActuelle; }
