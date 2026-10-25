@@ -53,7 +53,7 @@ else [étudiant inscrit]
       note right of B : même calcul et même marge pour la sauvegarde,\nla soumission et la clôture automatique (TempsEpreuveService)
     end
     alt [EN_COURS et expirée]
-      B -> D : UPDATE Soumission SET statut = 'SOUMIS', dateRemise = fin
+      B -> D : UPDATE Soumission SET statut = 'SOUMIS', dateRemise = fin\n(ligne verrouillée, statut revérifié = 'EN_COURS')
       note right of B : copie figée à la dernière sauvegarde, correction lancée\naprès commit (sans effet si la copie n'est plus SOUMIS),\npas d'alerte anti-triche
       B --> F : 200 OK { id, statut = SOUMIS }
       note right of F : fin du traitement :\nquestions et réponses non chargées
@@ -74,7 +74,7 @@ else [étudiant inscrit]
 end
 deactivate B
 
-alt [statut = EN_COURS]
+alt [HTTP 200 et statut = EN_COURS]
   alt [tampon localStorage saisi sur la version = versionReponses]
     F -> F : restaure le tampon (réponses non encore synchronisées)
   else [tampon saisi sur une version plus ancienne]
@@ -83,13 +83,13 @@ alt [statut = EN_COURS]
   F -> F : chrono affiché sur tempsRestantSecondes
   note right of F : le front affiche le temps,\nle serveur refuse toute action hors délai (DS-01, DS-02)
   F --> E : affiche l'épreuve
-else [statut ≠ EN_COURS]
+else [HTTP 200 et statut ∈ {SOUMIS, EN_CORRECTION, EVALUE}]
   F -> F : supprime les tampons de la copie
   F --> E : "Votre copie a déjà été remise"
-else [404 / 403 / 400]
+else [HTTP 400, 403 ou 404]
   F --> E : message "detail" renvoyé par le serveur (RFC 7807)
 end
 deactivate F
 
-note over B, D : versionReponses est incrémentée à chaque sauvegarde réussie (DS-02), sous le verrou de la Soumission
+note over B, D : versionReponses est incrémentée à chaque sauvegarde réussie (DS-02), sous le verrou de la Soumission ;\nune sauvegarde saisie sur une version périmée est refusée (409 VERSION_OBSOLETE)
 @enduml

@@ -1,0 +1,53 @@
+@startuml DS-02_sauvegarde_auto
+title DS-02 — Sauvegarde automatique des réponses
+autonumber
+actor "Étudiant" as E
+boundary "Frontend React" as F
+control "Backend Spring" as B
+entity "BDD" as D
+
+E -> F : saisit / modifie sa réponse
+note right of F : **Boucle de 30 secondes**\nenvoi seulement si les réponses ont changé ;\nenvoi immédiat aussi avant la soumission (DS-01)\net à la reconnexion réseau
+F -> B ++ : PUT /api/soumissions/{id}/sauvegarder\n{ reponses, versionAttendue }
+B -> D ++ : SELECT Soumission WHERE id = :id FOR UPDATE
+D --> B -- : copie (statut, dateDebut, versionReponses)
+note right of B : verrou : sauvegarde, soumission et clôture automatique\nd'une même copie sont sérialisées
+
+alt [copie inconnue]
+  B --> F : 404 Not Found
+else [copie d'un autre étudiant]
+  B --> F : 403 Forbidden
+else [statut ≠ EN_COURS]
+  B --> F : 409 Conflict (code SOUMISSION_VERROUILLEE)
+  F --> E : bloque l'édition, écran d'expiration / verrouillage
+else [now() > fin + marge (2 min)]
+  B --> F : 409 Conflict (code TEMPS_EXPIRE)
+  F --> E : bloque l'édition, écran d'expiration / verrouillage
+else [versionAttendue ≠ versionReponses]
+  note right of B : réponses enregistrées entre-temps\ndepuis un autre onglet ou appareil
+  B --> F : 409 Conflict (code VERSION_OBSOLETE, versionActuelle)
+  F -> F : réponses locales mises de côté (non perdues)
+  F -> B : POST /api/soumissions/evaluations/{evalId}/demarrer (reprise)
+  B --> F : 200 OK (réponses et versionReponses du serveur)
+  F --> E : "Votre copie a été modifiée depuis un autre onglet ou appareil :\nla version enregistrée a été rechargée"
+else [réponse invalide : question ou choix hors de l'évaluation, taille dépassée]
+  B --> F : 400 Bad Request (rien n'est enregistré)
+  F -> F : réponses gardées dans le tampon local
+else [vérifications valides]
+  B -> D : INSERT / UPDATE ReponseEtudiant (contenu par question)
+  B -> D : UPDATE Soumission SET versionReponses = versionReponses + 1
+  B --> F : 200 OK { dateSauvegarde, nbReponses, versionReponses }
+  F -> F : retient la nouvelle version, vide le tampon local
+  F --> E : affiche "Sauvegardé à HH:MM"
+end
+deactivate B
+
+== Cas d'erreur réseau (coupure de connexion) ==
+note over F #FFEEEE
+  **Si la requête PUT n'atteint pas le serveur :**
+  -> les réponses restent dans le localStorage, avec la version serveur sur laquelle elles ont été saisies
+  -> "Hors ligne : réponses conservées sur cet appareil"
+  -> nouvelle tentative automatique dès que la reconnexion est détectée (événement online)
+  -> au rechargement de la page, le tampon n'est restauré que si sa version = versionReponses (DS-10)
+end note
+@enduml
