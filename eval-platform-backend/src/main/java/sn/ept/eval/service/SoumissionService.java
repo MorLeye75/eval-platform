@@ -9,6 +9,7 @@ import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.exception.SoumissionNonModifiableException;
 import sn.ept.eval.exception.TempsEcouleException;
+import sn.ept.eval.exception.VersionObsoleteException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
@@ -141,10 +142,18 @@ public class SoumissionService {
             throw new TempsEcouleException("Action rejetée : temps imparti expiré.");
         }
 
-        // 3. Mise à jour ou création des réponses
+        // 3. Contrôle de version : refuse d'écraser des réponses enregistrées depuis un autre onglet ou appareil
+        Integer versionAttendue = request.getVersionAttendue();
+        if (versionAttendue != null && !versionAttendue.equals(soumission.getVersionReponses())) {
+            throw new VersionObsoleteException(
+                    "Votre copie a été modifiée depuis un autre onglet ou appareil. Rechargez-la avant de continuer.",
+                    soumission.getVersionReponses());
+        }
+
+        // 4. Mise à jour ou création des réponses
         int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, request.getReponses());
 
-        // 4. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
+        // 5. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
         int version = soumission.getVersionReponses() + 1;
         soumission.setVersionReponses(version);
 

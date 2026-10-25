@@ -59,6 +59,19 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /** 409 avec un code distinct : le front recharge la copie au lieu de bloquer l'épreuve. */
+    @ExceptionHandler(VersionObsoleteException.class)
+    public ProblemDetail handleVersionObsolete(VersionObsoleteException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Version des réponses périmée");
+        problem.setType(URI.create(ERROR_BASE_URL + "version-obsolete"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "VERSION_OBSOLETE");
+        problem.setProperty("versionActuelle", ex.getVersionActuelle());
+        problem.setProperty("timestamp", LocalDateTime.now());
+        return problem;
+    }
+
     @ExceptionHandler(AccesRefuseException.class)
     public ProblemDetail handleAccesRefuse(AccesRefuseException ex, HttpServletRequest request) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());

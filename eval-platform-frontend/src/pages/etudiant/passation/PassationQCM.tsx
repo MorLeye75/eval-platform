@@ -25,6 +25,7 @@ import {
   Send,
   CircleCheck,
   Eye,
+  Info,
 } from "lucide-react"
 
 type ReponsesQCM = Record<number, number[]> // questionId -> choixIds cochés
@@ -66,6 +67,7 @@ export default function PassationQCM() {
     soumettre,
     soumissionEnCours,
     erreurSoumission,
+    avertissement,
   } = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
 
   const { changementsOnglet } = useAntiCheat()
@@ -136,6 +138,14 @@ export default function PassationQCM() {
           </span>
         </CardContent>
       </Card>
+
+      {/* Copie rechargée après un conflit de version */}
+      {avertissement && (
+        <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+          <Info className="size-4 shrink-0" />
+          <span>{avertissement}</span>
+        </div>
+      )}
 
       {/* Alerte anti-triche */}
       {changementsOnglet > 0 && (

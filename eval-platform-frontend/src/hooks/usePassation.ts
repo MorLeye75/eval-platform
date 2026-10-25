@@ -42,6 +42,7 @@ export function usePassation<T>({
     data: copie,
     isPending,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["passation", evaluationId],
     queryFn: () => demarrerEpreuve(evaluationId!),
@@ -57,7 +58,10 @@ export function usePassation<T>({
   const [pret, setPret] = useState(false)
   const [soumissionEnCours, setSoumissionEnCours] = useState(false)
   const [erreurSoumission, setErreurSoumission] = useState<string | null>(null)
+  const [avertissement, setAvertissement] = useState<string | null>(null)
   const termine = useRef(false)
+  // Copie dont les réponses ont été chargées dans le formulaire (rechargée après un conflit de version)
+  const copieInitialisee = useRef<typeof copie>(undefined)
 
   const cleTampon = copie ? `passation-copie-${copie.id}` : undefined
   const enCours = copie?.statut === "EN_COURS"
@@ -88,20 +92,28 @@ export function usePassation<T>({
   const { derniereSauvegarde, erreurSauvegarde, sauvegarderMaintenant, marquerSauvegarde } =
     useAutoSave({
       data: reponses,
-      onSave: async (donnees) => {
-        const r = await sauvegarderReponses(copie!.id, versReponsesRef.current(donnees))
+      onSave: async (donnees, versionAttendue) => {
+        const r = await sauvegarderReponses(copie!.id, versReponsesRef.current(donnees), versionAttendue)
         return { dateSauvegarde: r.dateSauvegarde, version: r.versionReponses }
       },
       cleTampon,
       // DS-02 cas d'erreur : temps expiré ou copie verrouillée → l'édition est bloquée
       onVerrouillage: () => quitter("expiration"),
+      // DS-02 conflit de version : la copie enregistrée ailleurs est rechargée, les réponses locales gardées de côté
+      onConflit: () => {
+        setAvertissement(
+          "Votre copie a été modifiée depuis un autre onglet ou appareil : la version enregistrée a été rechargée."
+        )
+        refetch()
+      },
       enabled: pret && enCours,
     })
 
   // Réponses de départ : celles du serveur (source de vérité), ou le tampon local s'il reste des réponses
   // non confirmées saisies sur cette même version (coupure réseau puis rechargement de la page)
   useEffect(() => {
-    if (!copie || pret) return
+    if (!copie || copieInitialisee.current === copie) return
+    copieInitialisee.current = copie
     const cle = `passation-copie-${copie.id}`
     // Copie remise : plus rien à synchroniser
     if (!enCours) viderTampon(cle)
@@ -110,7 +122,7 @@ export function usePassation<T>({
     setReponses(tampon ?? serveur)
     marquerSauvegarde(serveur, copie.versionReponses)
     setPret(true)
-  }, [copie, pret, enCours, depuisCopie, marquerSauvegarde])
+  }, [copie, enCours, depuisCopie, marquerSauvegarde])
 
   /** DS-01 : soumission de la copie (bouton « Soumettre » ou fin du chrono). */
   async function soumettre(fin: Fin = "confirmation") {
@@ -119,7 +131,16 @@ export function usePassation<T>({
     setErreurSoumission(null)
 
     // Les modifications des dernières secondes partent avant que la copie soit figée
-    if ((await sauvegarderMaintenant()) === "verrouillee") return
+    const sauvegarde = await sauvegarderMaintenant()
+    if (sauvegarde === "verrouillee") return
+    if (sauvegarde === "conflit" && fin === "confirmation") {
+      // La copie vient d'être rechargée : l'étudiant vérifie ses réponses avant de soumettre
+      setErreurSoumission(
+        "Votre copie a été modifiée ailleurs et vient d'être rechargée. Vérifiez vos réponses puis soumettez à nouveau."
+      )
+      setSoumissionEnCours(false)
+      return
+    }
 
     try {
       await soumettreCopie(copie.id)
@@ -165,5 +186,6 @@ export function usePassation<T>({
     soumettre,
     soumissionEnCours,
     erreurSoumission,
+    avertissement,
   }
 }

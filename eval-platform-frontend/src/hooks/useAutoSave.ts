@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
-import { estCopieVerrouillee, formatHeure } from "@/lib/passation"
+import { estCopieVerrouillee, estVersionObsolete, formatHeure } from "@/lib/passation"
 
-export type ResultatSauvegarde = "ok" | "verrouillee" | "echec"
+export type ResultatSauvegarde = "ok" | "verrouillee" | "conflit" | "echec"
 
 /** Réponse du serveur à une sauvegarde réussie. */
 export interface SauvegardeConfirmee {
@@ -12,8 +12,11 @@ export interface SauvegardeConfirmee {
 interface UseAutoSaveOptions<T> {
   data: T
   intervalMs?: number
-  /** Envoie les données au serveur. Résout avec la confirmation du serveur, rejette en cas d'échec. */
-  onSave?: (data: T) => Promise<SauvegardeConfirmee | void>
+  /**
+   * Envoie les données au serveur avec la version sur laquelle elles ont été saisies.
+   * Résout avec la confirmation du serveur, rejette en cas d'échec.
+   */
+  onSave?: (data: T, versionAttendue: number | null) => Promise<SauvegardeConfirmee | void>
   /**
    * Clé localStorage du tampon conservé tant que le serveur n'a pas confirmé la sauvegarde.
    * Le tampon porte la version serveur des réponses sur laquelle il a été saisi.
@@ -21,6 +24,8 @@ interface UseAutoSaveOptions<T> {
   cleTampon?: string
   /** Le serveur refuse la sauvegarde : temps expiré ou copie qui n'est plus EN_COURS (409). */
   onVerrouillage?: () => void
+  /** Le serveur refuse la sauvegarde : copie enregistrée entre-temps ailleurs (409 VERSION_OBSOLETE). */
+  onConflit?: () => void
   enabled?: boolean
 }
 
@@ -65,6 +70,12 @@ export function viderTampon(cle: string) {
   retirer(cleConflit(cle))
 }
 
+/** Met des réponses de côté sans les restaurer : elles ne seront pas perdues avant la remise. */
+function mettreDeCote<T>(cle: string, tampon: Tampon<T>) {
+  ecrireTampon(cleConflit(cle), tampon)
+  retirer(cle)
+}
+
 function ecrireTampon<T>(cle: string, tampon: Tampon<T>) {
   try {
     localStorage.setItem(cle, JSON.stringify(tampon))
@@ -79,6 +90,8 @@ function ecrireTampon<T>(cle: string, tampon: Tampon<T>) {
  * - Toutes les 30 secondes (par défaut), envoie les données si elles ont changé.
  * - Succès : affiche l'heure de sauvegarde renvoyée par le serveur et vide le tampon.
  * - 409 (temps expiré ou copie verrouillée) : `onVerrouillage`, l'édition doit être bloquée.
+ * - 409 VERSION_OBSOLETE (copie enregistrée depuis un autre onglet ou appareil) : les réponses locales
+ *   sont mises de côté et `onConflit` doit recharger la copie du serveur.
  * - Échec (coupure réseau…) : les réponses restent dans le localStorage et une nouvelle
  *   tentative part dès que le navigateur détecte la reconnexion.
  *
@@ -90,6 +103,7 @@ export function useAutoSave<T>({
   onSave,
   cleTampon,
   onVerrouillage,
+  onConflit,
   enabled = true,
 }: UseAutoSaveOptions<T>) {
   const [derniereSauvegarde, setDerniereSauvegarde] = useState<string | null>(null)
@@ -97,6 +111,7 @@ export function useAutoSave<T>({
   const dataRef = useRef(data)
   const onSaveRef = useRef(onSave)
   const onVerrouillageRef = useRef(onVerrouillage)
+  const onConflitRef = useRef(onConflit)
   const cleTamponRef = useRef(cleTampon)
   const dernierSerialise = useRef<string | null>(null)
   // Version serveur des réponses : celle de la dernière sauvegarde confirmée
@@ -106,6 +121,7 @@ export function useAutoSave<T>({
     dataRef.current = data
     onSaveRef.current = onSave
     onVerrouillageRef.current = onVerrouillage
+    onConflitRef.current = onConflit
     cleTamponRef.current = cleTampon
   })
 
@@ -115,7 +131,7 @@ export function useAutoSave<T>({
     if (serialise === dernierSerialise.current) return "ok"
 
     try {
-      const confirmation = await onSaveRef.current?.(donnees)
+      const confirmation = await onSaveRef.current?.(donnees, versionServeur.current)
       dernierSerialise.current = serialise
       if (confirmation?.version !== undefined) versionServeur.current = confirmation.version
       // Tampon synchronisé : seul le tampon courant est vidé, un tampon en conflit reste de côté
@@ -127,6 +143,13 @@ export function useAutoSave<T>({
       if (estCopieVerrouillee(err)) {
         onVerrouillageRef.current?.()
         return "verrouillee"
+      }
+      if (estVersionObsolete(err)) {
+        if (cleTamponRef.current) {
+          mettreDeCote(cleTamponRef.current, { version: versionServeur.current, donnees })
+        }
+        onConflitRef.current?.()
+        return "conflit"
       }
       if (cleTamponRef.current) {
         ecrireTampon(cleTamponRef.current, { version: versionServeur.current, donnees })

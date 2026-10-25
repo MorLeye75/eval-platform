@@ -12,11 +12,15 @@ export async function demarrerEpreuve(evaluationId: string) {
   return data
 }
 
-/** DS-02 : PUT /soumissions/{id}/sauvegarder (contenu) */
-export async function sauvegarderReponses(soumissionId: number, reponses: ReponseItem[]) {
+/** DS-02 : PUT /soumissions/{id}/sauvegarder (contenu + version sur laquelle il a été saisi) */
+export async function sauvegarderReponses(
+  soumissionId: number,
+  reponses: ReponseItem[],
+  versionAttendue: number | null
+) {
   const { data } = await api.put<SauvegardeResponse>(
     `/soumissions/${soumissionId}/sauvegarder`,
-    { reponses }
+    { reponses, versionAttendue }
   )
   return data
 }
@@ -26,12 +30,23 @@ export async function soumettreCopie(soumissionId: number) {
   await api.post(`/soumissions/${soumissionId}/soumettre`)
 }
 
+function codeConflit(err: unknown): string | null {
+  if (!isAxiosError(err) || err.response?.status !== 409) return null
+  return typeof err.response.data?.code === "string" ? err.response.data.code : ""
+}
+
+/** Sauvegarde refusée : les réponses ont été enregistrées entre-temps depuis un autre onglet ou appareil. */
+export function estVersionObsolete(err: unknown) {
+  return codeConflit(err) === "VERSION_OBSOLETE"
+}
+
 /**
  * Le serveur a refusé l'action parce que la copie est figée : temps dépassé
- * au-delà de la marge, ou copie déjà soumise (409 Conflict).
+ * au-delà de la marge, ou copie déjà soumise (409 Conflict hors conflit de version).
  */
 export function estCopieVerrouillee(err: unknown) {
-  return isAxiosError(err) && err.response?.status === 409
+  const code = codeConflit(err)
+  return code !== null && code !== "VERSION_OBSOLETE"
 }
 
 /** La requête n'a pas atteint le serveur (coupure réseau). */

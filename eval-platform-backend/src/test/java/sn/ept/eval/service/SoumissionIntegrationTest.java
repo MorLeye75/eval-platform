@@ -14,6 +14,7 @@ import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
 import sn.ept.eval.dto.soumission.SoumissionResponse;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.TempsEcouleException;
+import sn.ept.eval.exception.VersionObsoleteException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
@@ -282,6 +283,27 @@ class SoumissionIntegrationTest {
         assertThat(version).isEqualTo(1);
         assertThat(reprise.getVersionReponses()).isEqualTo(version);
         assertThat(reprise.getQuestions()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("DS-02 : une sauvegarde saisie sur une version périmée est refusée sans écraser les réponses")
+    void sauvegarde_VersionObsolete_Refusee() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        List<ReponseItemDto> bonnes = reponsesCorrectes();
+
+        // Onglet A : sauvegarde sur la version 0 -> version 1
+        soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(bonnes, 0), emailEtudiant);
+
+        // Onglet B, resté sur la version 0, tente d'effacer les réponses
+        Long q1Id = bonnes.get(0).getQuestionId();
+        SauvegardeReponsesRequest perimee = new SauvegardeReponsesRequest(
+                List.of(new ReponseItemDto(q1Id, null, null, List.of())), 0);
+        assertThatThrownBy(() -> soumissionService.sauvegarderReponses(soumissionId, perimee, emailEtudiant))
+                .isInstanceOf(VersionObsoleteException.class);
+
+        SoumissionDetailResponse copie = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant);
+        assertThat(copie.getVersionReponses()).isEqualTo(1);
+        assertThat(copie.getQuestions().get(0).getReponseActuelle().getChoixIds()).isNotEmpty();
     }
 
     @Test

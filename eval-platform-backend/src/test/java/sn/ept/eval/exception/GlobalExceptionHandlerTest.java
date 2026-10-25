@@ -56,6 +56,19 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    @DisplayName("RFC 7807 : VersionObsoleteException renvoie HTTP 409 VERSION_OBSOLETE avec la version actuelle")
+    void handleVersionObsolete_ConformeRfc7807() {
+        request.setRequestURI("/api/soumissions/100/sauvegarder");
+
+        ProblemDetail problem = exceptionHandler.handleVersionObsolete(new VersionObsoleteException("Copie modifiée.", 4), request);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getType()).isEqualTo(URI.create("https://eval.ept.sn/errors/version-obsolete"));
+        assertThat(problem.getProperties().get("code")).isEqualTo("VERSION_OBSOLETE");
+        assertThat(problem.getProperties().get("versionActuelle")).isEqualTo(4);
+    }
+
+    @Test
     @DisplayName("RFC 7807 : RessourceNonTrouveeException renvoie HTTP 404")
     void handleRessourceNonTrouvee_ConformeRfc7807() {
         request.setRequestURI("/api/evaluations/999");
