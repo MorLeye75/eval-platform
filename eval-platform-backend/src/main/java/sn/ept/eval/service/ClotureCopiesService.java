@@ -1,5 +1,7 @@
 package sn.ept.eval.service;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -27,13 +29,16 @@ public class ClotureCopiesService {
     private final SoumissionRepository soumissionRepository;
     private final TempsEpreuveService tempsEpreuveService;
     private final CorrectionDeclencheur correctionDeclencheur;
+    private final EntityManager entityManager;
 
     public ClotureCopiesService(SoumissionRepository soumissionRepository,
                                 TempsEpreuveService tempsEpreuveService,
-                                CorrectionDeclencheur correctionDeclencheur) {
+                                CorrectionDeclencheur correctionDeclencheur,
+                                EntityManager entityManager) {
         this.soumissionRepository = soumissionRepository;
         this.tempsEpreuveService = tempsEpreuveService;
         this.correctionDeclencheur = correctionDeclencheur;
+        this.entityManager = entityManager;
     }
 
     /**
@@ -45,15 +50,27 @@ public class ClotureCopiesService {
     public int cloturerCopiesExpirees() {
         int nbCloturees = 0;
         for (Soumission soumission : soumissionRepository.findByStatut(StatutSoumission.EN_COURS)) {
-            if (tempsEpreuveService.estExpiree(soumission)) {
-                soumission.setStatut(StatutSoumission.SOUMIS);
-                soumission.setDateRemise(tempsEpreuveService.finEpreuve(soumission));
-                correctionDeclencheur.apresCommit(soumission.getId());
+            if (!tempsEpreuveService.estExpiree(soumission)) continue;
+
+            // Relue sous verrou : une soumission ou une reprise concurrente a pu la clôturer entre-temps
+            entityManager.refresh(soumission, LockModeType.PESSIMISTIC_WRITE);
+            if (soumission.getStatut() == StatutSoumission.EN_COURS && tempsEpreuveService.estExpiree(soumission)) {
+                cloturerExpiree(soumission);
                 log.info("Clôture automatique de la soumission ID={} (temps écoulé)", soumission.getId());
                 nbCloturees++;
             }
         }
         return nbCloturees;
+    }
+
+    /**
+     * Fige une copie expirée à son dernier auto-save et lance sa correction après le commit, sans alerte
+     * anti-triche (l'étudiant n'a rien envoyé hors délai). L'appelant doit détenir le verrou sur la copie.
+     */
+    public void cloturerExpiree(Soumission soumission) {
+        soumission.setStatut(StatutSoumission.SOUMIS);
+        soumission.setDateRemise(tempsEpreuveService.finEpreuve(soumission));
+        correctionDeclencheur.apresCommit(soumission.getId());
     }
 
     /**

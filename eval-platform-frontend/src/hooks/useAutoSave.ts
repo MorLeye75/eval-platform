@@ -3,31 +3,55 @@ import { estCopieVerrouillee, formatHeure } from "@/lib/passation"
 
 export type ResultatSauvegarde = "ok" | "verrouillee" | "echec"
 
+/** Réponse du serveur à une sauvegarde réussie. */
+export interface SauvegardeConfirmee {
+  dateSauvegarde?: string // ISO 8601, affichée à l'étudiant
+  version?: number // nouvelle version des réponses côté serveur
+}
+
 interface UseAutoSaveOptions<T> {
   data: T
   intervalMs?: number
+  /** Envoie les données au serveur. Résout avec la confirmation du serveur, rejette en cas d'échec. */
+  onSave?: (data: T) => Promise<SauvegardeConfirmee | void>
   /**
-   * Envoie les données au serveur. Résout avec l'heure de sauvegarde renvoyée
-   * par le serveur (ISO 8601), rejette en cas d'échec.
+   * Clé localStorage du tampon conservé tant que le serveur n'a pas confirmé la sauvegarde.
+   * Le tampon porte la version serveur des réponses sur laquelle il a été saisi.
    */
-  onSave?: (data: T) => Promise<string | void>
-  /** Clé localStorage du tampon conservé tant que le serveur n'a pas confirmé la sauvegarde. */
   cleTampon?: string
   /** Le serveur refuse la sauvegarde : temps expiré ou copie qui n'est plus EN_COURS (409). */
   onVerrouillage?: () => void
   enabled?: boolean
 }
 
-export function lireTampon<T>(cle: string): T | null {
+interface Tampon<T> {
+  version: number | null
+  donnees: T
+}
+
+/** Clé où un tampon en conflit avec le serveur est mis de côté jusqu'à la remise de la copie. */
+const cleConflit = (cle: string) => `${cle}-conflit`
+
+/**
+ * Réponses du tampon, seulement s'il a été saisi sur la version actuelle du serveur.
+ * Si le serveur a reçu une sauvegarde plus récente (autre navigateur), les réponses du serveur font foi :
+ * le tampon n'est pas restauré mais mis de côté, pour ne pas détruire un travail jamais synchronisé.
+ */
+export function lireTampon<T>(cle: string, versionServeur: number): T | null {
   try {
     const brut = localStorage.getItem(cle)
-    return brut ? (JSON.parse(brut) as T) : null
+    if (!brut) return null
+    const tampon = JSON.parse(brut) as Tampon<T>
+    if (tampon.version === versionServeur) return tampon.donnees
+    localStorage.setItem(cleConflit(cle), brut)
+    localStorage.removeItem(cle)
+    return null
   } catch {
     return null
   }
 }
 
-export function viderTampon(cle: string) {
+function retirer(cle: string) {
   try {
     localStorage.removeItem(cle)
   } catch {
@@ -35,9 +59,15 @@ export function viderTampon(cle: string) {
   }
 }
 
-function ecrireTampon(cle: string, serialise: string) {
+/** Supprime le tampon et un éventuel tampon en conflit (copie remise). */
+export function viderTampon(cle: string) {
+  retirer(cle)
+  retirer(cleConflit(cle))
+}
+
+function ecrireTampon<T>(cle: string, tampon: Tampon<T>) {
   try {
-    localStorage.setItem(cle, serialise)
+    localStorage.setItem(cle, JSON.stringify(tampon))
   } catch {
     // stockage plein ou indisponible : la réponse reste en mémoire pour le prochain essai
   }
@@ -69,6 +99,8 @@ export function useAutoSave<T>({
   const onVerrouillageRef = useRef(onVerrouillage)
   const cleTamponRef = useRef(cleTampon)
   const dernierSerialise = useRef<string | null>(null)
+  // Version serveur des réponses : celle de la dernière sauvegarde confirmée
+  const versionServeur = useRef<number | null>(null)
   const file = useRef<Promise<ResultatSauvegarde>>(Promise.resolve("ok"))
   useEffect(() => {
     dataRef.current = data
@@ -78,22 +110,27 @@ export function useAutoSave<T>({
   })
 
   const tenter = useCallback(async (): Promise<ResultatSauvegarde> => {
-    const serialise = JSON.stringify(dataRef.current)
+    const donnees = dataRef.current
+    const serialise = JSON.stringify(donnees)
     if (serialise === dernierSerialise.current) return "ok"
 
     try {
-      const dateServeur = await onSaveRef.current?.(dataRef.current)
+      const confirmation = await onSaveRef.current?.(donnees)
       dernierSerialise.current = serialise
-      if (cleTamponRef.current) viderTampon(cleTamponRef.current)
+      if (confirmation?.version !== undefined) versionServeur.current = confirmation.version
+      // Tampon synchronisé : seul le tampon courant est vidé, un tampon en conflit reste de côté
+      if (cleTamponRef.current) retirer(cleTamponRef.current)
       setErreurSauvegarde(false)
-      setDerniereSauvegarde(formatHeure(dateServeur || undefined))
+      setDerniereSauvegarde(formatHeure(confirmation?.dateSauvegarde))
       return "ok"
     } catch (err) {
       if (estCopieVerrouillee(err)) {
         onVerrouillageRef.current?.()
         return "verrouillee"
       }
-      if (cleTamponRef.current) ecrireTampon(cleTamponRef.current, serialise)
+      if (cleTamponRef.current) {
+        ecrireTampon(cleTamponRef.current, { version: versionServeur.current, donnees })
+      }
       setErreurSauvegarde(true)
       return "echec"
     }
@@ -105,9 +142,10 @@ export function useAutoSave<T>({
     return file.current
   }, [tenter])
 
-  /** Déclare des données comme déjà présentes sur le serveur (état initial de la copie). */
-  const marquerSauvegarde = useCallback((donnees: T) => {
+  /** Déclare des données comme déjà présentes sur le serveur, dans la version indiquée (état initial de la copie). */
+  const marquerSauvegarde = useCallback((donnees: T, version: number) => {
     dernierSerialise.current = JSON.stringify(donnees)
+    versionServeur.current = version
   }, [])
 
   useEffect(() => {

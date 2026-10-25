@@ -20,6 +20,11 @@ public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
     Optional<Soumission> findByIdForUpdate(@Param("id") Long id);
 
     Optional<Soumission> findByEvaluationIdAndEtudiantId(Long evaluationId, Long etudiantId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Soumission s where s.evaluation.id = :evaluationId and s.etudiant.id = :etudiantId")
+    Optional<Soumission> findByEvaluationIdAndEtudiantIdForUpdate(@Param("evaluationId") Long evaluationId,
+                                                                  @Param("etudiantId") Long etudiantId);
     List<Soumission> findByEvaluationId(Long evaluationId);
 
     List<Soumission> findByStatut(StatutSoumission statut);

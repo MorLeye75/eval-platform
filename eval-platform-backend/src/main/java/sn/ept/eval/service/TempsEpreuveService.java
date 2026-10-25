@@ -42,7 +42,12 @@ public class TempsEpreuveService {
 
     /** Fin de l'épreuve : début + durée effective, plafonnée par la fermeture de l'évaluation. */
     public LocalDateTime finEpreuve(Soumission soumission) {
-        LocalDateTime fin = soumission.getDateDebut().plusMinutes(dureeEffectiveMinutes(soumission));
+        return finEpreuve(soumission, dureeEffectiveMinutes(soumission));
+    }
+
+    /** Variante pour un appelant qui connaît déjà la durée effective (évite de relire l'aménagement). */
+    public LocalDateTime finEpreuve(Soumission soumission, int dureeEffectiveMinutes) {
+        LocalDateTime fin = soumission.getDateDebut().plusMinutes(dureeEffectiveMinutes);
         LocalDateTime fermeture = soumission.getEvaluation().getDateFermeture();
         return (fermeture != null && fermeture.isBefore(fin)) ? fermeture : fin;
     }
@@ -53,6 +58,10 @@ public class TempsEpreuveService {
     }
 
     public long tempsRestantSecondes(Soumission soumission) {
-        return Math.max(0, Duration.between(maintenant(), finEpreuve(soumission)).getSeconds());
+        return tempsRestantSecondes(soumission, dureeEffectiveMinutes(soumission));
+    }
+
+    public long tempsRestantSecondes(Soumission soumission, int dureeEffectiveMinutes) {
+        return Math.max(0, Duration.between(maintenant(), finEpreuve(soumission, dureeEffectiveMinutes)).getSeconds());
     }
 }

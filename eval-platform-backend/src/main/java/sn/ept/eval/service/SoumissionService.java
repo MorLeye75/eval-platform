@@ -32,6 +32,7 @@ public class SoumissionService {
     private final SoumissionMapper soumissionMapper;
     private final SoumissionAccesService soumissionAccesService;
     private final AntiTricheService antiTricheService;
+    private final ClotureCopiesService clotureCopiesService;
 
     public SoumissionService(SoumissionRepository soumissionRepository,
                              EvaluationRepository evaluationRepository,
@@ -41,7 +42,8 @@ public class SoumissionService {
                              TempsEpreuveService tempsEpreuveService,
                              SoumissionMapper soumissionMapper,
                              SoumissionAccesService soumissionAccesService,
-                             AntiTricheService antiTricheService) {
+                             AntiTricheService antiTricheService,
+                             ClotureCopiesService clotureCopiesService) {
         this.soumissionRepository = soumissionRepository;
         this.evaluationRepository = evaluationRepository;
         this.etudiantRepository = etudiantRepository;
@@ -51,26 +53,18 @@ public class SoumissionService {
         this.soumissionMapper = soumissionMapper;
         this.soumissionAccesService = soumissionAccesService;
         this.antiTricheService = antiTricheService;
+        this.clotureCopiesService = clotureCopiesService;
     }
 
     /**
-     * Démarrer ou reprendre une session d'évaluation pour l'étudiant connecté.
+     * Démarrer ou reprendre une session d'évaluation pour l'étudiant connecté (Diagramme de Séquence DS-10).
+     * Une copie existante est toujours renvoyée selon son état (en cours, expirée puis clôturée, remise),
+     * même après la fermeture de l'évaluation ; les conditions d'ouverture ne s'appliquent qu'à la création.
      */
     public SoumissionDetailResponse demarrerOuReprendre(Long evaluationId, String userEmail) {
         Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
         Evaluation evaluation = evaluationRepository.findById(evaluationId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + evaluationId + ")"));
-
-        LocalDateTime now = tempsEpreuveService.maintenant();
-        if (now.isBefore(evaluation.getDateOuverture())) {
-            throw new IllegalArgumentException("Cette évaluation n'est pas encore ouverte.");
-        }
-        if (now.isAfter(evaluation.getDateFermeture())) {
-            throw new IllegalArgumentException("Cette évaluation est déjà clôturée.");
-        }
-        if (evaluation.getStatut() != StatutEvaluation.PUBLIEE && evaluation.getStatut() != StatutEvaluation.EN_COURS) {
-            throw new IllegalArgumentException("Cette évaluation n'est pas accessible (statut : " + evaluation.getStatut() + ").");
-        }
 
         // L'étudiant doit appartenir à l'une des promotions assignées à l'évaluation
         boolean promotionValide = etudiant.getPromotion() != null && evaluation.getPromotions().stream()
@@ -83,18 +77,30 @@ public class SoumissionService {
         // deux copies ; le second attend la fin du premier puis reprend la copie qu'il a créée
         etudiantRepository.findByIdForUpdate(etudiant.getId());
 
-        // Vérifier si une soumission existe déjà
-        Optional<Soumission> existanteOpt = soumissionRepository.findByEvaluationIdAndEtudiantId(evaluationId, etudiant.getId());
+        // Vérifier si une soumission existe déjà (verrouillée : la clôture automatique peut la viser au même moment)
+        Optional<Soumission> existanteOpt = soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(evaluationId, etudiant.getId());
         Soumission soumission;
 
         if (existanteOpt.isPresent()) {
             soumission = existanteOpt.get();
+
+            // Copie abandonnée puis rouverte après la marge : clôturée ici plutôt que renvoyée avec un temps nul,
+            // sinon le chrono du front la soumettrait et lèverait une fausse alerte de soumission tardive
+            if (soumission.getStatut() == StatutSoumission.EN_COURS && tempsEpreuveService.estExpiree(soumission)) {
+                clotureCopiesService.cloturerExpiree(soumission);
+                log.info("Clôture à la reprise de la soumission ID={} (temps écoulé)", soumission.getId());
+            }
+            // Copie remise : statut seulement, pas de questions ni de réponses
+            if (soumission.getStatut() != StatutSoumission.EN_COURS) {
+                return soumissionMapper.versDetailSansQuestions(soumission);
+            }
             log.info("Reprise de la soumission ID={} pour l'étudiant {}", soumission.getId(), userEmail);
         } else {
+            verifierOuverte(evaluation, tempsEpreuveService.maintenant());
             soumission = new Soumission();
             soumission.setEvaluation(evaluation);
             soumission.setEtudiant(etudiant);
-            soumission.setDateDebut(now);
+            soumission.setDateDebut(tempsEpreuveService.maintenant());
             soumission.setStatut(StatutSoumission.EN_COURS);
             soumission.setNbChangementsOnglet(0);
             soumission = soumissionRepository.save(soumission);
@@ -104,12 +110,25 @@ public class SoumissionService {
         return soumissionMapper.versDetail(soumission);
     }
 
+    /** Conditions pour créer une copie : évaluation publiée ou en cours, entre ses dates d'ouverture et de fermeture. */
+    private void verifierOuverte(Evaluation evaluation, LocalDateTime now) {
+        if (now.isBefore(evaluation.getDateOuverture())) {
+            throw new IllegalArgumentException("Cette évaluation n'est pas encore ouverte.");
+        }
+        if (now.isAfter(evaluation.getDateFermeture())) {
+            throw new IllegalArgumentException("Cette évaluation est déjà clôturée.");
+        }
+        if (evaluation.getStatut() != StatutEvaluation.PUBLIEE && evaluation.getStatut() != StatutEvaluation.EN_COURS) {
+            throw new IllegalArgumentException("Cette évaluation n'est pas accessible (statut : " + evaluation.getStatut() + ").");
+        }
+    }
+
     /**
      * Sauvegarde automatique des réponses (conforme au Diagramme de Séquence 2).
      */
     public SauvegardeResponse sauvegarderReponses(Long soumissionId, SauvegardeReponsesRequest request, String userEmail) {
         Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
-        Soumission soumission = soumissionAccesService.copieDeLEtudiant(soumissionId, etudiant);
+        Soumission soumission = soumissionAccesService.copieVerrouilleeDeLEtudiant(soumissionId, etudiant);
 
         // 1. Vérifie statut == EN_COURS
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
@@ -125,7 +144,12 @@ public class SoumissionService {
         // 3. Mise à jour ou création des réponses
         int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, request.getReponses());
 
-        return new SauvegardeResponse(tempsEpreuveService.maintenant(), "Sauvegarde effectuée avec succès.", nbSauvegardees);
+        // 4. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
+        int version = soumission.getVersionReponses() + 1;
+        soumission.setVersionReponses(version);
+
+        return new SauvegardeResponse(tempsEpreuveService.maintenant(), "Sauvegarde effectuée avec succès.",
+                nbSauvegardees, version);
     }
 
     /**
@@ -135,7 +159,7 @@ public class SoumissionService {
     @Transactional(noRollbackFor = TempsEcouleException.class)
     public SoumissionResponse soumettreCopie(Long soumissionId, String userEmail) {
         Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
-        Soumission soumission = soumissionAccesService.copieDeLEtudiant(soumissionId, etudiant);
+        Soumission soumission = soumissionAccesService.copieVerrouilleeDeLEtudiant(soumissionId, etudiant);
 
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
             return soumissionMapper.versResponse(soumission, "Cette copie a déjà été transmise.");

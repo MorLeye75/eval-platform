@@ -101,7 +101,8 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 |---|---|---|---|
 | POST | `/auth/login` | public | authentification, renvoie le jeton JWT |
 | GET | `/auth/me` | connecté | profil de l'utilisateur connecté |
-| POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve |
+| GET | `/etudiant/evaluations` | étudiant | évaluations de sa promotion et état de sa copie |
+| POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve (copie expirée clôturée, copie remise sans questions) |
 | PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) |
 | POST | `/soumissions/{id}/soumettre` | étudiant | soumission finale et correction asynchrone |
 | POST | `/soumissions/{id}/changement-onglet` | étudiant | signalement anti-triche |
@@ -140,14 +141,19 @@ La passation est répartie en services à responsabilité unique :
 | Service | Responsabilité |
 |---|---|
 | `SoumissionService` | cycle de vie d'une copie : démarrer, sauvegarder, soumettre, consulter |
+| `EvaluationEtudiantService` | liste des évaluations de l'étudiant, durée effective et état de sa copie |
 | `TempsEpreuveService` | durée effective (aménagements), fin d'épreuve, marge de 2 min, temps restant |
 | `EnregistrementReponsesService` | validation et enregistrement des réponses selon le type de question |
 | `AntiTricheService` | changements d'onglet (alertes au 3e et au 5e) et soumissions tardives |
 | `SoumissionAccesService` | étudiant connecté, propriété des copies, consultation selon le rôle |
 | `SoumissionMapper` | conversion en DTO, sans jamais exposer les bonnes réponses |
-| `CorrectionService` | correction automatique asynchrone (QCM et quiz chronométrés) |
+| `CorrectionService` | correction automatique asynchrone (QCM et quiz chronométrés), sans effet si la copie n'est plus SOUMIS |
 | `CorrectionDeclencheur` | lancement de la correction après validation de la transaction |
 | `ClotureCopiesService` + `PassationScheduler` | clôture des copies abandonnées, relance des corrections bloquées |
+
+Concurrence : sauvegarde, soumission, clôture automatique, reprise et correction verrouillent la copie
+(`SELECT ... FOR UPDATE`) ; une réponse ne peut pas être écrite après le passage à `SOUMIS` et une copie
+n'est corrigée qu'une fois.
 
 ## Tests
 

@@ -37,9 +37,15 @@ public class CorrectionService {
         log.info("[Async-Correction] Démarrage de la correction pour la soumission ID={}", soumissionId);
 
         try {
-            Soumission soumission = soumissionRepository.findById(soumissionId).orElse(null);
+            // Verrou : deux déclenchements simultanés (soumission et clôture automatique, relance) sont sérialisés
+            Soumission soumission = soumissionRepository.findByIdForUpdate(soumissionId).orElse(null);
             if (soumission == null) {
                 log.warn("[Async-Correction] Soumission ID={} introuvable", soumissionId);
+                return CompletableFuture.completedFuture(null);
+            }
+            // Idempotence : une copie déjà corrigée (ou rouverte) n'est pas recorrigée, la note de l'enseignant est conservée
+            if (soumission.getStatut() != StatutSoumission.SOUMIS) {
+                log.info("[Async-Correction] Soumission ID={} ignorée (statut {})", soumissionId, soumission.getStatut());
                 return CompletableFuture.completedFuture(null);
             }
 

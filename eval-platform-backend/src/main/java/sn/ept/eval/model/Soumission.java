@@ -33,6 +33,10 @@ public class Soumission extends AuditableEntity {
 
     private LocalDateTime dateRemise;
 
+    // Version des réponses côté serveur : incrémentée uniquement par une sauvegarde réussie (DS-02)
+    @Column(nullable = false)
+    private Integer versionReponses = 0;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private StatutSoumission statut = StatutSoumission.EN_COURS;
@@ -71,6 +75,9 @@ public class Soumission extends AuditableEntity {
 
     public LocalDateTime getDateRemise() { return dateRemise; }
     public void setDateRemise(LocalDateTime dateRemise) { this.dateRemise = dateRemise; }
+
+    public Integer getVersionReponses() { return versionReponses; }
+    public void setVersionReponses(Integer versionReponses) { this.versionReponses = versionReponses; }
 
     public StatutSoumission getStatut() { return statut; }
     public void setStatut(StatutSoumission statut) { this.statut = statut; }

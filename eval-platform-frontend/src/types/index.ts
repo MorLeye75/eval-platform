@@ -142,6 +142,7 @@ export interface CopieEnCours {
   statut: StatutSoumission
   dateDebut: string
   dateRemise: string | null
+  versionReponses: number // incrémentée à chaque sauvegarde réussie côté serveur
   dureeMinutes: number
   tempsRestantSecondes: number
   nbChangementsOnglet: number
@@ -152,6 +153,7 @@ export interface SauvegardeResponse {
   dateSauvegarde: string // ISO 8601
   message: string
   nbReponses: number
+  versionReponses: number
 }
 
 // ---------- Correction IA ----------

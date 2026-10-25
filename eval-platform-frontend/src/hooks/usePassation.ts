@@ -88,22 +88,27 @@ export function usePassation<T>({
   const { derniereSauvegarde, erreurSauvegarde, sauvegarderMaintenant, marquerSauvegarde } =
     useAutoSave({
       data: reponses,
-      onSave: async (donnees) =>
-        (await sauvegarderReponses(copie!.id, versReponsesRef.current(donnees))).dateSauvegarde,
+      onSave: async (donnees) => {
+        const r = await sauvegarderReponses(copie!.id, versReponsesRef.current(donnees))
+        return { dateSauvegarde: r.dateSauvegarde, version: r.versionReponses }
+      },
       cleTampon,
       // DS-02 cas d'erreur : temps expiré ou copie verrouillée → l'édition est bloquée
       onVerrouillage: () => quitter("expiration"),
       enabled: pret && enCours,
     })
 
-  // Réponses de départ : celles du serveur, ou le tampon local s'il reste des réponses
-  // non confirmées (coupure réseau puis rechargement de la page)
+  // Réponses de départ : celles du serveur (source de vérité), ou le tampon local s'il reste des réponses
+  // non confirmées saisies sur cette même version (coupure réseau puis rechargement de la page)
   useEffect(() => {
     if (!copie || pret) return
+    const cle = `passation-copie-${copie.id}`
+    // Copie remise : plus rien à synchroniser
+    if (!enCours) viderTampon(cle)
     const serveur = depuisCopie(copie.questions)
-    const tampon = enCours ? lireTampon<T>(`passation-copie-${copie.id}`) : null
+    const tampon = enCours ? lireTampon<T>(cle, copie.versionReponses) : null
     setReponses(tampon ?? serveur)
-    marquerSauvegarde(serveur)
+    marquerSauvegarde(serveur, copie.versionReponses)
     setPret(true)
   }, [copie, pret, enCours, depuisCopie, marquerSauvegarde])
 

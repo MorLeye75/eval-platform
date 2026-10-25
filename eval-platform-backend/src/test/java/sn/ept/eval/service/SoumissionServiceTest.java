@@ -1,5 +1,6 @@
 package sn.ept.eval.service;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,6 +11,7 @@ import sn.ept.eval.dto.soumission.QuestionExamenDto;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.dto.soumission.SauvegardeResponse;
+import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
 import sn.ept.eval.dto.soumission.SoumissionResponse;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.TempsEcouleException;
@@ -63,6 +65,9 @@ class SoumissionServiceTest {
     @Mock
     private UtilisateurRepository utilisateurRepository;
 
+    @Mock
+    private EntityManager entityManager;
+
     /** Instant de référence figé : les tests ne dépendent plus de l'heure d'exécution. */
     private static final LocalDateTime MAINTENANT = LocalDateTime.of(2026, 10, 19, 10, 0);
     private static final ZoneId ZONE = ZoneId.systemDefault();
@@ -85,9 +90,12 @@ class SoumissionServiceTest {
                 accesService, tempsEpreuveService);
         EnregistrementReponsesService enregistrementReponses = new EnregistrementReponsesService(questionRepository,
                 choixReponseRepository, reponseEtudiantRepository);
+        CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService);
+        ClotureCopiesService clotureCopiesService = new ClotureCopiesService(soumissionRepository, tempsEpreuveService,
+                correctionDeclencheur, entityManager);
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
-                enregistrementReponses, new CorrectionDeclencheur(correctionService), tempsEpreuveService,
-                soumissionMapper, accesService, antiTricheService);
+                enregistrementReponses, correctionDeclencheur, tempsEpreuveService,
+                soumissionMapper, accesService, antiTricheService, clotureCopiesService);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
         etudiant.setId(1L);
@@ -110,7 +118,7 @@ class SoumissionServiceTest {
     @DisplayName("DS-02 (Cas Normal) : Sauvegarde automatique réussie dans les temps")
     void sauvegarderReponses_DansLesTemps_Succes() {
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());
 
         SauvegardeReponsesRequest request = new SauvegardeReponsesRequest(List.of(
@@ -131,7 +139,7 @@ class SoumissionServiceTest {
         soumission.setDateDebut(MAINTENANT.minusMinutes(40));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());
 
         SauvegardeReponsesRequest request = new SauvegardeReponsesRequest();
@@ -145,7 +153,7 @@ class SoumissionServiceTest {
     @DisplayName("DS-01 (Cas Normal) : Soumission réussie dans les clous -> Statut SOUMIS et déclenchement de CorrectionService")
     void soumettreCopie_DansLesTemps_PasseASoumisEtDeclencheCorrectionAsync() {
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());
         when(soumissionRepository.save(any(Soumission.class))).thenAnswer(i -> i.getArgument(0));
 
@@ -165,7 +173,7 @@ class SoumissionServiceTest {
         soumission.setDateDebut(MAINTENANT.minusMinutes(45));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> soumissionService.soumettreCopie(100L, "etudiant@ept.sn"))
@@ -193,7 +201,7 @@ class SoumissionServiceTest {
         evaluation.setDateFermeture(MAINTENANT.minusMinutes(5));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(soumissionRepository.findById(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> soumissionService.sauvegarderReponses(100L, new SauvegardeReponsesRequest(), "etudiant@ept.sn"))
@@ -206,9 +214,11 @@ class SoumissionServiceTest {
         evaluation.setDateOuverture(MAINTENANT.minusHours(1));
         evaluation.setDateFermeture(MAINTENANT.plusHours(1));
         evaluation.setStatut(StatutEvaluation.TERMINEE);
+        inscrireEtudiantALEvaluation();
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
         when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -249,5 +259,67 @@ class SoumissionServiceTest {
         assertThat(dto.getCasDeTestsVisibles()).hasSize(1);
         assertThat(dto.getCasDeTestsVisibles().get(0).getEntree()).isEqualTo("radar");
         assertThat(dto.getCasDeTestsVisibles().get(0).getSortieAttendue()).isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("Reprise : une copie remise est renvoyée avec son statut, sans questions, même après la fermeture")
+    void demarrer_CopieRemise_StatutSansQuestions() {
+        evaluation.setDateOuverture(MAINTENANT.minusDays(2));
+        evaluation.setDateFermeture(MAINTENANT.minusDays(1)); // évaluation déjà fermée
+        evaluation.setStatut(StatutEvaluation.TERMINEE);
+        inscrireEtudiantALEvaluation();
+        soumission.setStatut(StatutSoumission.EVALUE);
+
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.of(soumission));
+
+        SoumissionDetailResponse detail = soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn");
+
+        assertThat(detail.getStatut()).isEqualTo(StatutSoumission.EVALUE);
+        assertThat(detail.getQuestions()).isEmpty();
+        verify(questionRepository, never()).findByEvaluationIdOrderByOrdreAsc(any());
+    }
+
+    @Test
+    @DisplayName("Reprise : une copie expirée est clôturée sans alerte anti-triche ni questions renvoyées")
+    void demarrer_CopieExpiree_ClotureeSansAlerte() {
+        evaluation.setDateOuverture(MAINTENANT.minusHours(3));
+        evaluation.setDateFermeture(MAINTENANT.plusHours(3));
+        evaluation.setStatut(StatutEvaluation.EN_COURS);
+        inscrireEtudiantALEvaluation();
+        soumission.setDateDebut(MAINTENANT.minusMinutes(40)); // 30 min + marge 2 min dépassées
+
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.of(soumission));
+
+        SoumissionDetailResponse detail = soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn");
+
+        assertThat(detail.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(detail.getQuestions()).isEmpty();
+        assertThat(soumission.getDateRemise()).isEqualTo(MAINTENANT.minusMinutes(10)); // fin théorique : début + 30 min
+        verify(alerteAntiTricheRepository, never()).save(any());
+        verify(correctionService).corrigerSoumissionAsync(100L);
+    }
+
+    @Test
+    @DisplayName("DS-02 : chaque sauvegarde réussie incrémente la version des réponses de la copie")
+    void sauvegarderReponses_MetAJourLaVersion() {
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
+
+        SauvegardeReponsesRequest vide = new SauvegardeReponsesRequest(List.of());
+        assertThat(soumissionService.sauvegarderReponses(100L, vide, "etudiant@ept.sn").getVersionReponses()).isEqualTo(1);
+        assertThat(soumissionService.sauvegarderReponses(100L, vide, "etudiant@ept.sn").getVersionReponses()).isEqualTo(2);
+        assertThat(soumission.getVersionReponses()).isEqualTo(2);
+    }
+
+    /** Place l'étudiant dans la promotion ciblée par l'évaluation. */
+    private void inscrireEtudiantALEvaluation() {
+        Promotion dic2 = new Promotion("DIC2 Informatique", "2025/2026");
+        dic2.setId(5L);
+        etudiant.setPromotion(dic2);
+        evaluation.setPromotions(List.of(dic2));
     }
 }

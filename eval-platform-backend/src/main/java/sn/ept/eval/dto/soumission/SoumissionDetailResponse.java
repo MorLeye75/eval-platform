@@ -15,6 +15,7 @@ public class SoumissionDetailResponse {
     private StatutSoumission statut;
     private LocalDateTime dateDebut;
     private LocalDateTime dateRemise;
+    private Integer versionReponses;
     private Integer dureeMinutes;
     private Long tempsRestantSecondes;
     private Integer nbChangementsOnglet;
@@ -42,6 +43,9 @@ public class SoumissionDetailResponse {
 
     public LocalDateTime getDateRemise() { return dateRemise; }
     public void setDateRemise(LocalDateTime dateRemise) { this.dateRemise = dateRemise; }
+
+    public Integer getVersionReponses() { return versionReponses; }
+    public void setVersionReponses(Integer versionReponses) { this.versionReponses = versionReponses; }
 
     public Integer getDureeMinutes() { return dureeMinutes; }
     public void setDureeMinutes(Integer dureeMinutes) { this.dureeMinutes = dureeMinutes; }

@@ -33,6 +33,24 @@ public class SoumissionMapper {
 
     /** Copie complète : temps restant, questions ordonnées et réponses déjà enregistrées. */
     public SoumissionDetailResponse versDetail(Soumission soumission) {
+        SoumissionDetailResponse resp = versDetailSansQuestions(soumission);
+        // Durée effective déjà calculée : l'aménagement n'est lu qu'une fois
+        resp.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(soumission, resp.getDureeMinutes()));
+
+        List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId());
+        Map<Long, ReponseEtudiant> reponsesParQuestion = reponseEtudiantRepository.findBySoumissionId(soumission.getId()).stream()
+                .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
+
+        List<QuestionExamenDto> questionsDtos = new ArrayList<>();
+        for (Question q : questions) {
+            questionsDtos.add(versQuestionExamen(q, reponsesParQuestion.get(q.getId())));
+        }
+        resp.setQuestions(questionsDtos);
+        return resp;
+    }
+
+    /** État de la copie sans questions ni réponses : copie remise, consultée hors passation. */
+    public SoumissionDetailResponse versDetailSansQuestions(Soumission soumission) {
         Evaluation eval = soumission.getEvaluation();
 
         SoumissionDetailResponse resp = new SoumissionDetailResponse();
@@ -43,19 +61,10 @@ public class SoumissionMapper {
         resp.setStatut(soumission.getStatut());
         resp.setDateDebut(soumission.getDateDebut());
         resp.setDateRemise(soumission.getDateRemise());
+        resp.setVersionReponses(soumission.getVersionReponses());
         resp.setDureeMinutes(tempsEpreuveService.dureeEffectiveMinutes(soumission));
-        resp.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(soumission));
+        resp.setTempsRestantSecondes(0L);
         resp.setNbChangementsOnglet(soumission.getNbChangementsOnglet());
-
-        List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(eval.getId());
-        Map<Long, ReponseEtudiant> reponsesParQuestion = reponseEtudiantRepository.findBySoumissionId(soumission.getId()).stream()
-                .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
-
-        List<QuestionExamenDto> questionsDtos = new ArrayList<>();
-        for (Question q : questions) {
-            questionsDtos.add(versQuestionExamen(q, reponsesParQuestion.get(q.getId())));
-        }
-        resp.setQuestions(questionsDtos);
         return resp;
     }
 
