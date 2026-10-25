@@ -92,6 +92,11 @@ Pour faire évoluer le modèle :
 
 Si le schéma et les entités divergent, l'application ne démarre pas et Hibernate indique la table ou la colonne en cause.
 
+| Migration | Contenu |
+|---|---|
+| `V1__schema_initial.sql` | schéma complet issu du diagramme de classes, index sur les clés étrangères |
+| `V2__version_reponses.sql` | `soumissions.version_reponses` : version des réponses, incrémentée à chaque sauvegarde réussie |
+
 ## API
 
 Toutes les routes sont préfixées par `/api`. Les routes autres que le login exigent l'en-tête
@@ -103,7 +108,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | GET | `/auth/me` | connecté | profil de l'utilisateur connecté |
 | GET | `/etudiant/evaluations` | étudiant | évaluations de sa promotion et état de sa copie |
 | POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve (copie expirée clôturée, copie remise sans questions) |
-| PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) |
+| PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) ; corps `{ reponses, versionAttendue }` |
 | POST | `/soumissions/{id}/soumettre` | étudiant | soumission finale et correction asynchrone |
 | POST | `/soumissions/{id}/changement-onglet` | étudiant | signalement anti-triche |
 | GET | `/soumissions/{id}` | étudiant (sa copie), enseignant (ses évaluations), admin | détail d'une copie |
@@ -118,9 +123,32 @@ Toutes les erreurs suivent la norme **RFC 7807** (`application/problem+json`) av
 | 401 | jeton absent, invalide ou expiré ; identifiants incorrects |
 | 403 | accès refusé : rôle, promotion, copie d'un autre étudiant |
 | 404 | ressource introuvable |
-| 409 | temps d'épreuve écoulé (`TEMPS_EXPIRE`), copie verrouillée (`SOUMISSION_VERROUILLEE`) |
+| 409 | temps d'épreuve écoulé (`TEMPS_EXPIRE`), copie verrouillée (`SOUMISSION_VERROUILLEE`), réponses enregistrées entre-temps depuis un autre onglet ou appareil (`VERSION_OBSOLETE`, avec `versionActuelle`) |
 | 429 | trop de tentatives de connexion (`TROP_DE_TENTATIVES`, en-tête `Retry-After`) |
 | 500 | erreur interne, sans détail technique exposé |
+
+## Règles de passation
+
+Les diagrammes de séquence correspondants sont dans [`docs/diagrammes-sequence`](../docs/diagrammes-sequence).
+
+- **Fin de l'épreuve** : `min(dateDebut + durée effective, dateFermeture)`, la durée effective étant le tiers-temps
+  de l'étudiant s'il existe, sinon la durée standard. Une **marge de 2 minutes** s'applique ensuite. Le même calcul
+  (`TempsEpreuveService`) sert à la sauvegarde, à la soumission, à la reprise et à la clôture automatique.
+- **Démarrage (DS-10)** : les conditions d'ouverture (dates, statut `PUBLIEE` ou `EN_COURS`) ne sont vérifiées qu'à la
+  création de la copie. Une copie existante est toujours renvoyée selon son état : en cours (reprise), expirée
+  (clôturée à sa fin théorique, sans alerte anti-triche) ou remise (statut seul, sans questions). Une seule copie par
+  étudiant et par évaluation (contrainte unique).
+- **Sauvegarde (DS-02)** : chaque sauvegarde réussie incrémente `versionReponses`. Si le client envoie une
+  `versionAttendue` différente de la version du serveur, la sauvegarde est refusée (409 `VERSION_OBSOLETE`) au lieu
+  d'écraser les réponses enregistrées depuis un autre onglet. `versionAttendue` est facultative : sans elle, aucun
+  contrôle n'est fait.
+- **Soumission (DS-01)** : dans les temps (marge comprise), la copie passe à `SOUMIS` et la correction est lancée
+  après le commit. Au-delà, la copie est figée à sa dernière sauvegarde, une alerte anti-triche `ELEVE` est enregistrée
+  et le serveur répond 409 `TEMPS_EXPIRE` sans annuler ces écritures (`noRollbackFor`). Soumettre une copie déjà
+  remise renvoie 200 sans effet.
+- **Clôture automatique (DS-11)** : toutes les 60 s, les copies `EN_COURS` expirées sont clôturées comme ci-dessus
+  (sans alerte), et les copies restées `SOUMIS` plus de 5 minutes voient leur correction relancée.
+- **Correction** : sans effet si la copie n'est plus `SOUMIS` ; une note posée par l'enseignant n'est jamais écrasée.
 
 ## Architecture
 
@@ -161,10 +189,13 @@ n'est corrigée qu'une fois.
 mvn test
 ```
 
-- **Tests unitaires** (Mockito, horloge figée) : règles de passation, anti-triche, limitation des connexions, validation des DTO.
-- **Tests d'intégration** (H2) : parcours complets de passation, correction, concurrence, sécurité HTTP.
+- **Tests unitaires** (Mockito, horloge figée) : règles de passation (temps, reprise, version des réponses), clôture
+  automatique, liste des évaluations, anti-triche, limitation des connexions, validation des DTO, format des erreurs.
+- **Tests d'intégration** (H2) : parcours complets de passation et de correction, sécurité HTTP des endpoints, et
+  scénarios concurrents (démarrages simultanés, soumissions simultanées, correction relancée, sauvegarde depuis un
+  onglet resté sur une ancienne version).
 - **Test PostgreSQL** (`MigrationPostgresIntegrationTest`, Testcontainers) : applique la migration Flyway sur un vrai
   PostgreSQL et rejoue une passation. Il nécessite Docker ; sans Docker, il est ignoré localement mais s'exécute en CI.
 
-La CI GitHub Actions (`.github/workflows/ci.yml`) compile et lance tous les tests à chaque push sur `main`,
-`feat/**` et `refactor/**`, ainsi qu'à chaque pull request vers `main`.
+La CI GitHub Actions (`.github/workflows/ci.yml`) compile et lance les tests du backend et du frontend à chaque push
+sur `main`, `feature/**`, `feat/**`, `fix/**`, `refactor/**` et `docs/**`, ainsi qu'à chaque pull request vers `main`.

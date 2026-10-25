@@ -25,6 +25,11 @@
       "key": "evaluationId",
       "value": "1",
       "type": "string"
+    },
+    {
+      "key": "versionReponses",
+      "value": "0",
+      "type": "string"
     }
   ],
   "item": [
@@ -63,8 +68,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           }
         },
@@ -99,8 +109,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           }
         },
@@ -135,17 +150,66 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           }
         }
       ]
     },
     {
-      "name": "02 - Passation & Soumission (Vos Diagrammes DS-01 et DS-02)",
+      "name": "02 - Passation & Soumission (DS-01, DS-02, DS-10)",
       "description": "Endpoints de gestion d'une copie d'examen, de l'auto-save toutes les 30s et de la soumission finale.",
       "item": [
+        {
+          "name": "2.0 DS-10: Mes évaluations (étudiant)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var liste = pm.response.json();",
+                  "var ouverte = liste.find(function (e) { return e.statut === 'EN_COURS' || e.statut === 'PUBLIEE'; });",
+                  "if (ouverte) {",
+                  "    pm.collectionVariables.set('evaluationId', ouverte.id);",
+                  "    console.log('Évaluation ID enregistrée: ' + ouverte.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/etudiant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "etudiant",
+                "evaluations"
+              ]
+            },
+            "description": "Évaluations publiées, en cours ou terminées de la promotion de l'étudiant, avec durée effective (tiers-temps), types de questions et état de sa copie."
+          }
+        },
         {
           "name": "2.1 Démarrer ou Reprendre l'épreuve",
           "event": [
@@ -157,6 +221,9 @@
                   "if (jsonData.id) {",
                   "    pm.collectionVariables.set('soumissionId', jsonData.id);",
                   "    console.log('Soumission ID enregistrée: ' + jsonData.id);",
+                  "}",
+                  "if (jsonData.versionReponses !== undefined) {",
+                  "    pm.collectionVariables.set('versionReponses', jsonData.versionReponses);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -183,9 +250,17 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/soumissions/evaluations/{{evaluationId}}/demarrer",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "evaluations", "{{evaluationId}}", "demarrer"]
-            }
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "evaluations",
+                "{{evaluationId}}",
+                "demarrer"
+              ]
+            },
+            "description": "Crée la copie ou reprend celle qui existe. Copie expirée : clôturée et renvoyée avec le statut SOUMIS. Copie remise : statut seul, sans questions. Retient soumissionId et versionReponses."
           }
         },
         {
@@ -204,8 +279,13 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}"
+              ]
             }
           }
         },
@@ -231,14 +311,37 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reponses\": [\n    {\n      \"questionId\": 1,\n      \"choixIds\": [2]\n    },\n    {\n      \"questionId\": 2,\n      \"choixIds\": [5, 7, 8]\n    }\n  ]\n}"
+              "raw": "{\n  \"reponses\": [\n    {\n      \"questionId\": 1,\n      \"choixIds\": [\n        2\n      ]\n    },\n    {\n      \"questionId\": 2,\n      \"choixIds\": [\n        5,\n        7,\n        8\n      ]\n    }\n  ],\n  \"versionAttendue\": {{versionReponses}}\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/sauvegarder",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}", "sauvegarder"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "sauvegarder"
+              ]
+            },
+            "description": "versionAttendue = version des réponses sur laquelle le client a saisi (facultative). Si la copie a été enregistrée entre-temps ailleurs : 409 VERSION_OBSOLETE avec versionActuelle."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.versionReponses !== undefined) {",
+                  "    pm.collectionVariables.set('versionReponses', jsonData.versionReponses);",
+                  "} else if (jsonData.versionActuelle !== undefined) {",
+                  "    pm.collectionVariables.set('versionReponses', jsonData.versionActuelle);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }
+          ]
         },
         {
           "name": "2.4 Anti-Triche: Signaler Changement d'Onglet",
@@ -256,8 +359,14 @@
             "method": "POST",
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/changement-onglet",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}", "changement-onglet"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "changement-onglet"
+              ]
             }
           }
         },
@@ -277,8 +386,14 @@
             "method": "POST",
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/soumettre",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}", "soumettre"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "soumettre"
+              ]
             }
           }
         }

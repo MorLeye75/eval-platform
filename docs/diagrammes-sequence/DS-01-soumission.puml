@@ -77,7 +77,7 @@ else [échec réseau ou autre erreur, soumission manuelle]
   F --> E : message d'erreur dans la modale, nouvel essai possible
 else [échec réseau, soumission automatique en fin de chrono]
   F --> E : écran d'expiration
-  note right of F : la clôture automatique (DS-11) remettra la copie\nà l'état de la dernière sauvegarde
+  note right of F : la clôture automatique (DS-11) remettra la copie\nà l'état de la dernière sauvegarde ; elle ne clôture\nque les copies encore EN_COURS (sans effet si le POST\na bien été reçu et la réponse perdue)
 end
 deactivate F
 
