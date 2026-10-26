@@ -96,6 +96,7 @@ Si le schéma et les entités divergent, l'application ne démarre pas et Hibern
 |---|---|
 | `V1__schema_initial.sql` | schéma complet issu du diagramme de classes, index sur les clés étrangères |
 | `V2__version_reponses.sql` | `soumissions.version_reponses` : version des réponses, incrémentée à chaque sauvegarde réussie |
+| `V3__evaluation_version.sql` | `evaluations.version` : verrou optimiste (`@Version`), pour qu'un « modifier » et un « publier » simultanés ne s'écrasent pas |
 
 ## API
 
@@ -107,6 +108,16 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | POST | `/auth/login` | public | authentification, renvoie le jeton JWT |
 | GET | `/auth/me` | connecté | profil de l'utilisateur connecté |
 | GET | `/etudiant/evaluations` | étudiant | évaluations de sa promotion et état de sa copie |
+| GET | `/etudiant/evaluations/{id}` | étudiant | détail d'une évaluation (durée effective, durée par question du quiz, dates, état de la copie) ; 404 pour un brouillon, 403 hors de sa promotion |
+| POST | `/enseignant/evaluations` | enseignant | crée un brouillon avec ses questions (DS-03) |
+| GET | `/enseignant/evaluations` | enseignant | ses évaluations, sans les questions |
+| GET | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | détail avec questions et bonnes réponses |
+| PUT | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | modifie un brouillon (questions remplacées en bloc) |
+| DELETE | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | supprime un brouillon |
+| POST | `/enseignant/evaluations/{id}/publier` | enseignant (propriétaire) | BROUILLON → PUBLIEE (DS-04) |
+| POST | `/enseignant/evaluations/{id}/depublier` | enseignant (propriétaire) | PUBLIEE → BROUILLON tant qu'aucune copie n'existe (DS-04) |
+| PUT | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | tiers-temps ; corps `{ dureeMinutes }` (DS-06) |
+| DELETE | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | supprime un tiers-temps |
 | POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve (copie expirée clôturée, copie remise sans questions) |
 | PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) ; corps `{ reponses, versionAttendue }` |
 | POST | `/soumissions/{id}/soumettre` | étudiant | soumission finale et correction asynchrone |
@@ -123,7 +134,7 @@ Toutes les erreurs suivent la norme **RFC 7807** (`application/problem+json`) av
 | 401 | jeton absent, invalide ou expiré ; identifiants incorrects |
 | 403 | accès refusé : rôle, promotion, copie d'un autre étudiant |
 | 404 | ressource introuvable |
-| 409 | temps d'épreuve écoulé (`TEMPS_EXPIRE`), copie verrouillée (`SOUMISSION_VERROUILLEE`), réponses enregistrées entre-temps depuis un autre onglet ou appareil (`VERSION_OBSOLETE`, avec `versionActuelle`) |
+| 409 | temps d'épreuve écoulé (`TEMPS_EXPIRE`), copie verrouillée (`SOUMISSION_VERROUILLEE`), réponses enregistrées entre-temps depuis un autre onglet ou appareil (`VERSION_OBSOLETE`, avec `versionActuelle`), évaluation qui n'est plus modifiable (`EVALUATION_NON_MODIFIABLE`), modification simultanée (`CONFLIT_CONCURRENT`) |
 | 429 | trop de tentatives de connexion (`TROP_DE_TENTATIVES`, en-tête `Retry-After`) |
 | 500 | erreur interne, sans détail technique exposé |
 
@@ -149,6 +160,36 @@ Les diagrammes de séquence correspondants sont dans [`docs/diagrammes-sequence`
 - **Clôture automatique (DS-11)** : toutes les 60 s, les copies `EN_COURS` expirées sont clôturées comme ci-dessus
   (sans alerte), et les copies restées `SOUMIS` plus de 5 minutes voient leur correction relancée.
 - **Correction** : sans effet si la copie n'est plus `SOUMIS` ; une note posée par l'enseignant n'est jamais écrasée.
+
+## Règles de création d'évaluation
+
+Diagrammes : DS-03 (création et modification), DS-04 (publication), DS-05 (statuts automatiques), DS-06 (tiers-temps).
+
+- **Brouillon d'abord** : toute évaluation créée est en `BROUILLON`. L'enseignant vient du jeton, jamais du corps de la
+  requête, et ne voit que ses évaluations (403 sur celle d'un autre).
+- **Modification et suppression** : uniquement en `BROUILLON` (sinon 409 `EVALUATION_NON_MODIFIABLE`). Pour corriger une
+  évaluation publiée, il faut d'abord la dépublier, ce qui n'est possible que tant qu'aucune copie n'existe.
+- **Règles des questions** : QCM = au moins 2 choix et au moins 1 correct (un seul si `estChoixMultiple = false`) ;
+  quiz = règles du QCM + `dureeQuestion` > 0 ; code = au moins 1 cas de test ; points > 0. L'ordre est la position
+  dans la liste. Une règle violée renvoie 400 (« Question 3 : … ») et rien n'est enregistré.
+- **Publication** : exige au moins une question et une `dateFermeture` future. Le passage à `EN_COURS` puis `TERMINEE`
+  est fait par `EvaluationStatutService` toutes les 60 s (une évaluation publiée déjà fermée va directement à
+  `TERMINEE`). Cette tâche ne soumet aucune copie : voir DS-01 et la clôture automatique.
+- **Tiers-temps** : la durée doit être au moins égale à la durée standard, l'étudiant doit être dans une promotion de
+  l'évaluation, et l'aménagement est **verrouillé dès que l'étudiant a commencé sa copie** (409), car
+  `TempsEpreuveService` le relit à chaque calcul.
+- **Concurrence** : `Evaluation` porte un `@Version`. Deux écritures simultanées (modifier / publier) : la seconde reçoit
+  409 `CONFLIT_CONCURRENT`.
+- **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
+  étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
+
+## Tests
+
+`mvn test` lance les tests unitaires (Mockito, horloge figée) et les tests d'intégration HTTP sur H2.
+`MigrationPostgresIntegrationTest` exige Docker (Testcontainers).
+
+Si Mockito échoue avec « Could not self-attach to current VM using external process » (observé sous Windows),
+lancer avec `JAVA_TOOL_OPTIONS=-Djdk.attach.allowAttachSelf=true`.
 
 ## Architecture
 

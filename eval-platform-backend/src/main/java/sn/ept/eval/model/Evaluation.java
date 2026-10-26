@@ -15,6 +15,10 @@ public class Evaluation extends AuditableEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Verrou optimiste (DS-03, DS-04) : un « modifier » et un « publier » concurrents ne s'écrasent pas. */
+    @Version
+    private Long version;
+
     @Column(nullable = false)
     private String titre;
 
@@ -63,6 +67,8 @@ public class Evaluation extends AuditableEntity {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getVersion() { return version; }
 
     public String getTitre() { return titre; }
     public void setTitre(String titre) { this.titre = titre; }

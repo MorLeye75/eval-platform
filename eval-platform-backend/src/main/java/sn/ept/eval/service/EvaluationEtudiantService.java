@@ -4,6 +4,10 @@ import org.hibernate.Hibernate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.ept.eval.dto.etudiant.EvaluationEtudiantResponse;
+import sn.ept.eval.exception.AccesRefuseException;
+import sn.ept.eval.exception.RessourceNonTrouveeException;
+import sn.ept.eval.exception.AccesRefuseException;
+import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.repository.AmenagementTempsRepository;
@@ -57,6 +61,29 @@ public class EvaluationEtudiantService {
                 .stream()
                 .map(e -> versResponse(e, copies.get(e.getId()), amenagements.get(e.getId())))
                 .toList();
+    }
+
+    /**
+     * Détail d'une évaluation de la promotion de l'étudiant (même contenu qu'une ligne de la liste).
+     * 404 pour un brouillon ou une évaluation inconnue (on ne révèle pas son existence), 403 si elle
+     * n'est pas destinée à la promotion de l'étudiant.
+     */
+    public EvaluationEtudiantResponse detailEvaluation(Long evaluationId, String email) {
+        Etudiant etudiant = soumissionAccesService.etudiantConnecte(email);
+        Evaluation evaluation = evaluationRepository.findById(evaluationId)
+                .filter(e -> STATUTS_VISIBLES.contains(e.getStatut()))
+                .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + evaluationId + ")"));
+        boolean dansLaPromotion = etudiant.getPromotion() != null && evaluation.getPromotions().stream()
+                .anyMatch(p -> p.getId().equals(etudiant.getPromotion().getId()));
+        if (!dansLaPromotion) {
+            throw new AccesRefuseException("Cette évaluation n'est pas destinée à votre promotion.");
+        }
+        Soumission copie = soumissionRepository.findByEvaluationIdAndEtudiantId(evaluationId, etudiant.getId()).orElse(null);
+        Integer dureeAmenagee = amenagementTempsRepository
+                .findByEtudiantIdAndEvaluationId(etudiant.getId(), evaluationId)
+                .map(AmenagementTemps::getDureePersonnalisee)
+                .orElse(null);
+        return versResponse(evaluation, copie, dureeAmenagee);
     }
 
     private EvaluationEtudiantResponse versResponse(Evaluation evaluation, Soumission copie, Integer dureeAmenagee) {

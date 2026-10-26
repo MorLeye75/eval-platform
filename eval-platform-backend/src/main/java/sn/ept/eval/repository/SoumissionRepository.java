@@ -15,6 +15,9 @@ import java.util.Optional;
 
 @Repository
 public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
+    boolean existsByEvaluationId(Long evaluationId);
+    boolean existsByEvaluationIdAndEtudiantId(Long evaluationId, Long etudiantId);
+    long countByEvaluationId(Long evaluationId);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Soumission s where s.id = :id")
     Optional<Soumission> findByIdForUpdate(@Param("id") Long id);

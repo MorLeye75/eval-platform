@@ -30,6 +30,16 @@
       "key": "versionReponses",
       "value": "0",
       "type": "string"
+    },
+    {
+      "key": "evaluationEnseignantId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "etudiantId",
+      "value": "1",
+      "type": "string"
     }
   ],
   "item": [
@@ -393,6 +403,269 @@
                 "soumissions",
                 "{{soumissionId}}",
                 "soumettre"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Évaluations enseignant (DS-03, DS-04, DS-05, DS-06)",
+      "item": [
+        {
+          "name": "3.1 DS-03: Créer un brouillon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Réseaux — QCM\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2026-11-10T08:00:00\",\n  \"dateFermeture\": \"2026-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Écrire fib(n)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"5\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10\",\n          \"sortieAttendue\": \"55\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var j = pm.response.json();",
+                  "if (j.id) { pm.collectionVariables.set('evaluationEnseignantId', j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 Mes évaluations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.3 Détail (avec bonnes réponses)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.4 DS-03: Modifier un brouillon",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Réseaux — QCM\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2026-11-10T08:00:00\",\n  \"dateFermeture\": \"2026-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Écrire fib(n)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"5\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10\",\n          \"sortieAttendue\": \"55\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "3.5 DS-04: Publier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/publier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "publier"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.6 DS-04: Repasser en brouillon (dépublier)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/depublier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "depublier"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.7 DS-06: Définir un tiers-temps",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements/{{etudiantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "amenagements",
+                "{{etudiantId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dureeMinutes\": 80\n}"
+            }
+          }
+        },
+        {
+          "name": "3.8 DS-06: Supprimer un tiers-temps",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements/{{etudiantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "amenagements",
+                "{{etudiantId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.9 Supprimer un brouillon",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.10 Étudiant: détail d'une évaluation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/etudiant/evaluations/{{evaluationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "etudiant",
+                "evaluations",
+                "{{evaluationId}}"
               ]
             }
           }

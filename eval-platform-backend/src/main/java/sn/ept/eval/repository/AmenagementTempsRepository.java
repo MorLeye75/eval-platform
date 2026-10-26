@@ -11,4 +11,5 @@ import java.util.Optional;
 public interface AmenagementTempsRepository extends JpaRepository<AmenagementTemps, Long> {
     Optional<AmenagementTemps> findByEtudiantIdAndEvaluationId(Long etudiantId, Long evaluationId);
     List<AmenagementTemps> findByEtudiantId(Long etudiantId);
+    List<AmenagementTemps> findByEvaluationId(Long evaluationId);
 }

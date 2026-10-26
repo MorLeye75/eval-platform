@@ -3,6 +3,7 @@ package sn.ept.eval.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -55,6 +56,31 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "soumission-verrouillee"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "SOUMISSION_VERROUILLEE");
+        problem.setProperty("timestamp", LocalDateTime.now());
+        return problem;
+    }
+
+    /** 409 : l'état de l'évaluation (non brouillon, copie déjà commencée, terminée) interdit l'action (DS-03 à DS-06). */
+    @ExceptionHandler(EvaluationNonModifiableException.class)
+    public ProblemDetail handleEvaluationNonModifiable(EvaluationNonModifiableException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Évaluation non modifiable");
+        problem.setType(URI.create(ERROR_BASE_URL + "evaluation-non-modifiable"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "EVALUATION_NON_MODIFIABLE");
+        problem.setProperty("timestamp", LocalDateTime.now());
+        return problem;
+    }
+
+    /** 409 : deux écritures concurrentes sur la même entité versionnée (@Version) ; le front recharge. */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ProblemDetail handleConflitConcurrent(OptimisticLockingFailureException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "La ressource a été modifiée entre-temps. Rechargez-la puis recommencez.");
+        problem.setTitle("Conflit de modification");
+        problem.setType(URI.create(ERROR_BASE_URL + "conflit-concurrent"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "CONFLIT_CONCURRENT");
         problem.setProperty("timestamp", LocalDateTime.now());
         return problem;
     }

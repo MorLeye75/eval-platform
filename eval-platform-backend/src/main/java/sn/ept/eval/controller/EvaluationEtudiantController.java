@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import sn.ept.eval.dto.etudiant.EvaluationEtudiantResponse;
@@ -42,5 +44,15 @@ public class EvaluationEtudiantController {
     @PreAuthorize("hasRole('ETUDIANT')")
     public ResponseEntity<List<EvaluationEtudiantResponse>> mesEvaluations(Authentication authentication) {
         return ResponseEntity.ok(evaluationEtudiantService.mesEvaluations(authentication.getName()));
+    }
+
+    @Operation(
+            summary = "Détail d'une évaluation",
+            description = "Titre, description, types de questions, durée effective (tiers-temps compris), durée par question du quiz, dates et état de la copie. 404 pour un brouillon, 403 hors de la promotion de l'étudiant."
+    )
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ETUDIANT')")
+    public ResponseEntity<EvaluationEtudiantResponse> detail(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(evaluationEtudiantService.detailEvaluation(id, authentication.getName()));
     }
 }

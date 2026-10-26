@@ -17,15 +17,25 @@ public class PassationScheduler {
     private static final Logger log = LoggerFactory.getLogger(PassationScheduler.class);
 
     private final ClotureCopiesService clotureCopiesService;
+    private final EvaluationStatutService evaluationStatutService;
 
-    public PassationScheduler(ClotureCopiesService clotureCopiesService) {
+    public PassationScheduler(ClotureCopiesService clotureCopiesService, EvaluationStatutService evaluationStatutService) {
         this.clotureCopiesService = clotureCopiesService;
+        this.evaluationStatutService = evaluationStatutService;
     }
 
     @Scheduled(fixedDelayString = "${passation.taches-planifiees.intervalle-ms:60000}",
                initialDelayString = "${passation.taches-planifiees.intervalle-ms:60000}")
     public void executer() {
-        // Deux appels distincts : un échec de l'un n'empêche pas l'autre
+        // Appels distincts : un échec de l'un n'empêche pas les autres
+        try {
+            int modifiees = evaluationStatutService.mettreAJourStatuts();
+            if (modifiees > 0) {
+                log.info("[Planifié] {} évaluation(s) ont changé de statut", modifiees);
+            }
+        } catch (Exception e) {
+            log.error("[Planifié] Échec de la mise à jour des statuts d'évaluation", e);
+        }
         try {
             int cloturees = clotureCopiesService.cloturerCopiesExpirees();
             if (cloturees > 0) {
