@@ -5,7 +5,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { usePassation } from "@/hooks/usePassation"
-import { demarrerEpreuve, sauvegarderReponses, soumettreCopie } from "@/lib/passation"
+import { demarrerEpreuve, sauvegarderReponses, signalerChangementOnglet, soumettreCopie } from "@/lib/passation"
 import type { CopieEnCours } from "@/types"
 
 const navigate = vi.fn()
@@ -18,6 +18,7 @@ vi.mock("@/lib/passation", async (original) => ({
   demarrerEpreuve: vi.fn(),
   sauvegarderReponses: vi.fn(),
   soumettreCopie: vi.fn(),
+  signalerChangementOnglet: vi.fn(),
 }))
 
 const COPIE: CopieEnCours = {
@@ -100,5 +101,23 @@ describe("usePassation : soumission (DS-01)", () => {
     })
 
     expect(navigate).toHaveBeenCalledWith("/examen/7/expiration", expect.anything())
+  })
+
+  it("anti-triche : le compteur repart de celui du serveur, et chaque sortie de la page lui est signalée", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue({ ...COPIE, nbChangementsOnglet: 2 })
+    vi.mocked(signalerChangementOnglet).mockResolvedValue(3)
+    const { result } = monter()
+    await waitFor(() => expect(result.current.chargement).toBe(false))
+    expect(result.current.changementsOnglet).toBe(2)
+    expect(signalerChangementOnglet).not.toHaveBeenCalled()
+
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true })
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false })
+
+    expect(signalerChangementOnglet).toHaveBeenCalledWith(12)
+    await waitFor(() => expect(result.current.changementsOnglet).toBe(3)) // valeur du serveur
   })
 })

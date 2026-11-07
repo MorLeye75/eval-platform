@@ -12,7 +12,6 @@ import {
 } from "@/components/ui/select"
 import { usePassation } from "@/hooks/usePassation"
 import { formatNombre, TAILLE_MAX_CODE } from "@/lib/passation"
-import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import PassationShell from "./PassationShell"
 import type { QuestionExamen } from "@/types"
@@ -67,7 +66,6 @@ export default function PassationCode() {
 
   const passation = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
   const { copie, questions, chargement, erreur, reponses: codes, setReponses: setCodes } = passation
-  const { changementsOnglet } = useAntiCheat()
 
   // ---------- Chargement / cas d'erreur ----------
   if (chargement) return <EtatPassation message="Chargement de votre copie..." retour={false} />
@@ -124,7 +122,6 @@ export default function PassationCode() {
       onChangerQuestion={setIndexCourant}
       estTraitee={(questionId) => (codes[questionId] ?? "").trim().length > 0}
       vocabulaire="traite"
-      changementsOnglet={changementsOnglet}
       noteConfirmation="Le code sera aussi exécuté contre des cas de tests cachés lors de la correction."
       largeur="max-w-4xl"
     >

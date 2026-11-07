@@ -37,9 +37,9 @@ vi.mock("@/hooks/usePassation", () => ({
     soumissionEnCours: false,
     erreurSoumission: null,
     avertissement: etat.avertissement,
+    changementsOnglet: etat.changementsOnglet,
   }),
 }))
-vi.mock("@/hooks/useAntiCheat", () => ({ useAntiCheat: () => ({ changementsOnglet: etat.changementsOnglet }) }))
 vi.mock("@monaco-editor/react", () => ({ default: () => <div>éditeur</div> }))
 
 function question(id: number, ordre: number, type: TypeQuestion): QuestionExamen {

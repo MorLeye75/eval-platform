@@ -44,18 +44,20 @@ public class AntiTricheService {
      * Journaliser une sortie d'écran / changement d'onglet signalé par le navigateur de l'étudiant.
      * Une alerte est levée au franchissement de chaque seuil (et non à chaque événement suivant).
      */
-    public void enregistrerChangementOnglet(Long soumissionId, String userEmail) {
+    /** @return le nombre de sorties enregistrées pour la copie (référence pour l'affichage côté étudiant) */
+    public int enregistrerChangementOnglet(Long soumissionId, String userEmail) {
         Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
         // Verrou pessimiste : des signalements simultanés ne doivent pas perdre d'incrément
         Soumission soumission = soumissionRepository.findByIdForUpdate(soumissionId)
                 .orElseThrow(() -> SoumissionAccesService.soumissionIntrouvable(soumissionId));
         soumissionAccesService.verifierProprietaire(soumission, etudiant);
 
+        int actuel = soumission.getNbChangementsOnglet() != null ? soumission.getNbChangementsOnglet() : 0;
         if (soumission.getStatut() != StatutSoumission.EN_COURS) {
-            return;
+            return actuel;
         }
 
-        int nb = soumission.getNbChangementsOnglet() != null ? soumission.getNbChangementsOnglet() + 1 : 1;
+        int nb = actuel + 1;
         soumission.setNbChangementsOnglet(nb);
         soumissionRepository.save(soumission);
 
@@ -63,6 +65,7 @@ public class AntiTricheService {
             lever(soumission, nb == SEUIL_ALERTE_ELEVEE ? NiveauAlerte.ELEVE : NiveauAlerte.MODERE,
                     "Suspicion de triche : " + nb + " changements d'onglets ou sorties de plein écran détectés.");
         }
+        return nb;
     }
 
     /** Soumission reçue au-delà de la marge de tolérance (copie figée à son dernier auto-save). */

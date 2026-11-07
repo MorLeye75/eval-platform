@@ -172,6 +172,29 @@ class SecuriteIntegrationTest {
                 .andExpect(jsonPath("$.versionActuelle").value(1));
     }
 
+    @Test
+    @DisplayName("Anti-triche : chaque sortie d'onglet est comptée par le serveur, qui renvoie le compteur à jour")
+    void changementOnglet_CompteurServeur() throws Exception {
+        String bearer = "Bearer " + jeton(nouvelEtudiantDic2(), "motDePasse");
+        Long evalQcmId = evaluationRepository.findAll().stream()
+                .filter(e -> e.getTitre().contains("QCM")).findFirst().map(Evaluation::getId).orElseThrow();
+        String copie = mockMvc.perform(post("/soumissions/evaluations/" + evalQcmId + "/demarrer").header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        Integer soumissionId = JsonPath.read(copie, "$.id");
+
+        mockMvc.perform(post("/soumissions/" + soumissionId + "/changement-onglet").header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nbChangementsOnglet").value(1));
+        mockMvc.perform(post("/soumissions/" + soumissionId + "/changement-onglet").header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nbChangementsOnglet").value(2));
+
+        // Après un rechargement, la copie reprise rend le compteur (le front ne repart pas de zéro)
+        mockMvc.perform(post("/soumissions/evaluations/" + evalQcmId + "/demarrer").header("Authorization", bearer))
+                .andExpect(jsonPath("$.nbChangementsOnglet").value(2));
+    }
+
     /** Étudiant dédié de la promotion DIC2 (mot de passe "motDePasse") : les comptes de démo restent intacts. */
     private String nouvelEtudiantDic2() {
         String email = "etu-http-" + UUID.randomUUID() + "@ept.sn";

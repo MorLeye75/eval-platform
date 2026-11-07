@@ -29,9 +29,9 @@ vi.mock("@/hooks/usePassation", () => ({
     soumissionEnCours: etat.soumissionEnCours,
     erreurSoumission: null,
     avertissement: null,
+    changementsOnglet: 0,
   }),
 }))
-vi.mock("@/hooks/useAntiCheat", () => ({ useAntiCheat: () => ({ changementsOnglet: 0 }) }))
 // L'éditeur Monaco se charge depuis un CDN : remplacé par une zone de texte
 vi.mock("@monaco-editor/react", () => ({ default: () => <textarea aria-label="éditeur" /> }))
 

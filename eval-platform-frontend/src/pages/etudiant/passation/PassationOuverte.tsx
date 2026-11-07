@@ -3,7 +3,6 @@ import { useParams } from "react-router-dom"
 import { Textarea } from "@/components/ui/textarea"
 import { usePassation } from "@/hooks/usePassation"
 import { formatNombre, TAILLE_MAX_TEXTE } from "@/lib/passation"
-import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import PassationShell from "./PassationShell"
 import type { QuestionExamen } from "@/types"
@@ -33,7 +32,6 @@ export default function PassationOuverte() {
 
   const passation = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
   const { copie, questions, chargement, erreur, reponses, setReponses } = passation
-  const { changementsOnglet } = useAntiCheat()
 
   // ---------- Chargement / cas d'erreur ----------
   if (chargement) return <EtatPassation message="Chargement de votre copie..." retour={false} />
@@ -54,7 +52,6 @@ export default function PassationOuverte() {
       onChangerQuestion={setIndexCourant}
       estTraitee={(questionId) => (reponses[questionId] ?? "").trim().length > 0}
       vocabulaire="traite"
-      changementsOnglet={changementsOnglet}
     >
       <Textarea
         value={reponseCourante}

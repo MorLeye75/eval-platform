@@ -3,7 +3,6 @@ import { useParams } from "react-router-dom"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { usePassation } from "@/hooks/usePassation"
-import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import PassationShell from "./PassationShell"
 import type { QuestionExamen } from "@/types"
@@ -33,7 +32,6 @@ export default function PassationQCM() {
 
   const passation = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
   const { copie, questions, chargement, erreur, reponses, setReponses } = passation
-  const { changementsOnglet } = useAntiCheat()
 
   // ---------- Chargement / cas d'erreur ----------
   if (chargement) return <EtatPassation message="Chargement de votre copie..." retour={false} />
@@ -68,7 +66,6 @@ export default function PassationQCM() {
       onChangerQuestion={setIndexCourant}
       estTraitee={(questionId) => (reponses[questionId] ?? []).length > 0}
       vocabulaire="repondu"
-      changementsOnglet={changementsOnglet}
     >
       {question.estChoixMultiple ? (
         <div className="flex flex-col gap-3">

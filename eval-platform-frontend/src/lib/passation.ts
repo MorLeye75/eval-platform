@@ -41,6 +41,12 @@ export async function soumettreCopie(soumissionId: number) {
   return data?.dateRemise ?? null
 }
 
+/** Anti-triche : signale une sortie de la page ; renvoie le nombre de sorties enregistrées par le serveur. */
+export async function signalerChangementOnglet(soumissionId: number) {
+  const { data } = await api.post<{ nbChangementsOnglet: number }>(`/soumissions/${soumissionId}/changement-onglet`)
+  return data.nbChangementsOnglet
+}
+
 function codeConflit(err: unknown): string | null {
   if (!isAxiosError(err) || err.response?.status !== 409) return null
   return typeof err.response.data?.code === "string" ? err.response.data.code : ""

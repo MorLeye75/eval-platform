@@ -184,11 +184,12 @@ public class SoumissionController {
     })
     @PostMapping("/{id}/changement-onglet")
     @PreAuthorize("hasRole('ETUDIANT')")
-    public ResponseEntity<Map<String, String>> signalerChangementOnglet(
+    public ResponseEntity<Map<String, Object>> signalerChangementOnglet(
             @PathVariable Long id,
             Authentication authentication) {
-        antiTricheService.enregistrerChangementOnglet(id, authentication.getName());
-        return ResponseEntity.ok(Map.of("message", "Événement enregistré."));
+        int nb = antiTricheService.enregistrerChangementOnglet(id, authentication.getName());
+        // Compteur du serveur : le front l'affiche tel quel (il survit à un rechargement de la page)
+        return ResponseEntity.ok(Map.of("message", "Événement enregistré.", "nbChangementsOnglet", nb));
     }
 
     /**

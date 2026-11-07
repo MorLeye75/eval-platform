@@ -2,11 +2,13 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { useExamTimer } from "@/hooks/useExamTimer"
+import { useAntiCheat } from "@/hooks/useAntiCheat"
 import { useAutoSave, lireTampon, viderTampon } from "@/hooks/useAutoSave"
 import {
   demarrerEpreuve,
   sauvegarderReponses,
   soumettreCopie,
+  signalerChangementOnglet,
   estCopieVerrouillee,
   messageErreur,
 } from "@/lib/passation"
@@ -179,6 +181,20 @@ export function usePassation<T>({
     enabled: pret && enCours,
   })
 
+  // Anti-triche : compteur repris du serveur, chaque nouvelle sortie lui est signalée (il fait foi)
+  const { changementsOnglet, setChangementsOnglet } = useAntiCheat({
+    initialCount: copie?.nbChangementsOnglet ?? 0,
+    enabled: pret && enCours && !soumissionEnCours,
+    onTabSwitch: () => {
+      if (!copie) return
+      signalerChangementOnglet(copie.id)
+        .then(setChangementsOnglet)
+        .catch(() => {
+          // réseau absent : la sortie reste affichée localement, le serveur ne l'aura pas comptée
+        })
+    },
+  })
+
   let erreur: string | null = null
   if (!evaluationId) erreur = "Évaluation introuvable."
   else if (error) erreur = messageErreur(error, "Impossible de charger votre copie.")
@@ -199,5 +215,6 @@ export function usePassation<T>({
     soumissionEnCours,
     erreurSoumission,
     avertissement,
+    changementsOnglet,
   }
 }

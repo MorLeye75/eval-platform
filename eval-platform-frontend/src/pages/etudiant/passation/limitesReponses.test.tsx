@@ -31,9 +31,9 @@ vi.mock("@/hooks/usePassation", () => ({
     soumissionEnCours: false,
     erreurSoumission: null,
     avertissement: null,
+    changementsOnglet: 0,
   }),
 }))
-vi.mock("@/hooks/useAntiCheat", () => ({ useAntiCheat: () => ({ changementsOnglet: 0 }) }))
 vi.mock("@monaco-editor/react", () => ({
   default: (props: { onChange: (v: string) => void }) => {
     etat.editeur = props.onChange
