@@ -116,27 +116,29 @@ export default function PublicationResultats() {
                 const { label, cls } = STATUT_CFG[e.statut]
                 const isSelected = selected === e.id
                 return (
-                  <div
+                  <button
                     key={e.id}
+                    type="button"
+                    aria-pressed={isSelected}
                     onClick={() => setSelected(isSelected ? null : e.id)}
                     className={[
-                      "cursor-pointer rounded-2xl border p-4 transition-colors",
+                      "w-full cursor-pointer rounded-2xl border p-4 text-left transition-colors",
                       isSelected
                         ? "border-primary/40 bg-primary/5"
                         : "border-border/60 bg-card hover:bg-muted/30",
                     ].join(" ")}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[13px] font-semibold leading-snug">{e.titre}</p>
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="block text-[13px] font-semibold leading-snug">{e.titre}</span>
                       <Badge variant="outline" className={`shrink-0 rounded-full text-[11px] font-semibold ${cls}`}>
                         {label}
                       </Badge>
-                    </div>
-                    <div className="mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
+                    </span>
+                    <span className="block mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
                       <span className="flex items-center gap-1"><Users className="size-3" />{e.nbParticipants} étudiants</span>
                       <span className="flex items-center gap-1"><Award className="size-3" />Moy. {e.moyenne} / 20</span>
-                    </div>
-                  </div>
+                    </span>
+                  </button>
                 )
               })}
             </div>
