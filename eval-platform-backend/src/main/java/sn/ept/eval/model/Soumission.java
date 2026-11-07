@@ -37,6 +37,11 @@ public class Soumission extends AuditableEntity {
     @Column(nullable = false)
     private Integer versionReponses = 0;
 
+    /** Quiz chronométré : question en cours (null = 0) et son heure de début (null = début de la copie), V5. */
+    private Integer indexQuestionQuiz;
+
+    private LocalDateTime debutQuestionQuiz;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private StatutSoumission statut = StatutSoumission.EN_COURS;
@@ -78,6 +83,12 @@ public class Soumission extends AuditableEntity {
 
     public Integer getVersionReponses() { return versionReponses; }
     public void setVersionReponses(Integer versionReponses) { this.versionReponses = versionReponses; }
+
+    public Integer getIndexQuestionQuiz() { return indexQuestionQuiz; }
+    public void setIndexQuestionQuiz(Integer indexQuestionQuiz) { this.indexQuestionQuiz = indexQuestionQuiz; }
+
+    public LocalDateTime getDebutQuestionQuiz() { return debutQuestionQuiz; }
+    public void setDebutQuestionQuiz(LocalDateTime debutQuestionQuiz) { this.debutQuestionQuiz = debutQuestionQuiz; }
 
     public StatutSoumission getStatut() { return statut; }
     public void setStatut(StatutSoumission statut) { this.statut = statut; }

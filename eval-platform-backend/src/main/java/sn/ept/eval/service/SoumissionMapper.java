@@ -23,10 +23,13 @@ public class SoumissionMapper {
     private final QuestionRepository questionRepository;
     private final ReponseEtudiantRepository reponseEtudiantRepository;
     private final TempsEpreuveService tempsEpreuveService;
+    private final QuizService quizService;
 
     public SoumissionMapper(QuestionRepository questionRepository,
                             ReponseEtudiantRepository reponseEtudiantRepository,
-                            TempsEpreuveService tempsEpreuveService) {
+                            TempsEpreuveService tempsEpreuveService,
+                            QuizService quizService) {
+        this.quizService = quizService;
         this.questionRepository = questionRepository;
         this.reponseEtudiantRepository = reponseEtudiantRepository;
         this.tempsEpreuveService = tempsEpreuveService;
@@ -41,6 +44,15 @@ public class SoumissionMapper {
         List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId());
         Map<Long, ReponseEtudiant> reponsesParQuestion = reponseEtudiantRepository.findBySoumissionId(soumission.getId()).stream()
                 .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
+
+        // Quiz chronométré : seule la question en cours part vers le navigateur
+        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(questions);
+        if (!questionsQuiz.isEmpty()) {
+            QuizService.EtatQuiz etat = quizService.etat(soumission, questionsQuiz);
+            resp.setQuiz(new EtatQuizDto(etat.index(), etat.nbQuestions(), etat.dureeQuestion(),
+                    quizService.tempsRestantQuestionSecondes(etat)));
+            questions = etat.termine() ? List.of() : List.of(questionsQuiz.get(etat.index()));
+        }
 
         List<QuestionExamenDto> questionsDtos = new ArrayList<>();
         for (Question q : questions) {
@@ -89,6 +101,9 @@ public class SoumissionMapper {
         // instanceof : sans déballage, la copie partirait sans ses choix ni ses cas de test
         Question q = (Question) Hibernate.unproxy(question);
         QuestionExamenDto qDto = new QuestionExamenDto();
+        if (q instanceof QuestionQuiz quiz) {
+            qDto.setDureeQuestion(quiz.getDureeQuestion());
+        }
         qDto.setId(q.getId());
         qDto.setEnonce(q.getEnonce());
         qDto.setOrdre(q.getOrdre());

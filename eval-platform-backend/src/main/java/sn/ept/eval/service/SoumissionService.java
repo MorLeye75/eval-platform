@@ -16,6 +16,7 @@ import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -34,6 +35,7 @@ public class SoumissionService {
     private final SoumissionAccesService soumissionAccesService;
     private final AntiTricheService antiTricheService;
     private final ClotureCopiesService clotureCopiesService;
+    private final QuizService quizService;
 
     public SoumissionService(SoumissionRepository soumissionRepository,
                              EvaluationRepository evaluationRepository,
@@ -44,7 +46,9 @@ public class SoumissionService {
                              SoumissionMapper soumissionMapper,
                              SoumissionAccesService soumissionAccesService,
                              AntiTricheService antiTricheService,
-                             ClotureCopiesService clotureCopiesService) {
+                             ClotureCopiesService clotureCopiesService,
+                             QuizService quizService) {
+        this.quizService = quizService;
         this.soumissionRepository = soumissionRepository;
         this.evaluationRepository = evaluationRepository;
         this.etudiantRepository = etudiantRepository;
@@ -150,10 +154,18 @@ public class SoumissionService {
                     soumission.getVersionReponses());
         }
 
-        // 4. Mise à jour ou création des réponses
-        int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, request.getReponses());
+        // 4. Quiz chronométré : seule la réponse à la question en cours est enregistrée (ni retour en arrière,
+        //    ni réponse en avance, ni réponse hors délai)
+        List<ReponseItemDto> reponses = request.getReponses();
+        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(soumission);
+        if (!questionsQuiz.isEmpty()) {
+            reponses = quizService.reponsesAutorisees(soumission, questionsQuiz, reponses);
+        }
 
-        // 5. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
+        // 5. Mise à jour ou création des réponses
+        int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, reponses);
+
+        // 6. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
         int version = soumission.getVersionReponses() + 1;
         soumission.setVersionReponses(version);
 
@@ -200,6 +212,27 @@ public class SoumissionService {
         correctionDeclencheur.apresCommit(soumission.getId());
 
         return soumissionMapper.versResponse(soumission, "Copie soumise avec succès.");
+    }
+
+    /**
+     * Quiz chronométré : passe à la question suivante si la copie est encore sur `indexActuel` (un double clic
+     * n'avance pas deux fois) et renvoie la copie sur sa nouvelle question.
+     */
+    public SoumissionDetailResponse passerQuestionSuivante(Long soumissionId, int indexActuel, String userEmail) {
+        Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
+        Soumission soumission = soumissionAccesService.copieVerrouilleeDeLEtudiant(soumissionId, etudiant);
+        if (soumission.getStatut() != StatutSoumission.EN_COURS) {
+            throw new SoumissionNonModifiableException("Action rejetée : la copie a déjà été soumise ou verrouillée.");
+        }
+        if (tempsEpreuveService.estExpiree(soumission)) {
+            throw new TempsEcouleException("Action rejetée : temps imparti expiré.");
+        }
+        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(soumission);
+        if (questionsQuiz.isEmpty()) {
+            throw new IllegalArgumentException("Cette évaluation n'est pas un quiz chronométré.");
+        }
+        quizService.passerALaSuivante(soumission, questionsQuiz, indexActuel);
+        return soumissionMapper.versDetail(soumission);
     }
 
     /**
