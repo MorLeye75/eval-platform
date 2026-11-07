@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/axios"
-import { viderSession } from "@/lib/session"
+import { preparerSession, viderSession } from "@/lib/session"
 import type { Role, Utilisateur } from "@/types"
 
 export type { Role }
@@ -36,6 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Au démarrage, on regarde si un utilisateur était déjà connecté
   const [user, setUser] = useState<User | null>(() => {
     try {
+      // Sans jeton, un utilisateur enregistré n'est pas connecté (il ne serait jamais revalidé)
+      if (!localStorage.getItem("token")) {
+        localStorage.removeItem("user")
+        return null
+      }
       const stored = localStorage.getItem("user")
       return stored ? JSON.parse(stored) : null
     } catch {
@@ -49,6 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const response = await api.post("/auth/login", { email, motDePasse })
     const { token, ...userData } = response.data
 
+    // Poste partagé : la session d'un autre compte encore présente est effacée, et le cache repart à zéro
+    preparerSession(userData.email ?? email)
+    queryClient.clear()
     localStorage.setItem("token", token)
     localStorage.setItem("user", JSON.stringify(userData))
     setUser(userData)

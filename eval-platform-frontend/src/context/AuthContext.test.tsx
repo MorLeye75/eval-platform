@@ -5,7 +5,7 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { AuthProvider, useAuth } from "@/context/AuthContext"
 import { api } from "@/lib/axios"
-import { CLE_BROUILLON_EVALUATION, cleTamponCopie } from "@/lib/session"
+import { CLE_BROUILLON_EVALUATION, cleTamponCopie, viderSession } from "@/lib/session"
 
 const UTILISATEUR_STOCKE = { id: 1, nom: "Niang", prenom: "Aminou", email: "etudiant@ept.sn", role: "ETUDIANT" }
 
@@ -68,5 +68,63 @@ describe("AuthContext", () => {
     rendre(new QueryClient())
 
     expect(get).not.toHaveBeenCalled()
+  })
+
+  it("un utilisateur stocké sans jeton n'est pas considéré comme connecté", () => {
+    localStorage.removeItem("token")
+    const get = vi.spyOn(api, "get")
+
+    const { result } = rendre(new QueryClient())
+
+    expect(result.current.user).toBeNull()
+    expect(localStorage.getItem("user")).toBeNull()
+    expect(get).not.toHaveBeenCalled()
+  })
+
+  it("connexion d'un autre compte après un jeton expiré : ses données (cache, réponses locales) sont effacées", async () => {
+    // A a été renvoyé au login (401) : session vidée, réponses non envoyées gardées pour A
+    viderSession({ garderTamponsCopies: true })
+    localStorage.setItem(cleTamponCopie(12), "{}")
+    vi.spyOn(api, "post").mockResolvedValue({ data: { ...UTILISATEUR_STOCKE, email: "autre@ept.sn", token: "jeton-b" } })
+    const queryClient = new QueryClient()
+    queryClient.setQueryData(["copie", 12], { questions: ["énoncé de A"] })
+    const { result } = rendre(queryClient)
+
+    await act(async () => {
+      await result.current.login("autre@ept.sn", "motDePasse")
+    })
+
+    expect(localStorage.getItem(cleTamponCopie(12))).toBeNull()
+    expect(queryClient.getQueryData(["copie", 12])).toBeUndefined()
+    expect(localStorage.getItem("token")).toBe("jeton-b")
+  })
+
+  it("le même étudiant qui se reconnecte après un jeton expiré retrouve ses réponses non envoyées", async () => {
+    viderSession({ garderTamponsCopies: true })
+    localStorage.setItem(cleTamponCopie(12), "{}")
+    vi.spyOn(api, "post").mockResolvedValue({ data: { ...UTILISATEUR_STOCKE, token: "jeton-a2" } })
+    const { result } = rendre(new QueryClient())
+
+    await act(async () => {
+      await result.current.login(" Etudiant@ept.sn", "motDePasse")
+    })
+
+    expect(localStorage.getItem(cleTamponCopie(12))).not.toBeNull()
+  })
+
+  it("connexion d'un autre compte sans déconnexion préalable : la session précédente est effacée", async () => {
+    localStorage.setItem(cleTamponCopie(12), "{}")
+    sessionStorage.setItem(CLE_BROUILLON_EVALUATION, "{}")
+    vi.spyOn(api, "get").mockResolvedValue({ data: { ...UTILISATEUR_STOCKE, token: null } })
+    vi.spyOn(api, "post").mockResolvedValue({ data: { ...UTILISATEUR_STOCKE, email: "prof@ept.sn", role: "ENSEIGNANT", token: "jeton-p" } })
+    const { result } = rendre(new QueryClient())
+
+    await act(async () => {
+      await result.current.login("prof@ept.sn", "motDePasse")
+    })
+
+    expect(localStorage.getItem(cleTamponCopie(12))).toBeNull()
+    expect(sessionStorage.getItem(CLE_BROUILLON_EVALUATION)).toBeNull()
+    expect(result.current.user?.email).toBe("prof@ept.sn")
   })
 })
