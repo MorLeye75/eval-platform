@@ -13,8 +13,12 @@ import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.model.Evaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.EvaluationRepository;
+import sn.ept.eval.repository.UtilisateurRepository;
 import sn.ept.eval.service.AntiTricheService;
 import sn.ept.eval.service.SoumissionService;
+
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -48,6 +52,9 @@ class MigrationPostgresIntegrationTest {
     @Autowired
     private EvaluationRepository evaluationRepository;
 
+    @Autowired
+    private UtilisateurRepository utilisateurRepository;
+
     @Test
     @DisplayName("Toutes les migrations sont appliquées et le schéma correspond aux entités")
     void migrationAppliquee() {
@@ -68,5 +75,19 @@ class MigrationPostgresIntegrationTest {
 
         assertThat(soumissionService.soumettreCopie(soumissionId, "etudiant@ept.sn").getStatut())
                 .isEqualTo(StatutSoumission.SOUMIS);
+    }
+
+    @Test
+    @DisplayName("Dernière connexion : mise à jour directe sur la table racine de l'héritage, audit conservé")
+    void derniereConnexionSurPostgres() {
+        Long id = utilisateurRepository.findByEmail("etudiant@ept.sn").orElseThrow().getId();
+        String modifiePar = utilisateurRepository.findById(id).orElseThrow().getModifiePar();
+        LocalDateTime connexion = LocalDateTime.now().truncatedTo(ChronoUnit.SECONDS);
+
+        assertThat(utilisateurRepository.enregistrerConnexion(id, connexion)).isEqualTo(1);
+
+        var utilisateur = utilisateurRepository.findById(id).orElseThrow();
+        assertThat(utilisateur.getDerniereConnexion()).isEqualTo(connexion);
+        assertThat(utilisateur.getModifiePar()).isEqualTo(modifiePar);
     }
 }

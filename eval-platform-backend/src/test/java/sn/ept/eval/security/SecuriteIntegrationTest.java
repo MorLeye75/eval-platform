@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import com.jayway.jsonpath.JsonPath;
@@ -16,6 +17,8 @@ import sn.ept.eval.repository.EvaluationRepository;
 import sn.ept.eval.repository.PromotionRepository;
 import sn.ept.eval.repository.UtilisateurRepository;
 
+import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,6 +50,9 @@ class SecuriteIntegrationTest {
 
     @Autowired
     private EvaluationRepository evaluationRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @Test
     @DisplayName("Sans jeton : 401 au format ProblemDetail")
@@ -86,6 +92,29 @@ class SecuriteIntegrationTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"))
                 .andExpect(jsonPath("$.code").value("TROP_DE_TENTATIVES"));
+    }
+
+    @Test
+    @DisplayName("Connexion : seule la date de dernière connexion change, l'audit (modifié par / le) est conservé")
+    void login_NeModifiePasLAudit() throws Exception {
+        String email = "audit-" + UUID.randomUUID() + "@ept.sn";
+        Long id = utilisateurRepository.save(new Etudiant("Test", "Audit", email, passwordEncoder.encode("motDePasse"),
+                "ETU-" + UUID.randomUUID(), null)).getId();
+        // Dernière modification réelle du compte : par un administrateur, à une date connue
+        LocalDateTime modifieLe = LocalDateTime.of(2026, 9, 1, 8, 30);
+        jdbcTemplate.update("update utilisateurs set modifie_par = 'admin@ept.sn', date_modification = ? where id = ?",
+                modifieLe, id);
+
+        mockMvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"motDePasse\":\"motDePasse\"}"))
+                .andExpect(status().isOk());
+
+        Map<String, Object> ligne = jdbcTemplate.queryForMap(
+                "select modifie_par, date_modification, derniere_connexion from utilisateurs where id = ?", id);
+        org.assertj.core.api.Assertions.assertThat(ligne.get("MODIFIE_PAR")).isEqualTo("admin@ept.sn");
+        org.assertj.core.api.Assertions.assertThat(((java.sql.Timestamp) ligne.get("DATE_MODIFICATION")).toLocalDateTime())
+                .isEqualTo(modifieLe);
+        org.assertj.core.api.Assertions.assertThat(ligne.get("DERNIERE_CONNEXION")).isNotNull();
     }
 
     @Test

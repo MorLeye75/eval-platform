@@ -95,11 +95,8 @@ public class AuthController {
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        // Mettre à jour la date de dernière connexion
-        utilisateurRepository.findById(userDetails.getId()).ifPresent(u -> {
-            u.setDerniereConnexion(LocalDateTime.now(clock));
-            utilisateurRepository.save(u);
-        });
+        // Date de dernière connexion, sans toucher à l'audit du compte
+        utilisateurRepository.enregistrerConnexion(userDetails.getId(), LocalDateTime.now(clock));
 
         LoginResponse response = new LoginResponse(
                 jwt,

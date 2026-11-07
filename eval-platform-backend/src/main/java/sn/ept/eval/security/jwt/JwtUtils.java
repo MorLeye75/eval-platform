@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import sn.ept.eval.security.services.UserDetailsImpl;
 
 import javax.crypto.SecretKey;
+import java.time.Clock;
 import java.util.Date;
 
 @Component
@@ -21,14 +22,18 @@ public class JwtUtils {
     static final int TAILLE_MIN_CLE_OCTETS = 32;
 
     private final SecretKey cle;
-    private final int jwtExpirationMs;
+    private final long jwtExpirationMs;
+    /** Horloge de l'application : émission et expiration des jetons (testables, cohérentes avec le reste). */
+    private final Clock clock;
+    private final JwtParser parser;
 
     /**
      * La clé est décodée et contrôlée au démarrage : un secret absent, mal encodé ou trop court
      * empêche l'application de démarrer, au lieu d'échouer à la première connexion.
      */
     public JwtUtils(@Value("${jwt.secret}") String jwtSecret,
-                    @Value("${jwt.expiration-ms}") int jwtExpirationMs) {
+                    @Value("${jwt.expiration-ms}") long jwtExpirationMs,
+                    Clock clock) {
         byte[] octets;
         try {
             octets = Decoders.BASE64.decode(jwtSecret);
@@ -41,6 +46,8 @@ public class JwtUtils {
         }
         this.cle = Keys.hmacShaKeyFor(octets);
         this.jwtExpirationMs = jwtExpirationMs;
+        this.clock = clock;
+        this.parser = Jwts.parser().verifyWith(cle).clock(() -> Date.from(clock.instant())).build();
     }
 
     private SecretKey key() {
@@ -56,24 +63,21 @@ public class JwtUtils {
                 .claim("role", userPrincipal.getRole().name())
                 .claim("nom", userPrincipal.getNom())
                 .claim("prenom", userPrincipal.getPrenom())
-                .issuedAt(new Date())
-                .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
+                .issuedAt(Date.from(clock.instant()))
+                .expiration(Date.from(clock.instant().plusMillis(jwtExpirationMs)))
                 .signWith(key())
                 .compact();
     }
 
     public String getUserNameFromJwtToken(String token) {
-        return Jwts.parser()
-                .verifyWith(key())
-                .build()
-                .parseSignedClaims(token)
+        return parser.parseSignedClaims(token)
                 .getPayload()
                 .getSubject();
     }
 
     public boolean validateJwtToken(String authToken) {
         try {
-            Jwts.parser().verifyWith(key()).build().parseSignedClaims(authToken);
+            parser.parseSignedClaims(authToken);
             return true;
         } catch (ExpiredJwtException e) {
             logger.error("Token JWT expiré: {}", e.getMessage());
