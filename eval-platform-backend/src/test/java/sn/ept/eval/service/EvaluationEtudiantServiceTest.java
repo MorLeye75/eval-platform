@@ -109,6 +109,8 @@ class EvaluationEtudiantServiceTest {
         assertThat(r.getDureeQuestion()).isEqualTo(20);
         assertThat(r.getSoumissionId()).isEqualTo(100L);
         assertThat(r.getStatutSoumission()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(r.getTotalPoints()).isEqualTo(3.0);
+        assertThat(r.getNoteFinale()).isNull(); // résultats non publiés
     }
 
     @Test
@@ -127,5 +129,34 @@ class EvaluationEtudiantServiceTest {
         assertThat(r.getSoumissionId()).isNull();
         assertThat(r.getStatutSoumission()).isNull();
         assertThat(r.getDureeQuestion()).isNull();
+    }
+
+    private EvaluationEtudiantResponse avecCopieNotee(boolean resultatsPublies, StatutSoumission statutCopie) {
+        Evaluation evaluation = new Evaluation();
+        evaluation.setId(12L);
+        evaluation.setDureeStandard(30);
+        evaluation.setResultatsPublies(resultatsPublies);
+        evaluation.addQuestion(new QuestionQCM("Pile ou file ?", 1, 5.0, false));
+        Soumission copie = new Soumission();
+        copie.setId(120L);
+        copie.setEvaluation(evaluation);
+        copie.setStatut(statutCopie);
+        copie.setNoteFinale(4.5);
+        when(evaluationRepository.findByPromotionsIdAndStatutInOrderByDateOuvertureDesc(eq(5L), any())).thenReturn(List.of(evaluation));
+        when(soumissionRepository.findByEtudiantId(1L)).thenReturn(List.of(copie));
+        return service.mesEvaluations("etudiant@ept.sn").get(0);
+    }
+
+    @Test
+    @DisplayName("Note renvoyée seulement si les résultats sont publiés et la copie corrigée")
+    void noteSeulementSiPublieeEtCorrigee() {
+        assertThat(avecCopieNotee(true, StatutSoumission.EVALUE).getNoteFinale()).isEqualTo(4.5);
+    }
+
+    @Test
+    @DisplayName("Résultats non publiés, ou copie pas encore corrigée : aucune note renvoyée")
+    void pasDeNoteAvantPublicationOuCorrection() {
+        assertThat(avecCopieNotee(false, StatutSoumission.EVALUE).getNoteFinale()).isNull();
+        assertThat(avecCopieNotee(true, StatutSoumission.EN_CORRECTION).getNoteFinale()).isNull();
     }
 }

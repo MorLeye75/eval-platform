@@ -31,6 +31,25 @@ export type StatutProposition = "EN_ATTENTE" | "VALIDEE" | "REJETEE"
 
 export type TypeQuestion = "QCM" | "CODE" | "OUVERTE" | "QUIZ_CHRONOMETREE"
 
+/** GET /etudiant/evaluations : évaluation vue par l'étudiant, avec l'état de sa copie. */
+export interface EvaluationEtudiant {
+  id: number
+  titre: string
+  description: string | null
+  statut: StatutEvaluation
+  dateOuverture: string
+  dateFermeture: string
+  dureeMinutes: number // tiers-temps de l'étudiant s'il existe
+  dureeQuestion: number | null // secondes par question (quiz chronométré)
+  nbQuestions: number
+  totalPoints: number
+  typesQuestions: TypeQuestion[]
+  resultatsPublies: boolean
+  soumissionId: number | null
+  statutSoumission: StatutSoumission | null
+  noteFinale: number | null // seulement si les résultats sont publiés
+}
+
 // ---------- Évaluation ----------
 export interface Evaluation {
   id: number

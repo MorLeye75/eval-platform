@@ -1,15 +1,21 @@
 import { useState } from "react"
 import { Link } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  evaluationsMock,
-  type EvaluationMock,
-  type StatutEval,
-  type TypeEval,
-} from "@/mocks/evaluations"
+  CLE_MES_EVALUATIONS,
+  etatEvaluation,
+  formatDateHeure,
+  mesEvaluations,
+  typeEpreuve,
+  type EtatEvaluation,
+  type TypeEpreuve,
+} from "@/lib/evaluationsEtudiant"
+import { messageErreur } from "@/lib/passation"
+import type { EvaluationEtudiant } from "@/types"
 import {
   Clock,
   Calendar,
@@ -17,27 +23,28 @@ import {
   Code2,
   FileText,
   Timer,
+  Layers,
   ArrowRight,
 } from "lucide-react"
 
-// Config par type de question (icône + libellé)
-const typeConfig: Record<TypeEval, { label: string; icon: typeof ListChecks }> = {
+// Config par type d'épreuve (icône + libellé)
+const typeConfig: Record<TypeEpreuve, { label: string; icon: typeof ListChecks }> = {
   QCM: { label: "QCM", icon: ListChecks },
   CODE: { label: "Exercice de code", icon: Code2 },
   OUVERTE: { label: "Questions ouvertes", icon: FileText },
   QUIZ: { label: "Quiz chronométré", icon: Timer },
+  MIXTE: { label: "Épreuve mixte", icon: Layers },
 }
 
-// Config par statut (libellé + style du badge)
-const statutConfig: Record<StatutEval, { label: string; className: string }> = {
+// Config par état (libellé + style du badge)
+const etatConfig: Record<EtatEvaluation, { label: string; className: string }> = {
   disponible: {
     label: "Disponible",
     className: "bg-primary/10 text-primary border-primary/20",
   },
   a_venir: {
     label: "À venir",
-    className:
-      "bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400",
+    className: "bg-amber-500/10 text-amber-700 border-amber-500/20 dark:text-amber-400",
   },
   terminee: {
     label: "Terminée",
@@ -45,18 +52,24 @@ const statutConfig: Record<StatutEval, { label: string; className: string }> = {
   },
 }
 
-function EvaluationCard({ evaluation }: { evaluation: EvaluationMock }) {
-  const type = typeConfig[evaluation.type]
-  const statut = statutConfig[evaluation.statut]
+function EvaluationCard({ evaluation }: { evaluation: EvaluationEtudiant }) {
+  const type = typeConfig[typeEpreuve(evaluation)]
+  const etat = etatEvaluation(evaluation)
+  const statut = etatConfig[etat]
   const TypeIcon = type.icon
+  const enCours = evaluation.statutSoumission === "EN_COURS"
 
-  // Note affichée uniquement si l'évaluation est corrigée ET publiée
-  const noteAffichee =
-    evaluation.resultat?.resultatsPublies === true
-      ? `Note : ${evaluation.resultat.noteFinale} / ${evaluation.noteStandard}`
-      : evaluation.statut === "terminee"
-        ? "En attente de correction"
-        : `Jusqu'au ${evaluation.dateLimite}`
+  // Note affichée uniquement si les résultats sont publiés (le serveur ne la renvoie pas avant)
+  const information =
+    evaluation.noteFinale !== null
+      ? `Note : ${evaluation.noteFinale} / ${evaluation.totalPoints}`
+      : etat === "terminee"
+        ? evaluation.statutSoumission
+          ? "En attente des résultats"
+          : "Non passée"
+        : etat === "a_venir"
+          ? `Ouvre le ${formatDateHeure(evaluation.dateOuverture)}`
+          : `Jusqu'au ${formatDateHeure(evaluation.dateFermeture)}`
 
   return (
     <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm transition-shadow hover:shadow-md">
@@ -71,11 +84,11 @@ function EvaluationCard({ evaluation }: { evaluation: EvaluationMock }) {
               <span>{type.label}</span>
               <span className="flex items-center gap-1">
                 <Clock className="size-3.5" />
-                {evaluation.duree} min
+                {evaluation.dureeMinutes} min
               </span>
               <span className="flex items-center gap-1">
                 <Calendar className="size-3.5" />
-                {noteAffichee}
+                {information}
               </span>
             </div>
           </div>
@@ -89,38 +102,30 @@ function EvaluationCard({ evaluation }: { evaluation: EvaluationMock }) {
             {statut.label}
           </Badge>
 
-          {evaluation.statut === "disponible" && (
+          {etat === "disponible" && (
             <Button
               size="sm"
               className="shadow-sm"
               render={
                 <Link to={`/etudiant/evaluations/${evaluation.id}`}>
-                  Démarrer
+                  {enCours ? "Reprendre" : "Démarrer"}
                   <ArrowRight className="ml-1 size-4" />
                 </Link>
               }
             />
           )}
-          {evaluation.statut === "a_venir" && (
+          {etat === "a_venir" && (
             <Button
               size="sm"
               variant="outline"
-              render={
-                <Link to={`/etudiant/evaluations/${evaluation.id}`}>
-                  Voir les détails
-                </Link>
-              }
+              render={<Link to={`/etudiant/evaluations/${evaluation.id}`}>Voir les détails</Link>}
             />
           )}
-          {evaluation.statut === "terminee" && (
+          {etat === "terminee" && evaluation.resultatsPublies && evaluation.statutSoumission && (
             <Button
               size="sm"
               variant="ghost"
-              render={
-                <Link to={`/etudiant/resultats/${evaluation.id}`}>
-                  Voir mes résultats
-                </Link>
-              }
+              render={<Link to={`/etudiant/resultats/${evaluation.id}`}>Voir mes résultats</Link>}
             />
           )}
         </div>
@@ -130,12 +135,19 @@ function EvaluationCard({ evaluation }: { evaluation: EvaluationMock }) {
 }
 
 export default function ListeEvaluations() {
-  const [filtre, setFiltre] = useState<"toutes" | StatutEval>("toutes")
+  const [filtre, setFiltre] = useState<"toutes" | EtatEvaluation>("toutes")
+  const { data: evaluations = [], isPending, error } = useQuery({
+    queryKey: CLE_MES_EVALUATIONS,
+    queryFn: mesEvaluations,
+  })
 
   const evaluationsFiltrees =
-    filtre === "toutes"
-      ? evaluationsMock
-      : evaluationsMock.filter((e) => e.statut === filtre)
+    filtre === "toutes" ? evaluations : evaluations.filter((e) => etatEvaluation(e) === filtre)
+
+  let message: string | null = null
+  if (isPending) message = "Chargement de vos évaluations..."
+  else if (error) message = messageErreur(error, "Impossible de charger vos évaluations.")
+  else if (evaluationsFiltrees.length === 0) message = "Aucune évaluation dans cette catégorie."
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-7">
@@ -147,7 +159,7 @@ export default function ListeEvaluations() {
         </p>
       </div>
 
-      {/* Filtres par statut */}
+      {/* Filtres par état */}
       <Tabs value={filtre} onValueChange={(v) => setFiltre(v as typeof filtre)}>
         <TabsList className="rounded-xl">
           <TabsTrigger value="toutes">Toutes</TabsTrigger>
@@ -159,16 +171,14 @@ export default function ListeEvaluations() {
 
       {/* Liste */}
       <div className="flex flex-col gap-3">
-        {evaluationsFiltrees.length > 0 ? (
+        {message ? (
+          <Card className="rounded-2xl border-border/60 shadow-sm">
+            <CardContent className="py-10 text-center text-sm text-muted-foreground">{message}</CardContent>
+          </Card>
+        ) : (
           evaluationsFiltrees.map((evaluation) => (
             <EvaluationCard key={evaluation.id} evaluation={evaluation} />
           ))
-        ) : (
-          <Card className="rounded-2xl border-border/60 shadow-sm">
-            <CardContent className="py-10 text-center text-sm text-muted-foreground">
-              Aucune évaluation dans cette catégorie.
-            </CardContent>
-          </Card>
         )}
       </div>
     </div>
