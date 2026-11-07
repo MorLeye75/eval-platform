@@ -66,6 +66,12 @@ class MappingsJpaIntegrationTest {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private SoumissionMapper soumissionMapper;
+
+    @Autowired
+    private SoumissionRepository soumissionRepository;
+
     private String email;
     private Long soumissionId;
     private Long qcmId;
@@ -144,5 +150,20 @@ class MappingsJpaIntegrationTest {
 
         assertThat(copie.getQuestions()).hasSize(2);
         assertThat(CaptureSql.REQUETES).noneMatch(sql -> sql.contains("propositions_ia"));
+    }
+
+    @Test
+    @DisplayName("Questions déjà présentes sous forme de proxy dans la transaction : la copie garde ses choix")
+    void questionsProxy_ChoixConserves() {
+        sauvegarder(new ReponseItemDto(qcmId, null, null, List.of(choixIds.get(0))));
+
+        int nbChoix = transactionTemplate.execute(tx -> {
+            // Charger d'abord les réponses place leurs questions (LAZY) en proxy dans la session
+            reponseEtudiantRepository.findBySoumissionId(soumissionId).forEach(r -> r.getQuestion().getId());
+            Soumission soumission = soumissionRepository.findById(soumissionId).orElseThrow();
+            return soumissionMapper.versDetail(soumission).getQuestions().get(0).getChoixPossibles().size();
+        });
+
+        assertThat(nbChoix).isEqualTo(3);
     }
 }

@@ -43,4 +43,21 @@ public class Promotion {
 
     public java.util.List<Evaluation> getEvaluations() { return evaluations; }
     public void setEvaluations(java.util.List<Evaluation> evaluations) { this.evaluations = evaluations; }
+
+    /**
+     * Égalité par identifiant (motif Hibernate) : deux instances de la même ligne, proxy compris, sont égales.
+     * hashCode constant par classe pour rester stable quand l'identifiant est attribué à l'enregistrement.
+     */
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || org.hibernate.Hibernate.getClass(this) != org.hibernate.Hibernate.getClass(o)) return false;
+        Long autreId = ((Promotion) o).getId();
+        return getId() != null && getId().equals(autreId);
+    }
+
+    @Override
+    public final int hashCode() {
+        return org.hibernate.Hibernate.getClass(this).hashCode();
+    }
 }

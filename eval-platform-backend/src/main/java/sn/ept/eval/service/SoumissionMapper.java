@@ -1,5 +1,6 @@
 package sn.ept.eval.service;
 
+import org.hibernate.Hibernate;
 import org.springframework.stereotype.Component;
 import sn.ept.eval.dto.soumission.*;
 import sn.ept.eval.model.*;
@@ -83,7 +84,10 @@ public class SoumissionMapper {
         return r;
     }
 
-    private QuestionExamenDto versQuestionExamen(Question q, ReponseEtudiant reponse) {
+    private QuestionExamenDto versQuestionExamen(Question question, ReponseEtudiant reponse) {
+        // Une question déjà chargée en proxy dans la session (via une réponse) n'est pas une QuestionQCM pour
+        // instanceof : sans déballage, la copie partirait sans ses choix ni ses cas de test
+        Question q = (Question) Hibernate.unproxy(question);
         QuestionExamenDto qDto = new QuestionExamenDto();
         qDto.setId(q.getId());
         qDto.setEnonce(q.getEnonce());
