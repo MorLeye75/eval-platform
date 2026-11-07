@@ -21,7 +21,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=h2-dev
 La base est recréée à chaque démarrage. Console H2 : `http://localhost:8080/api/h2-console`
 (JDBC URL `jdbc:h2:mem:evaldb`, utilisateur `sa`, mot de passe vide).
 
-### Avec PostgreSQL local (profil `dev`, par défaut)
+### Avec PostgreSQL local (profil `dev`)
 
 1. Créer une base vide : `CREATE DATABASE eval_platform_db;`
 2. Lancer :
@@ -30,6 +30,8 @@ La base est recréée à chaque démarrage. Console H2 : `http://localhost:8080/
 mvn spring-boot:run
 ```
 
+`mvn spring-boot:run` active le profil `dev` (propriété `spring-boot.run.profiles` du `pom.xml`) ;
+un lancement depuis l'IDE ou le jar doit le demander : `SPRING_PROFILES_ACTIVE=dev`.
 Le profil `dev` suppose l'utilisateur `postgres` / `postgrespassword` sur `localhost:5432`
 (surchargeable par `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). Flyway crée le schéma au premier démarrage.
 
@@ -51,7 +53,7 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 
 | Profil | Base | Schéma | Données de démo | Usage |
 |---|---|---|---|---|
-| `dev` (défaut) | PostgreSQL local | Flyway | oui | développement |
+| `dev` (défaut de `mvn spring-boot:run`) | PostgreSQL local | Flyway | oui | développement |
 | `h2-dev` | H2 en mémoire | recréé par Hibernate | oui | démarrage sans installation |
 | `test` | H2 en mémoire | recréé par Hibernate | oui | tests automatisés |
 | tout autre (ex. `prod`) | PostgreSQL | Flyway | non | déploiement |
@@ -60,7 +62,7 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 
 | Variable | Obligatoire hors `dev` | Défaut | Rôle |
 |---|---|---|---|
-| `SPRING_PROFILES_ACTIVE` | oui | `dev` | profil actif (ex. `prod`) |
+| `SPRING_PROFILES_ACTIVE` | oui | aucun (`dev` avec `mvn spring-boot:run`) | profil actif (ex. `prod`) |
 | `JWT_SECRET` | **oui** | secret de dev | clé de signature des jetons, en Base64, 256 bits minimum (`openssl rand -base64 64`) |
 | `DB_PASSWORD` | **oui** | `postgrespassword` en `dev` | mot de passe PostgreSQL |
 | `DB_URL` | non | `jdbc:postgresql://localhost:5432/eval_platform_db` | URL JDBC |
@@ -68,6 +70,11 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `JWT_EXPIRATION_MS` | non | `86400000` (24 h) | durée de validité des jetons |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.
+L'absence de `DB_PASSWORD` est détectée avant toute connexion à la base (`ControleConfigurationObligatoire`) :
+sans ce contrôle, Spring enverrait la chaîne `${DB_PASSWORD}` comme mot de passe.
+Un `JWT_SECRET` qui n'est pas en Base64 ou fait moins de 256 bits bloque aussi le démarrage.
+Oublier `SPRING_PROFILES_ACTIVE` au déploiement ne bascule jamais en `dev` (pas de comptes de démonstration
+ni de secret par défaut) : l'application démarre sans profil et exige ces variables.
 
 ### Paramètres métier
 

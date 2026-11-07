@@ -6,8 +6,9 @@ server:
 spring:
   application:
     name: eval-backend
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+  # Pas de profil par défaut : un déploiement sans SPRING_PROFILES_ACTIVE ne doit jamais basculer en dev
+  # (comptes de démonstration, secret JWT du dépôt). Spring lit directement la variable d'environnement ;
+  # en local, `mvn spring-boot:run` active dev (propriété spring-boot.run.profiles du pom).
   mvc:
     problemdetails:
       enabled: true
