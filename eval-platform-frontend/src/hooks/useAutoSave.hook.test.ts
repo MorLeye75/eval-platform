@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react"
+import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useAutoSave, type SauvegardeConfirmee } from "@/hooks/useAutoSave"
 
@@ -124,6 +125,30 @@ describe("useAutoSave : tampon local et fermeture de page (DS-02)", () => {
     })
     expect(second).toBe("ok")
     expect(tampon()).toBeNull()
+  })
+
+  it("409 passager (VERROU_INDISPONIBLE) : échec à réessayer, l'étudiant n'est pas renvoyé de l'épreuve", async () => {
+    const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig
+    const verrou = new AxiosError("conflit", "409", config, null, {
+      status: 409, statusText: "", headers: {}, config, data: { code: "VERROU_INDISPONIBLE" },
+    })
+    const onVerrouillage = vi.fn()
+    const vue = renderHook(
+      ({ data, enabled }: Props) =>
+        useAutoSave({ data, onSave: vi.fn().mockRejectedValue(verrou), cleTampon: CLE, enabled, onVerrouillage }),
+      { initialProps: { data: {}, enabled: false } }
+    )
+    act(() => vue.result.current.marquerSauvegarde({ 1: "serveur" }, 3))
+    vue.rerender({ data: { 1: "modifiée" }, enabled: true })
+
+    let resultat!: unknown
+    await act(async () => {
+      resultat = await vue.result.current.sauvegarderMaintenant()
+    })
+
+    expect(resultat).toBe("echec")
+    expect(onVerrouillage).not.toHaveBeenCalled()
+    expect(tampon()).toEqual({ version: 3, donnees: { 1: "modifiée" } })
   })
 
   it("fermer ou recharger la page avec des réponses non envoyées demande confirmation", () => {

@@ -123,7 +123,9 @@ class SecuriteIntegrationTest {
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{pas du json"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                // Erreurs gérées par Spring elles-mêmes : même format, avec un code
+                .andExpect(jsonPath("$.code").value("REQUETE_INCORRECTE"));
     }
 
     @Test

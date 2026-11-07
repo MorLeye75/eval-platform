@@ -40,13 +40,18 @@ export function estVersionObsolete(err: unknown) {
   return codeConflit(err) === "VERSION_OBSOLETE"
 }
 
+/** Codes 409 qui figent définitivement la copie (l'épreuve est terminée pour l'étudiant). */
+const CODES_COPIE_FIGEE = ["TEMPS_EXPIRE", "SOUMISSION_VERROUILLEE"]
+
 /**
  * Le serveur a refusé l'action parce que la copie est figée : temps dépassé
- * au-delà de la marge, ou copie déjà soumise (409 Conflict hors conflit de version).
+ * au-delà de la marge, ou copie déjà soumise. Les autres 409 (conflit de version, conflit en base,
+ * verrou momentanément indisponible, code inconnu) sont passagers : l'étudiant reste dans l'épreuve.
+ * Un 409 sans code (serveur ancien) reste traité comme une copie figée.
  */
 export function estCopieVerrouillee(err: unknown) {
   const code = codeConflit(err)
-  return code !== null && code !== "VERSION_OBSOLETE"
+  return code !== null && (code === "" || CODES_COPIE_FIGEE.includes(code))
 }
 
 /** La requête n'a pas atteint le serveur (coupure réseau). */

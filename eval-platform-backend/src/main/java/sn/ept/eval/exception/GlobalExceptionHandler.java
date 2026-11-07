@@ -3,6 +3,8 @@ package sn.ept.eval.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -16,6 +18,9 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
 
 import java.net.URI;
 import java.time.LocalDateTime;
@@ -89,6 +94,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Ressource non trouvée");
         problem.setType(URI.create(ERROR_BASE_URL + "ressource-non-trouvee"));
         problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "RESSOURCE_NON_TROUVEE");
         problem.setProperty("timestamp", LocalDateTime.now());
         return problem;
     }
@@ -99,6 +105,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Requête incorrecte");
         problem.setType(URI.create(ERROR_BASE_URL + "requete-incorrecte"));
         problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "REQUETE_INCORRECTE");
         problem.setProperty("timestamp", LocalDateTime.now());
         return problem;
     }
@@ -141,6 +148,40 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /**
+     * Contrainte de base violée (unicité, clé étrangère…) : 409 plutôt que 500. Le détail SQL (nom de contrainte,
+     * requête) reste dans les journaux, jamais dans la réponse.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleIntegriteDonnees(DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Conflit de données sur {} : {}", request.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "La requête entre en conflit avec des données existantes.");
+        problem.setTitle("Conflit de données");
+        problem.setType(URI.create(ERROR_BASE_URL + "conflit-donnees"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "CONFLIT_DONNEES");
+        problem.setProperty("timestamp", LocalDateTime.now());
+        return problem;
+    }
+
+    /**
+     * Verrou de ligne non obtenu à temps (copie modifiée au même instant par une autre requête) : situation
+     * passagère, 409 à réessayer plutôt que 500. Le front ne la confond pas avec une copie figée.
+     */
+    @ExceptionHandler({PessimisticLockingFailureException.class, PessimisticLockException.class, LockTimeoutException.class})
+    public ProblemDetail handleVerrouIndisponible(Exception ex, HttpServletRequest request) {
+        log.warn("Verrou indisponible sur {} : {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "La ressource est en cours de modification. Réessayez dans un instant.");
+        problem.setTitle("Ressource momentanément verrouillée");
+        problem.setType(URI.create(ERROR_BASE_URL + "verrou-indisponible"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "VERROU_INDISPONIBLE");
+        problem.setProperty("timestamp", LocalDateTime.now());
+        return problem;
+    }
+
     /** Filet de sécurité : toute erreur imprévue devient un 500 sans fuite de détails internes. */
     @ExceptionHandler(Exception.class)
     public ProblemDetail handleInattendue(Exception ex, HttpServletRequest request) {
@@ -149,8 +190,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Erreur interne");
         problem.setType(URI.create(ERROR_BASE_URL + "erreur-interne"));
         problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "ERREUR_INTERNE");
         problem.setProperty("timestamp", LocalDateTime.now());
         return problem;
+    }
+
+    /**
+     * Erreurs gérées par Spring lui-même (JSON illisible, méthode non supportée, route inconnue…) : même format,
+     * complété par un code pour que le front n'ait pas à deviner.
+     */
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
+                                                             HttpStatusCode statusCode, WebRequest request) {
+        ResponseEntity<Object> reponse = super.handleExceptionInternal(ex, body, headers, statusCode, request);
+        if (reponse != null && reponse.getBody() instanceof ProblemDetail problem
+                && (problem.getProperties() == null || !problem.getProperties().containsKey("code"))) {
+            problem.setProperty("code", codePourStatut(statusCode));
+        }
+        return reponse;
+    }
+
+    private static String codePourStatut(HttpStatusCode statut) {
+        return switch (statut.value()) {
+            case 400 -> "REQUETE_INCORRECTE";
+            case 404 -> "RESSOURCE_NON_TROUVEE";
+            case 405 -> "METHODE_NON_SUPPORTEE";
+            case 415 -> "TYPE_NON_SUPPORTE";
+            default -> statut.is5xxServerError() ? "ERREUR_INTERNE" : "ERREUR_REQUETE";
+        };
     }
 
     @Override
@@ -170,6 +237,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ex.getBindingResult().getFieldErrors().forEach(err ->
                 erreurs.put(err.getField(), err.getDefaultMessage())
         );
+        problem.setProperty("code", "VALIDATION");
         problem.setProperty("erreursChamps", erreurs);
         problem.setProperty("timestamp", LocalDateTime.now());
         return problem;

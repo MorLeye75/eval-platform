@@ -34,6 +34,13 @@ describe("lecture des 409 (DS-01, DS-02)", () => {
     expect(estCopieVerrouillee(erreurHttp(409))).toBe(true)
   })
 
+  it.each(["CONFLIT_DONNEES", "VERROU_INDISPONIBLE", "CODE_FUTUR_INCONNU"])(
+    "%s (conflit passager) ne verrouille pas la copie : l'étudiant n'est pas renvoyé de l'épreuve",
+    (code) => {
+      expect(estCopieVerrouillee(erreurHttp(409, { code }))).toBe(false)
+    }
+  )
+
   it("les autres erreurs ne sont ni un verrouillage ni un conflit", () => {
     for (const err of [erreurHttp(400), erreurHttp(500), erreurReseau(), new Error("autre")]) {
       expect(estCopieVerrouillee(err)).toBe(false)
