@@ -20,7 +20,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { usePassation } from "@/hooks/usePassation"
-import { messageSansReponse, numerosSansReponse } from "@/lib/passation"
+import {
+  formatNombre,
+  messageSansReponse,
+  numerosSansReponse,
+  TAILLE_MAX_CODE,
+} from "@/lib/passation"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import type { QuestionExamen } from "@/types"
@@ -135,7 +140,8 @@ export default function PassationCode() {
   }
 
   function changerCode(valeur: string | undefined) {
-    setCodes((c) => ({ ...c, [question.id]: valeur ?? "" }))
+    // Au-delà de la limite du serveur, chaque sauvegarde serait refusée : le code est coupé et la limite signalée
+    setCodes((c) => ({ ...c, [question.id]: (valeur ?? "").slice(0, TAILLE_MAX_CODE) }))
     invaliderResultats(question.id)
   }
 
@@ -270,6 +276,11 @@ export default function PassationCode() {
               }}
             />
           </div>
+          {codeCourant.length >= TAILLE_MAX_CODE && (
+            <p className="text-right text-xs font-medium text-destructive">
+              Limite de {formatNombre(TAILLE_MAX_CODE)} caractères atteinte : la suite n'est pas enregistrée.
+            </p>
+          )}
 
           <Button
             variant="outline"

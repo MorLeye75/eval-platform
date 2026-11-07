@@ -13,7 +13,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { usePassation } from "@/hooks/usePassation"
-import { messageSansReponse, numerosSansReponse } from "@/lib/passation"
+import {
+  formatNombre,
+  messageSansReponse,
+  numerosSansReponse,
+  TAILLE_MAX_TEXTE,
+} from "@/lib/passation"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import type { QuestionExamen } from "@/types"
@@ -173,9 +178,12 @@ export default function PassationOuverte() {
 
           <Textarea
             value={reponseCourante}
-            onChange={(e) =>
-              setReponses((r) => ({ ...r, [question.id]: e.target.value }))
-            }
+            maxLength={TAILLE_MAX_TEXTE}
+            onChange={(e) => {
+              // Valeur lue tout de suite : la fonction de mise à jour s'exécute plus tard
+              const texte = e.target.value.slice(0, TAILLE_MAX_TEXTE)
+              setReponses((r) => ({ ...r, [question.id]: texte }))
+            }}
             placeholder="Rédigez votre réponse ici..."
             className="min-h-56 resize-y rounded-xl text-sm leading-relaxed"
           />
@@ -184,6 +192,11 @@ export default function PassationOuverte() {
             {nbMots} mot{nbMots > 1 ? "s" : ""} · {reponseCourante.length}{" "}
             caractère{reponseCourante.length > 1 ? "s" : ""}
           </p>
+          {reponseCourante.length >= TAILLE_MAX_TEXTE && (
+            <p className="text-right text-xs font-medium text-destructive">
+              Limite de {formatNombre(TAILLE_MAX_TEXTE)} caractères atteinte.
+            </p>
+          )}
         </CardContent>
       </Card>
 

@@ -4,6 +4,16 @@ import type { CopieEnCours, ReponseItem, SauvegardeResponse } from "@/types"
 
 // Appels de la passation : DS-01 (soumission) et DS-02 (auto-save)
 
+/**
+ * Tailles maximales d'une réponse, identiques à celles du serveur (ReponseItemDto) : au-delà, chaque sauvegarde
+ * serait refusée (400) et la remise manuelle bloquée faute de « dernière sauvegarde » réussie.
+ */
+export const TAILLE_MAX_TEXTE = 20_000
+export const TAILLE_MAX_CODE = 50_000
+
+/** « 20 000 » : nombre lisible pour les messages de limite. */
+export const formatNombre = (n: number) => n.toLocaleString("fr-FR").replace(/\s/g, " ")
+
 /** Démarre la copie, ou reprend celle qui existe déjà (questions et réponses enregistrées). */
 export async function demarrerEpreuve(evaluationId: string) {
   const { data } = await api.post<CopieEnCours>(
