@@ -1,10 +1,8 @@
 import { useState, useRef } from "react"
 import { useParams } from "react-router-dom"
 import Editor from "@monaco-editor/react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
 import {
   Select,
   SelectContent,
@@ -12,35 +10,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { usePassation } from "@/hooks/usePassation"
-import {
-  formatNombre,
-  messageSansReponse,
-  numerosSansReponse,
-  TAILLE_MAX_CODE,
-} from "@/lib/passation"
+import { formatNombre, TAILLE_MAX_CODE } from "@/lib/passation"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
+import PassationShell from "./PassationShell"
 import type { QuestionExamen } from "@/types"
-import {
-  Clock,
-  ChevronLeft,
-  ChevronRight,
-  Save,
-  Send,
-  CircleCheck,
-  Eye,
-  Info,
-  Play,
-  CircleX,
-} from "lucide-react"
+import { CircleCheck, CircleX, Play } from "lucide-react"
 
 // Langages proposés dans l'éditeur (id de langage reconnu par Monaco -> libellé)
 const LANGAGES_LABELS: Record<string, string> = {
@@ -85,28 +61,12 @@ export default function PassationCode() {
   const [langages, setLangages] = useState<Record<number, string>>({})
   const [resultats, setResultats] = useState<Record<number, ResultatExecution[]>>({})
   const [execution, setExecution] = useState(false)
-  const [dialogOuvert, setDialogOuvert] = useState(false)
   // Version du code par question : incrémentée à chaque modification, elle permet
   // d'ignorer le résultat d'une exécution lancée sur un code devenu obsolète.
   const versionCode = useRef<Record<number, number>>({})
 
-  const {
-    copie,
-    questions,
-    chargement,
-    erreur,
-    reponses: codes,
-    setReponses: setCodes,
-    tempsRestant,
-    tempsRestantFormate,
-    derniereSauvegarde,
-    erreurSauvegarde,
-    soumettre,
-    soumissionEnCours,
-    erreurSoumission,
-    avertissement,
-  } = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
-
+  const passation = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
+  const { copie, questions, chargement, erreur, reponses: codes, setReponses: setCodes } = passation
   const { changementsOnglet } = useAntiCheat()
 
   // ---------- Chargement / cas d'erreur ----------
@@ -121,12 +81,6 @@ export default function PassationCode() {
   const codeCourant = codes[question.id] ?? ""
   const casVisibles = question.casDeTestsVisibles
   const resultatsCourants = resultats[question.id] ?? []
-
-  const nbTraitees = compterTraitees(codes)
-  const sansReponse = messageSansReponse(
-    numerosSansReponse(questions, (id) => (codes[id] ?? "").trim().length > 0)
-  )
-  const progression = (nbTraitees / questions.length) * 100
 
   function invaliderResultats(questionId: number) {
     versionCode.current[questionId] = (versionCode.current[questionId] ?? 0) + 1
@@ -162,295 +116,119 @@ export default function PassationCode() {
     setResultats((r) => ({ ...r, [questionId]: resultatsSimules }))
   }
 
-  const tempsCritique = tempsRestant < 300
-
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-5">
-      {/* Titre de l'évaluation */}
-      <p className="text-sm font-semibold text-muted-foreground">
-        {copie.titreEvaluation}
-      </p>
+    <PassationShell
+      {...passation}
+      titreEvaluation={copie.titreEvaluation}
+      indexCourant={indexCourant}
+      onChangerQuestion={setIndexCourant}
+      estTraitee={(questionId) => (codes[questionId] ?? "").trim().length > 0}
+      vocabulaire="traite"
+      changementsOnglet={changementsOnglet}
+      noteConfirmation="Le code sera aussi exécuté contre des cas de tests cachés lors de la correction."
+      largeur="max-w-4xl"
+    >
+      {/* Sélecteur de langage */}
+      <div className="flex items-center gap-3">
+        <span className="text-xs font-semibold text-muted-foreground">
+          Langage
+        </span>
+        <Select value={langageCourant} onValueChange={changerLangage}>
+          <SelectTrigger className="w-44 rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {LANGAGES.map((l) => (
+              <SelectItem key={l} value={l}>
+                {LANGAGES_LABELS[l] ?? l}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
-      {/* Barre supérieure : timer + sauvegarde */}
-      <Card className="rounded-2xl border-border/60 shadow-sm">
-        <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <span
-              className={`flex items-center gap-2 rounded-xl px-3 py-1.5 font-mono text-lg font-bold ${
-                tempsCritique
-                  ? "bg-destructive/10 text-destructive"
-                  : "bg-primary/10 text-primary"
-              }`}
-            >
-              <Clock className="size-4" />
-              {tempsRestantFormate}
-            </span>
-            <span className="text-sm text-muted-foreground">
-              {nbTraitees} / {questions.length} traitées
-            </span>
-          </div>
-
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <Save className="size-3.5" />
-            {erreurSauvegarde
-              ? "Hors ligne : réponses conservées sur cet appareil"
-              : derniereSauvegarde
-                ? `Sauvegardé à ${derniereSauvegarde}`
-                : "Sauvegarde auto activée"}
-          </span>
-        </CardContent>
-      </Card>
-
-      {/* Copie rechargée après un conflit de version */}
-      {avertissement && (
-        <div className="flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
-          <Info className="size-4 shrink-0" />
-          <span>{avertissement}</span>
-        </div>
+      {/* Éditeur de code */}
+      <div className="overflow-hidden rounded-xl border border-border/60">
+        <Editor
+          height="320px"
+          language={langageCourant}
+          value={codeCourant}
+          onChange={changerCode}
+          theme="vs-dark"
+          options={{
+            minimap: { enabled: false },
+            fontSize: 13,
+            scrollBeyondLastLine: false,
+          }}
+        />
+      </div>
+      {codeCourant.length >= TAILLE_MAX_CODE && (
+        <p className="text-right text-xs font-medium text-destructive">
+          Limite de {formatNombre(TAILLE_MAX_CODE)} caractères atteinte : la suite n'est pas enregistrée.
+        </p>
       )}
 
-      {/* Alerte anti-triche */}
-      {changementsOnglet > 0 && (
-        <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
-          <Eye className="size-4 shrink-0" />
-          <span>
-            {changementsOnglet} sortie{changementsOnglet > 1 ? "s" : ""} de la
-            page détectée{changementsOnglet > 1 ? "s" : ""} et enregistrée
-            {changementsOnglet > 1 ? "s" : ""}.
+      <Button
+        variant="outline"
+        className="self-start"
+        disabled={execution || !codeCourant.trim()}
+        onClick={executerCode}
+      >
+        <Play className="mr-1 size-4" />
+        {execution ? "Exécution..." : "Exécuter contre les tests"}
+      </Button>
+
+      {/* Cas de tests visibles */}
+      {casVisibles.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <span className="text-xs font-semibold text-muted-foreground">
+            Cas de test visibles
           </span>
-        </div>
-      )}
-
-      {/* Progression */}
-      <Progress value={progression} className="h-2" />
-
-      {/* Question courante */}
-      <Card className="rounded-2xl border-border/60 shadow-sm">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <CardTitle className="text-base font-bold">
-            Question {indexCourant + 1} sur {questions.length}
-          </CardTitle>
-          <Badge
-            variant="outline"
-            className="rounded-full border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
-          >
-            {question.points} pts
-          </Badge>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          <p className="text-base font-medium leading-relaxed">
-            {question.enonce}
-          </p>
-
-          {/* Sélecteur de langage */}
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-semibold text-muted-foreground">
-              Langage
-            </span>
-            <Select value={langageCourant} onValueChange={changerLangage}>
-              <SelectTrigger className="w-44 rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {LANGAGES.map((l) => (
-                  <SelectItem key={l} value={l}>
-                    {LANGAGES_LABELS[l] ?? l}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Éditeur de code */}
-          <div className="overflow-hidden rounded-xl border border-border/60">
-            <Editor
-              height="320px"
-              language={langageCourant}
-              value={codeCourant}
-              onChange={changerCode}
-              theme="vs-dark"
-              options={{
-                minimap: { enabled: false },
-                fontSize: 13,
-                scrollBeyondLastLine: false,
-              }}
-            />
-          </div>
-          {codeCourant.length >= TAILLE_MAX_CODE && (
-            <p className="text-right text-xs font-medium text-destructive">
-              Limite de {formatNombre(TAILLE_MAX_CODE)} caractères atteinte : la suite n'est pas enregistrée.
-            </p>
-          )}
-
-          <Button
-            variant="outline"
-            className="self-start"
-            disabled={execution || !codeCourant.trim()}
-            onClick={executerCode}
-          >
-            <Play className="mr-1 size-4" />
-            {execution ? "Exécution..." : "Exécuter contre les tests"}
-          </Button>
-
-          {/* Cas de tests visibles */}
-          {casVisibles.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-xs font-semibold text-muted-foreground">
-                Cas de test visibles
-              </span>
-              {casVisibles.map((cas) => {
-                const resultat = resultatsCourants.find((r) => r.casId === cas.id)
-                return (
-                  <div
-                    key={cas.id}
-                    className="flex flex-col gap-1.5 rounded-xl border border-border/60 p-3 text-xs"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-3 font-mono text-muted-foreground">
-                        <span>
-                          Entrée : <span className="text-foreground">{cas.entree}</span>
-                        </span>
-                        <span>
-                          Attendu :{" "}
-                          <span className="text-foreground">{cas.sortieAttendue}</span>
-                        </span>
-                      </div>
-                      {resultat && (
-                        <Badge
-                          variant="outline"
-                          className={
-                            resultat.reussi
-                              ? "gap-1 rounded-full border-primary/20 bg-primary/10 text-primary"
-                              : "gap-1 rounded-full border-destructive/20 bg-destructive/10 text-destructive"
-                          }
-                        >
-                          {resultat.reussi ? (
-                            <CircleCheck className="size-3" />
-                          ) : (
-                            <CircleX className="size-3" />
-                          )}
-                          {resultat.reussi ? "Réussi" : "Échoué"}
-                        </Badge>
-                      )}
-                    </div>
-                    {resultat && !resultat.reussi && (
-                      <span className="font-mono text-destructive">
-                        Sortie obtenue : {resultat.sortieObtenue}
-                      </span>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Navigation entre questions */}
-      <div className="flex items-center justify-between gap-3">
-        <Button
-          variant="outline"
-          disabled={indexCourant === 0}
-          onClick={() => setIndexCourant((i) => i - 1)}
-        >
-          <ChevronLeft className="mr-1 size-4" />
-          Précédent
-        </Button>
-
-        <div className="flex flex-wrap justify-center gap-2">
-          {questions.map((q, i) => {
-            const traitee = (codes[q.id] ?? "").trim().length > 0
+          {casVisibles.map((cas) => {
+            const resultat = resultatsCourants.find((r) => r.casId === cas.id)
             return (
-              <button
-                key={q.id}
-                onClick={() => setIndexCourant(i)}
-                className={`size-9 rounded-lg text-sm font-semibold transition-colors ${
-                  i === indexCourant
-                    ? "bg-primary text-primary-foreground"
-                    : traitee
-                      ? "bg-primary/15 text-primary"
-                      : "bg-muted text-muted-foreground hover:bg-muted/70"
-                }`}
+              <div
+                key={cas.id}
+                className="flex flex-col gap-1.5 rounded-xl border border-border/60 p-3 text-xs"
               >
-                {i + 1}
-              </button>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3 font-mono text-muted-foreground">
+                    <span>
+                      Entrée : <span className="text-foreground">{cas.entree}</span>
+                    </span>
+                    <span>
+                      Attendu :{" "}
+                      <span className="text-foreground">{cas.sortieAttendue}</span>
+                    </span>
+                  </div>
+                  {resultat && (
+                    <Badge
+                      variant="outline"
+                      className={
+                        resultat.reussi
+                          ? "gap-1 rounded-full border-primary/20 bg-primary/10 text-primary"
+                          : "gap-1 rounded-full border-destructive/20 bg-destructive/10 text-destructive"
+                      }
+                    >
+                      {resultat.reussi ? (
+                        <CircleCheck className="size-3" />
+                      ) : (
+                        <CircleX className="size-3" />
+                      )}
+                      {resultat.reussi ? "Réussi" : "Échoué"}
+                    </Badge>
+                  )}
+                </div>
+                {resultat && !resultat.reussi && (
+                  <span className="font-mono text-destructive">
+                    Sortie obtenue : {resultat.sortieObtenue}
+                  </span>
+                )}
+              </div>
             )
           })}
         </div>
-
-        {indexCourant < questions.length - 1 ? (
-          <Button onClick={() => setIndexCourant((i) => i + 1)}>
-            Suivant
-            <ChevronRight className="ml-1 size-4" />
-          </Button>
-        ) : (
-          <Button className="shadow-md" onClick={() => setDialogOuvert(true)}>
-            <Send className="mr-1 size-4" />
-            Soumettre
-          </Button>
-        )}
-      </div>
-
-      {indexCourant < questions.length - 1 && (
-        <Button
-          variant="outline"
-          className="self-center"
-          onClick={() => setDialogOuvert(true)}
-        >
-          <Send className="mr-1 size-4" />
-          Terminer et soumettre
-        </Button>
       )}
-
-      {/* Modale de confirmation de soumission */}
-      {/* Pendant l'envoi, la fenêtre reste ouverte : l'étudiant voit l'issue de sa remise */}
-      <Dialog
-        open={dialogOuvert}
-        onOpenChange={(ouvert) => {
-          if (!soumissionEnCours) setDialogOuvert(ouvert)
-        }}
-      >
-        <DialogContent
-          showCloseButton={false}
-          className="max-w-md rounded-2xl p-6 text-sm"
-        >
-          <DialogHeader className="gap-2">
-            <DialogTitle className="text-lg font-bold">
-              Confirmer la soumission
-            </DialogTitle>
-            <DialogDescription className="text-sm leading-relaxed">
-              Vous avez traité {nbTraitees} question
-              {nbTraitees > 1 ? "s" : ""} sur {questions.length}.
-              {sansReponse && ` ${sansReponse}`}{" "}
-              Le code sera aussi exécuté contre des cas de tests cachés lors de
-              la correction. Cette action est définitive.
-            </DialogDescription>
-          </DialogHeader>
-
-          {erreurSoumission && (
-            <p className="mt-3 text-sm text-destructive">{erreurSoumission}</p>
-          )}
-
-          <div className="mt-4 flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              variant="outline"
-              className="w-full sm:w-auto"
-              disabled={soumissionEnCours}
-              onClick={() => setDialogOuvert(false)}
-            >
-              Continuer
-            </Button>
-            <Button
-              className="w-full shadow-md sm:w-auto"
-              disabled={soumissionEnCours}
-              onClick={() => soumettre()}
-            >
-              <CircleCheck className="mr-1 size-4 shrink-0" />
-              {soumissionEnCours ? "Envoi..." : "Soumettre"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </PassationShell>
   )
 }
