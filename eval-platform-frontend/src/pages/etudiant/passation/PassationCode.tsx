@@ -1,8 +1,7 @@
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { useParams } from "react-router-dom"
 import Editor from "@monaco-editor/react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -15,7 +14,7 @@ import { formatNombre, TAILLE_MAX_CODE } from "@/lib/passation"
 import EtatPassation from "./EtatPassation"
 import PassationShell from "./PassationShell"
 import type { QuestionExamen } from "@/types"
-import { CircleCheck, CircleX, Play } from "lucide-react"
+import { Play } from "lucide-react"
 
 // Langages proposés dans l'éditeur (id de langage reconnu par Monaco -> libellé)
 const LANGAGES_LABELS: Record<string, string> = {
@@ -27,42 +26,40 @@ const LANGAGES_LABELS: Record<string, string> = {
 }
 
 const LANGAGES = Object.keys(LANGAGES_LABELS)
+const LANGAGE_PAR_DEFAUT = LANGAGES[0]
 
-type ReponsesCode = Record<number, string> // questionId -> code saisi
+/** Réponse de code : le langage en fait partie (enregistré avec le code, nécessaire pour l'exécuter à la correction). */
+interface ReponseCodeLocale {
+  code: string
+  langage: string
+}
+
+type ReponsesCode = Record<number, ReponseCodeLocale> // questionId -> code et langage
 
 function depuisCopie(questions: QuestionExamen[]): ReponsesCode {
   return Object.fromEntries(
-    questions.map((q) => [q.id, q.reponseActuelle?.codeSoumis ?? ""])
+    questions.map((q) => [
+      q.id,
+      { code: q.reponseActuelle?.codeSoumis ?? "", langage: q.reponseActuelle?.langage ?? LANGAGE_PAR_DEFAUT },
+    ])
   )
 }
 
 function versReponses(codes: ReponsesCode) {
-  return Object.entries(codes).map(([questionId, codeSoumis]) => ({
+  return Object.entries(codes).map(([questionId, r]) => ({
     questionId: Number(questionId),
-    codeSoumis,
+    codeSoumis: r.code,
+    langage: r.langage,
   }))
 }
 
 function compterTraitees(codes: ReponsesCode) {
-  return Object.values(codes).filter((c) => c.trim().length > 0).length
-}
-
-interface ResultatExecution {
-  casId: number
-  reussi: boolean
-  sortieObtenue: string
+  return Object.values(codes).filter((r) => r.code.trim().length > 0).length
 }
 
 export default function PassationCode() {
   const { id } = useParams<{ id: string }>()
-
   const [indexCourant, setIndexCourant] = useState(0)
-  const [langages, setLangages] = useState<Record<number, string>>({})
-  const [resultats, setResultats] = useState<Record<number, ResultatExecution[]>>({})
-  const [execution, setExecution] = useState(false)
-  // Version du code par question : incrémentée à chaque modification, elle permet
-  // d'ignorer le résultat d'une exécution lancée sur un code devenu obsolète.
-  const versionCode = useRef<Record<number, number>>({})
 
   const passation = usePassation({ evaluationId: id, depuisCopie, versReponses, compterTraitees })
   const { copie, questions, chargement, erreur, reponses: codes, setReponses: setCodes } = passation
@@ -75,43 +72,23 @@ export default function PassationCode() {
   }
 
   const question = questions[indexCourant]
-  const langageCourant = langages[question.id] ?? LANGAGES[0]
-  const codeCourant = codes[question.id] ?? ""
+  const reponseCourante = codes[question.id] ?? { code: "", langage: LANGAGE_PAR_DEFAUT }
   const casVisibles = question.casDeTestsVisibles
-  const resultatsCourants = resultats[question.id] ?? []
 
-  function invaliderResultats(questionId: number) {
-    versionCode.current[questionId] = (versionCode.current[questionId] ?? 0) + 1
-    setResultats((r) => ({ ...r, [questionId]: [] }))
+  function modifier(patch: Partial<ReponseCodeLocale>) {
+    setCodes((c) => ({
+      ...c,
+      [question.id]: { ...(c[question.id] ?? { code: "", langage: LANGAGE_PAR_DEFAUT }), ...patch },
+    }))
   }
 
   function changerLangage(langage: string | null) {
-    if (!langage) return
-    setLangages((l) => ({ ...l, [question.id]: langage }))
-    invaliderResultats(question.id)
+    if (langage) modifier({ langage })
   }
 
   function changerCode(valeur: string | undefined) {
     // Au-delà de la limite du serveur, chaque sauvegarde serait refusée : le code est coupé et la limite signalée
-    setCodes((c) => ({ ...c, [question.id]: (valeur ?? "").slice(0, TAILLE_MAX_CODE) }))
-    invaliderResultats(question.id)
-  }
-
-  async function executerCode() {
-    const questionId = question.id
-    const version = versionCode.current[questionId] ?? 0
-    setExecution(true)
-    // TODO backend : POST /api/judge0/executer { langage, code, casDeTests }
-    await new Promise((r) => setTimeout(r, 900)) // simulation
-    setExecution(false)
-    // Code modifié pendant l'exécution : ces résultats ne correspondent plus au code affiché
-    if ((versionCode.current[questionId] ?? 0) !== version) return
-    const resultatsSimules: ResultatExecution[] = casVisibles.map((c) => ({
-      casId: c.id,
-      reussi: true,
-      sortieObtenue: c.sortieAttendue,
-    }))
-    setResultats((r) => ({ ...r, [questionId]: resultatsSimules }))
+    modifier({ code: (valeur ?? "").slice(0, TAILLE_MAX_CODE) })
   }
 
   return (
@@ -120,9 +97,9 @@ export default function PassationCode() {
       titreEvaluation={copie.titreEvaluation}
       indexCourant={indexCourant}
       onChangerQuestion={setIndexCourant}
-      estTraitee={(questionId) => (codes[questionId] ?? "").trim().length > 0}
+      estTraitee={(questionId) => (codes[questionId]?.code ?? "").trim().length > 0}
       vocabulaire="traite"
-      noteConfirmation="Le code sera aussi exécuté contre des cas de tests cachés lors de la correction."
+      noteConfirmation="Le code sera exécuté contre les cas de test, visibles et cachés, lors de la correction."
       largeur="max-w-4xl"
     >
       {/* Sélecteur de langage */}
@@ -130,7 +107,7 @@ export default function PassationCode() {
         <span className="text-xs font-semibold text-muted-foreground">
           Langage
         </span>
-        <Select value={langageCourant} onValueChange={changerLangage}>
+        <Select value={reponseCourante.langage} onValueChange={changerLangage}>
           <SelectTrigger className="w-44 rounded-xl">
             <SelectValue />
           </SelectTrigger>
@@ -148,8 +125,8 @@ export default function PassationCode() {
       <div className="overflow-hidden rounded-xl border border-border/60">
         <Editor
           height="320px"
-          language={langageCourant}
-          value={codeCourant}
+          language={reponseCourante.langage}
+          value={reponseCourante.code}
           onChange={changerCode}
           theme="vs-dark"
           options={{
@@ -159,21 +136,23 @@ export default function PassationCode() {
           }}
         />
       </div>
-      {codeCourant.length >= TAILLE_MAX_CODE && (
+      {reponseCourante.code.length >= TAILLE_MAX_CODE && (
         <p className="text-right text-xs font-medium text-destructive">
           Limite de {formatNombre(TAILLE_MAX_CODE)} caractères atteinte : la suite n'est pas enregistrée.
         </p>
       )}
 
-      <Button
-        variant="outline"
-        className="self-start"
-        disabled={execution || !codeCourant.trim()}
-        onClick={executerCode}
-      >
-        <Play className="mr-1 size-4" />
-        {execution ? "Exécution..." : "Exécuter contre les tests"}
-      </Button>
+      {/* Pas d'exécution pendant l'épreuve tant que l'exécuteur isolé n'est pas branché : un faux « Réussi » tromperait */}
+      <div className="flex flex-col gap-1">
+        <Button variant="outline" className="self-start" disabled>
+          <Play className="mr-1 size-4" />
+          Exécution disponible à la correction
+        </Button>
+        <p className="text-xs text-muted-foreground">
+          Votre code n'est pas exécuté pendant l'épreuve : il le sera lors de la correction, contre les cas de test
+          ci-dessous et des cas cachés.
+        </p>
+      </div>
 
       {/* Cas de tests visibles */}
       {casVisibles.length > 0 && (
@@ -181,49 +160,19 @@ export default function PassationCode() {
           <span className="text-xs font-semibold text-muted-foreground">
             Cas de test visibles
           </span>
-          {casVisibles.map((cas) => {
-            const resultat = resultatsCourants.find((r) => r.casId === cas.id)
-            return (
-              <div
-                key={cas.id}
-                className="flex flex-col gap-1.5 rounded-xl border border-border/60 p-3 text-xs"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-3 font-mono text-muted-foreground">
-                    <span>
-                      Entrée : <span className="text-foreground">{cas.entree}</span>
-                    </span>
-                    <span>
-                      Attendu :{" "}
-                      <span className="text-foreground">{cas.sortieAttendue}</span>
-                    </span>
-                  </div>
-                  {resultat && (
-                    <Badge
-                      variant="outline"
-                      className={
-                        resultat.reussi
-                          ? "gap-1 rounded-full border-primary/20 bg-primary/10 text-primary"
-                          : "gap-1 rounded-full border-destructive/20 bg-destructive/10 text-destructive"
-                      }
-                    >
-                      {resultat.reussi ? (
-                        <CircleCheck className="size-3" />
-                      ) : (
-                        <CircleX className="size-3" />
-                      )}
-                      {resultat.reussi ? "Réussi" : "Échoué"}
-                    </Badge>
-                  )}
-                </div>
-                {resultat && !resultat.reussi && (
-                  <span className="font-mono text-destructive">
-                    Sortie obtenue : {resultat.sortieObtenue}
-                  </span>
-                )}
-              </div>
-            )
-          })}
+          {casVisibles.map((cas) => (
+            <div
+              key={cas.id}
+              className="flex flex-wrap items-center gap-3 rounded-xl border border-border/60 p-3 font-mono text-xs text-muted-foreground"
+            >
+              <span>
+                Entrée : <span className="text-foreground">{cas.entree}</span>
+              </span>
+              <span>
+                Attendu : <span className="text-foreground">{cas.sortieAttendue}</span>
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </PassationShell>

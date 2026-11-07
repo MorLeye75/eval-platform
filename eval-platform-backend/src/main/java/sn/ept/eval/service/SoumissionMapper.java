@@ -137,6 +137,7 @@ public class SoumissionMapper {
             repDto.setChoixIds(rq.getChoixCoches().stream().map(ChoixReponse::getId).sorted().collect(Collectors.toList()));
         } else if (reponse instanceof ReponseCode rc) {
             repDto.setCodeSoumis(rc.getCodeSoumis());
+            repDto.setLangage(rc.getLangage());
         } else if (reponse instanceof ReponseOuverte ro) {
             repDto.setTexteSoumis(ro.getTexteSoumis());
         }

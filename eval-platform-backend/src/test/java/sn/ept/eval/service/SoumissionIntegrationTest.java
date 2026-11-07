@@ -449,4 +449,20 @@ class SoumissionIntegrationTest {
             return q.getChoix().stream().map(ChoixReponse::getId).toList();
         });
     }
+
+    @Test
+    @DisplayName("Code : le langage choisi est enregistré avec la réponse et restitué à la reprise")
+    void code_LangageEnregistre() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalCodeId, emailEtudiant).getId();
+        Long questionCodeId = questionRepository.findByEvaluationIdOrderByOrdreAsc(evalCodeId).get(0).getId();
+        ReponseItemDto reponse = new ReponseItemDto(questionCodeId, null, "print(42)", null);
+        reponse.setLangage("python");
+
+        soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(List.of(reponse)), emailEtudiant);
+
+        ReponseItemDto restituee = soumissionService.demarrerOuReprendre(evalCodeId, emailEtudiant)
+                .getQuestions().get(0).getReponseActuelle();
+        assertThat(restituee.getCodeSoumis()).isEqualTo("print(42)");
+        assertThat(restituee.getLangage()).isEqualTo("python");
+    }
 }

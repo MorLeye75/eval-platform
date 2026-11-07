@@ -63,7 +63,7 @@ function afficher(Page: ComponentType) {
 const cas: [string, ComponentType, TypeQuestion, Record<number, unknown>, string][] = [
   ["QCM", PassationQCM, "QCM", { 11: [110], 12: [] }, "1 / 2 répondues"],
   ["questions ouvertes", PassationOuverte, "OUVERTE", { 11: "réponse", 12: "" }, "1 / 2 traitées"],
-  ["code", PassationCode, "CODE", { 11: "print(1)", 12: "" }, "1 / 2 traitées"],
+  ["code", PassationCode, "CODE", { 11: { code: "print(1)", langage: "python" }, 12: { code: "", langage: "python" } }, "1 / 2 traitées"],
 ]
 
 describe.each(cas)("écran de passation %s : parties communes", (_, Page, type, reponses, compteur) => {

@@ -66,7 +66,7 @@ function ouvrirConfirmation(Page: ComponentType) {
 const cas: [string, ComponentType, TypeQuestion, Record<number, unknown>][] = [
   ["QCM", PassationQCM, "QCM", { 11: [], 12: [120], 13: [], 14: [140] }],
   ["questions ouvertes", PassationOuverte, "OUVERTE", { 11: "  ", 12: "réponse", 13: "", 14: "réponse" }],
-  ["code", PassationCode, "CODE", { 11: "", 12: "print(1)", 13: " ", 14: "print(2)" }],
+  ["code", PassationCode, "CODE", { 11: { code: "", langage: "python" }, 12: { code: "print(1)", langage: "python" }, 13: { code: " ", langage: "python" }, 14: { code: "print(2)", langage: "python" } }],
 ]
 
 describe("confirmation de soumission : questions sans réponse", () => {
@@ -101,7 +101,12 @@ describe("confirmation de soumission : questions sans réponse", () => {
 
   it.each(cas)("%s : rien n'est signalé quand tout est traité", (_, Page, type) => {
     etat.questions = [11, 12].map((id, i) => question(id, i + 1, type))
-    etat.reponses = type === "QCM" ? { 11: [110], 12: [120] } : { 11: "a", 12: "b" }
+    etat.reponses =
+      type === "QCM"
+        ? { 11: [110], 12: [120] }
+        : type === "CODE"
+          ? { 11: { code: "a", langage: "python" }, 12: { code: "b", langage: "python" } }
+          : { 11: "a", 12: "b" }
 
     const fenetre = ouvrirConfirmation(Page)
 

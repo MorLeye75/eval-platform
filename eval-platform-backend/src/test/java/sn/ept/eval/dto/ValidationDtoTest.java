@@ -74,4 +74,17 @@ class ValidationDtoTest {
         assertThat(validator.validate(request)).extracting(v -> v.getPropertyPath().toString())
                 .containsExactly("motDePasse");
     }
+
+    @Test
+    @DisplayName("Sauvegarde : un langage inconnu est rejeté, un langage proposé est accepté")
+    void sauvegarde_Langage() {
+        ReponseItemDto inconnu = new ReponseItemDto(1L, null, "x", null);
+        inconnu.setLangage("cobol");
+        ReponseItemDto connu = new ReponseItemDto(1L, null, "x", null);
+        connu.setLangage("python");
+
+        assertThat(validator.validate(new SauvegardeReponsesRequest(List.of(inconnu))))
+                .extracting(v -> v.getPropertyPath().toString()).containsExactly("reponses[0].langage");
+        assertThat(validator.validate(new SauvegardeReponsesRequest(List.of(connu)))).isEmpty();
+    }
 }

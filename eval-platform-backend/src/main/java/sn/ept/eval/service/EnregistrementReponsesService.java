@@ -83,6 +83,7 @@ public class EnregistrementReponsesService {
                 rc.setSoumission(soumission);
                 rc.setQuestion(question);
                 rc.setCodeSoumis(item.getCodeSoumis());
+                rc.setLangage(item.getLangage());
                 reponseEtudiantRepository.save(rc);
             } else {
                 ReponseOuverte ro = (reponse instanceof ReponseOuverte) ? (ReponseOuverte) reponse : new ReponseOuverte();

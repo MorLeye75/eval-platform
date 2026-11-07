@@ -138,6 +138,7 @@ export interface ReponseItem {
   questionId: number
   texteSoumis?: string
   codeSoumis?: string
+  langage?: string | null // réponse de code : c, cpp, java, python, javascript
   choixIds?: number[]
 }
 

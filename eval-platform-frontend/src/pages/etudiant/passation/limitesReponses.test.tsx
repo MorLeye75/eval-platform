@@ -102,10 +102,10 @@ describe("limites de taille des réponses (alignées sur le serveur)", () => {
     afficher(PassationCode)
 
     etat.editeur!("x".repeat(TAILLE_MAX_CODE + 10))
-    expect(derniereMiseAJour()[11]).toHaveLength(TAILLE_MAX_CODE)
+    expect((derniereMiseAJour()[11] as unknown as { code: string }).code).toHaveLength(TAILLE_MAX_CODE)
 
     cleanup()
-    etat.reponses = { 11: "x".repeat(TAILLE_MAX_CODE) }
+    etat.reponses = { 11: { code: "x".repeat(TAILLE_MAX_CODE), langage: "python" } } as unknown as Record<number, string>
     afficher(PassationCode)
     expect(screen.getByText(/Limite de 50 000 caractères atteinte/)).toBeTruthy()
   })
