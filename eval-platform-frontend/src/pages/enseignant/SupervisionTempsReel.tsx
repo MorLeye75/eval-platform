@@ -79,9 +79,17 @@ function useMaintenant() {
   return maintenant
 }
 
+/**
+ * Compte à rebours isolé dans son propre composant : seul lui se redessine chaque seconde,
+ * pas toute la page de supervision (cartes, alertes, liste des étudiants).
+ */
+function TempsRestant({ dateFin }: { dateFin: string }) {
+  const maintenant = useMaintenant()
+  return <>{getTempsRestant(dateFin, maintenant)}</>
+}
+
 export default function SupervisionTempsReel() {
   const { id } = useParams<{ id: string }>()
-  const maintenant = useMaintenant()
   // Sans id (lien du menu) : première évaluation en cours
   const e = id
     ? getEvaluationEnseignant(id)
@@ -123,7 +131,7 @@ export default function SupervisionTempsReel() {
           { label: "Étudiants en cours", value: String(nbEnCours),       icon: Users,        dir: undefined   },
           { label: "Soumissions reçues", value: String(nbSoumis),        icon: CheckCircle2, dir: "up" as const },
           { label: "Alertes détectées",  value: String(alertes.length),  icon: AlertTriangle,dir: alertes.length > 0 ? "down" as const : undefined },
-          { label: "Temps restant",      value: getTempsRestant(e.dateFermeture, maintenant), icon: Clock,     dir: undefined   },
+          { label: "Temps restant",      value: <TempsRestant dateFin={e.dateFermeture} />, icon: Clock,     dir: undefined   },
         ].map((s) => (
           <Card key={s.label} className="rounded-2xl border-border/60 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
