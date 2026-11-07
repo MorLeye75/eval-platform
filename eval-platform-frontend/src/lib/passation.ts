@@ -41,6 +41,12 @@ export async function soumettreCopie(soumissionId: number) {
   return data?.dateRemise ?? null
 }
 
+/** Quiz chronométré : passe à la question suivante si la copie est encore sur `indexActuel` (renvoie la copie). */
+export async function questionQuizSuivante(soumissionId: number, indexActuel: number) {
+  const { data } = await api.post<CopieEnCours>(`/soumissions/${soumissionId}/quiz/suivante`, { indexActuel })
+  return data
+}
+
 /** Anti-triche : signale une sortie de la page ; renvoie le nombre de sorties enregistrées par le serveur. */
 export async function signalerChangementOnglet(soumissionId: number) {
   const { data } = await api.post<{ nbChangementsOnglet: number }>(`/soumissions/${soumissionId}/changement-onglet`)

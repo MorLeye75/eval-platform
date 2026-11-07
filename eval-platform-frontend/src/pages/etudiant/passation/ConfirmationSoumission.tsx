@@ -6,8 +6,8 @@ import { CircleCheck, Home, ListChecks } from "lucide-react"
 
 interface EtatConfirmation {
   titre: string
-  traitees: number
-  total: number
+  traitees?: number // absent pour un quiz chronométré
+  total?: number
   dateRemise?: string | null
 }
 
@@ -44,12 +44,14 @@ export default function ConfirmationSoumission() {
                 <span className="text-muted-foreground">Évaluation</span>
                 <span className="font-semibold">{etat.titre}</span>
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <span className="text-muted-foreground">Questions traitées</span>
-                <span className="font-semibold">
-                  {etat.traitees} / {etat.total}
-                </span>
-              </div>
+              {etat.traitees !== undefined && (
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-muted-foreground">Questions traitées</span>
+                  <span className="font-semibold">
+                    {etat.traitees} / {etat.total}
+                  </span>
+                </div>
+              )}
             </>
           )}
           <div className="flex items-center justify-between gap-4">

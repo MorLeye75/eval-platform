@@ -151,6 +151,15 @@ export interface QuestionExamen {
   choixPossibles: { id: number; texte: string }[]
   casDeTestsVisibles: { id: number; entree: string; sortieAttendue: string }[]
   reponseActuelle: ReponseItem | null
+  dureeQuestion?: number | null // secondes (quiz chronométré)
+}
+
+/** Quiz chronométré : position de la copie (le serveur n'envoie que la question en cours). */
+export interface EtatQuiz {
+  indexQuestion: number // = nbQuestions quand le quiz est terminé
+  nbQuestions: number
+  dureeQuestion: number | null
+  tempsRestantQuestionSecondes: number
 }
 
 export interface CopieEnCours {
@@ -166,6 +175,7 @@ export interface CopieEnCours {
   tempsRestantSecondes: number
   nbChangementsOnglet: number
   questions: QuestionExamen[]
+  quiz?: EtatQuiz | null
 }
 
 export interface SauvegardeResponse {

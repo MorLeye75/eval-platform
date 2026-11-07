@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useExamTimer } from "@/hooks/useExamTimer"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
 import { useAutoSave, lireTampon, viderTampon } from "@/hooks/useAutoSave"
@@ -13,7 +13,7 @@ import {
   messageErreur,
 } from "@/lib/passation"
 import { cleTamponCopie } from "@/lib/session"
-import type { QuestionExamen, ReponseItem } from "@/types"
+import type { CopieEnCours, QuestionExamen, ReponseItem } from "@/types"
 
 interface UsePassationOptions<T> {
   evaluationId: string | undefined
@@ -40,6 +40,7 @@ export function usePassation<T>({
   compterTraitees,
 }: UsePassationOptions<T>) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const {
     data: copie,
@@ -86,8 +87,10 @@ export function usePassation<T>({
       replace: true,
       state: {
         titre: copie?.titreEvaluation,
-        traitees: compterTraiteesRef.current(reponsesRef.current),
-        total: copie?.questions.length ?? 0,
+        // Quiz : le navigateur ne connaît que la question en cours, pas les réponses aux questions passées
+        ...(copie?.quiz
+          ? {}
+          : { traitees: compterTraiteesRef.current(reponsesRef.current), total: copie?.questions.length ?? 0 }),
         // Heure de remise du serveur (affichée à l'étudiant), pas celle du navigateur
         dateRemise,
       },
@@ -216,5 +219,8 @@ export function usePassation<T>({
     erreurSoumission,
     avertissement,
     changementsOnglet,
+    sauvegarderMaintenant,
+    /** Remplace la copie par celle renvoyée par le serveur (quiz : question suivante). */
+    remplacerCopie: (nouvelle: CopieEnCours) => queryClient.setQueryData(["passation", evaluationId], nouvelle),
   }
 }
