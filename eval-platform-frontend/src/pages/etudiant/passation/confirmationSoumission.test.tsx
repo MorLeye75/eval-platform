@@ -8,7 +8,11 @@ import PassationQCM from "./PassationQCM"
 import PassationOuverte from "./PassationOuverte"
 import PassationCode from "./PassationCode"
 
-const etat = vi.hoisted(() => ({ questions: [] as unknown[], reponses: {} as Record<number, unknown> }))
+const etat = vi.hoisted(() => ({
+  questions: [] as unknown[],
+  reponses: {} as Record<number, unknown>,
+  soumissionEnCours: false,
+}))
 vi.mock("@/hooks/usePassation", () => ({
   usePassation: () => ({
     copie: { id: 1, titreEvaluation: "Épreuve", questions: etat.questions },
@@ -22,7 +26,7 @@ vi.mock("@/hooks/usePassation", () => ({
     derniereSauvegarde: null,
     erreurSauvegarde: false,
     soumettre: vi.fn(),
-    soumissionEnCours: false,
+    soumissionEnCours: etat.soumissionEnCours,
     erreurSoumission: null,
     avertissement: null,
   }),
@@ -68,6 +72,20 @@ const cas: [string, ComponentType, TypeQuestion, Record<number, unknown>][] = [
 describe("confirmation de soumission : questions sans réponse", () => {
   afterEach(() => {
     cleanup()
+    etat.soumissionEnCours = false
+  })
+
+  it.each(cas)("%s : pendant l'envoi, la fenêtre ne se ferme pas et « Continuer » est désactivé", (_, Page, type) => {
+    etat.questions = [11, 12].map((id, i) => question(id, i + 1, type))
+    etat.reponses = {}
+    etat.soumissionEnCours = true
+
+    const fenetre = ouvrirConfirmation(Page)
+    const continuer = screen.getByRole("button", { name: "Continuer" }) as HTMLButtonElement
+    fireEvent.keyDown(fenetre, { key: "Escape" })
+
+    expect(continuer.disabled).toBe(true)
+    expect(screen.queryByRole("dialog")).not.toBeNull()
   })
 
   it.each(cas)("%s : la fenêtre liste les numéros des questions sans réponse", (_, Page, type, reponses) => {

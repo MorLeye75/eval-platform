@@ -68,7 +68,7 @@ describe("usePassation : soumission (DS-01)", () => {
 
   it("remise expirée côté navigateur mais reçue par le serveur : le réessai mène à la confirmation", async () => {
     // Le serveur est idempotent : une copie déjà remise renvoie 200 « Cette copie a déjà été transmise. »
-    vi.mocked(soumettreCopie).mockRejectedValueOnce(delaiDepasse()).mockResolvedValueOnce(undefined)
+    vi.mocked(soumettreCopie).mockRejectedValueOnce(delaiDepasse()).mockResolvedValueOnce("2026-11-07T10:42:13.51")
     const { result } = monter()
     await waitFor(() => expect(result.current.chargement).toBe(false))
 
@@ -82,7 +82,11 @@ describe("usePassation : soumission (DS-01)", () => {
     await act(async () => {
       await result.current.soumettre()
     })
-    expect(navigate).toHaveBeenCalledWith("/examen/7/confirmation", expect.anything())
+    // Heure de remise donnée par le serveur, pas celle du navigateur
+    expect(navigate).toHaveBeenCalledWith(
+      "/examen/7/confirmation",
+      expect.objectContaining({ state: expect.objectContaining({ dateRemise: "2026-11-07T10:42:13.51" }) })
+    )
     expect(sauvegarderReponses).not.toHaveBeenCalled() // rien de modifié : pas de sauvegarde avant la remise
   })
 

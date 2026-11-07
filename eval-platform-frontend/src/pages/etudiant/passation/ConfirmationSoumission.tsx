@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
+import { formatHeure } from "@/lib/passation"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { CircleCheck, Home, ListChecks } from "lucide-react"
@@ -7,16 +8,15 @@ interface EtatConfirmation {
   titre: string
   traitees: number
   total: number
+  dateRemise?: string | null
 }
 
 export default function ConfirmationSoumission() {
   const location = useLocation()
   const etat = location.state as EtatConfirmation | null
 
-  const heureSoumission = new Date().toLocaleTimeString("fr-FR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  })
+  // Heure enregistrée par le serveur (celle qui fait foi), à défaut l'heure actuelle
+  const heureSoumission = formatHeure(etat?.dateRemise ?? undefined)
 
   return (
     <div className="mx-auto flex max-w-lg flex-col items-center gap-6 py-8 text-center">

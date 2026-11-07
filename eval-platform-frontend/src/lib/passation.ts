@@ -35,9 +35,10 @@ export async function sauvegarderReponses(
   return data
 }
 
-/** DS-01 : POST /soumissions/{id}/soumettre */
+/** DS-01 : POST /soumissions/{id}/soumettre. Renvoie l'heure de remise enregistrée par le serveur. */
 export async function soumettreCopie(soumissionId: number) {
-  await api.post(`/soumissions/${soumissionId}/soumettre`)
+  const { data } = await api.post<{ dateRemise: string | null }>(`/soumissions/${soumissionId}/soumettre`)
+  return data?.dateRemise ?? null
 }
 
 function codeConflit(err: unknown): string | null {

@@ -403,7 +403,13 @@ export default function PassationCode() {
       )}
 
       {/* Modale de confirmation de soumission */}
-      <Dialog open={dialogOuvert} onOpenChange={setDialogOuvert}>
+      {/* Pendant l'envoi, la fenêtre reste ouverte : l'étudiant voit l'issue de sa remise */}
+      <Dialog
+        open={dialogOuvert}
+        onOpenChange={(ouvert) => {
+          if (!soumissionEnCours) setDialogOuvert(ouvert)
+        }}
+      >
         <DialogContent
           showCloseButton={false}
           className="max-w-md rounded-2xl p-6 text-sm"
@@ -429,6 +435,7 @@ export default function PassationCode() {
             <Button
               variant="outline"
               className="w-full sm:w-auto"
+              disabled={soumissionEnCours}
               onClick={() => setDialogOuvert(false)}
             >
               Continuer

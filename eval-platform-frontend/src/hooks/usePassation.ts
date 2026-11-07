@@ -76,7 +76,7 @@ export function usePassation<T>({
     reponsesRef.current = reponses
   })
 
-  function quitter(fin: Fin) {
+  function quitter(fin: Fin, dateRemise: string | null = null) {
     if (termine.current) return
     termine.current = true
     if (cleTampon) viderTampon(cleTampon)
@@ -86,6 +86,8 @@ export function usePassation<T>({
         titre: copie?.titreEvaluation,
         traitees: compterTraiteesRef.current(reponsesRef.current),
         total: copie?.questions.length ?? 0,
+        // Heure de remise du serveur (affichée à l'étudiant), pas celle du navigateur
+        dateRemise,
       },
     })
   }
@@ -153,8 +155,8 @@ export function usePassation<T>({
     // Fin du chrono : soumission quoi qu'il arrive, seules les réponses déjà enregistrées sur le serveur sont garanties
 
     try {
-      await soumettreCopie(copie.id)
-      quitter(fin)
+      const dateRemise = await soumettreCopie(copie.id)
+      quitter(fin, dateRemise)
     } catch (err) {
       if (estCopieVerrouillee(err)) {
         // DS-01 cas critique : temps dépassé au-delà de la marge, copie figée par le serveur
