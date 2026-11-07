@@ -26,46 +26,46 @@ note over B, D : une seule transaction (@Transactional), verrous libérés au co
 B -> D ++ : SELECT Evaluation WHERE id = :id
 D --> B -- : statut, dates, promotions
 
-alt [évaluation inconnue]
+alt évaluation inconnue
   B --> F : 404 Not Found
-else [étudiant hors des promotions de l'évaluation]
+else étudiant hors des promotions de l'évaluation
   B --> F : 403 Forbidden
-else [étudiant inscrit]
+else étudiant inscrit
   B -> D : SELECT Etudiant WHERE id = :etu FOR UPDATE
   note right of B : sérialise les démarrages d'un même étudiant\n(double clic, 2 onglets) ; aucune attente entre étudiants
   B -> D ++ : SELECT Soumission WHERE evaluation_id = :id\nAND etudiant_id = :etu FOR UPDATE
   D --> B -- : Soumission existante ou rien
   note right of B : la clôture automatique (DS-11) verrouille aussi la Soumission\net revérifie statut = EN_COURS : une seule clôture possible
 
-  alt [aucune Soumission]
-    alt [évaluation non ouverte : avant dateOuverture, après dateFermeture\nou statut ∉ {PUBLIEE, EN_COURS}]
+  alt aucune Soumission
+    alt évaluation non ouverte : avant dateOuverture, après dateFermeture\nou statut ∉ {PUBLIEE, EN_COURS}
       B --> F : 400 Bad Request (message propre à chaque cas)
-    else [évaluation ouverte]
+    else évaluation ouverte
       B -> D : INSERT Soumission (statut = 'EN_COURS', dateDebut = now(),\nversionReponses = 0)
       note right of D : UNIQUE (evaluation_id, etudiant_id) :\nune seule Soumission par étudiant et par évaluation
     end
-  else [Soumission existante]
+  else Soumission existante
     note right of B : conditions d'ouverture non revérifiées :\nune copie existante est toujours renvoyée selon son état
-    opt [statut = EN_COURS]
+    opt statut = EN_COURS
       B -> D ++ : SELECT AmenagementTemps (etudiant, evaluation)
       D --> B -- : durée personnalisée ou rien
       B -> B : fin = min(dateDebut + durée effective, dateFermeture)\nexpirée si now() > fin + marge (2 min)
       note right of B : même calcul et même marge pour la sauvegarde,\nla soumission et la clôture automatique (TempsEpreuveService)
     end
-    alt [EN_COURS et expirée]
+    alt EN_COURS et expirée
       B -> D : UPDATE Soumission SET statut = 'SOUMIS', dateRemise = fin\n(ligne verrouillée, statut revérifié = 'EN_COURS')
       note right of B : copie figée à la dernière sauvegarde, correction lancée\naprès commit (sans effet si la copie n'est plus SOUMIS),\npas d'alerte anti-triche
       B --> F : 200 OK { id, statut = SOUMIS }
       note right of F : fin du traitement :\nquestions et réponses non chargées
-    else [déjà remise : SOUMIS, EN_CORRECTION, EVALUE]
+    else déjà remise : SOUMIS, EN_CORRECTION, EVALUE
       B --> F : 200 OK { id, statut }
       note right of F : fin du traitement :\nquestions et réponses non chargées
-    else [EN_COURS dans les délais]
+    else EN_COURS dans les délais
       note right of B : reprise
     end
   end
 
-  opt [Soumission EN_COURS (nouvelle ou reprise dans les délais)]
+  opt Soumission EN_COURS (nouvelle ou reprise dans les délais)
     B -> D ++ : SELECT Question + ReponseEtudiant de la Soumission
     D --> B -- : questions, réponses enregistrées
     B -> B : tempsRestant = max(0, fin - now())
@@ -74,19 +74,19 @@ else [étudiant inscrit]
 end
 deactivate B
 
-alt [HTTP 200 et statut = EN_COURS]
-  alt [tampon localStorage saisi sur la version = versionReponses]
+alt HTTP 200 et statut = EN_COURS
+  alt tampon localStorage saisi sur la version = versionReponses
     F -> F : restaure le tampon (réponses non encore synchronisées)
-  else [tampon saisi sur une version plus ancienne]
+  else tampon saisi sur une version plus ancienne
     F -> F : réponses du serveur affichées (source de vérité) ;\ntampon mis de côté (non restauré, non détruit)
   end
   F -> F : chrono affiché sur tempsRestantSecondes
   note right of F : le front affiche le temps,\nle serveur refuse toute action hors délai (DS-01, DS-02)
   F --> E : affiche l'épreuve
-else [HTTP 200 et statut ∈ {SOUMIS, EN_CORRECTION, EVALUE}]
+else HTTP 200 et statut ∈ {SOUMIS, EN_CORRECTION, EVALUE}
   F -> F : supprime les tampons de la copie
   F --> E : "Votre copie a déjà été remise"
-else [HTTP 400, 403 ou 404]
+else HTTP 400, 403 ou 404
   F --> E : message "detail" renvoyé par le serveur (RFC 7807)
 end
 deactivate F
