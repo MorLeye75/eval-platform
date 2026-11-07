@@ -47,6 +47,16 @@ describe("useAutoSave : tampon local et fermeture de page (DS-02)", () => {
     expect(tampon()).toEqual({ version: 3, donnees: { 1: "modifiée" } })
   })
 
+  it("annuler une modification (retour aux réponses du serveur) vide le tampon : un F5 ne la ressuscite pas", () => {
+    const { rerender } = monter(vi.fn())
+    rerender({ data: { 1: "cochée puis décochée" }, enabled: true })
+    expect(tampon()).not.toBeNull()
+
+    rerender({ data: { 1: "serveur" }, enabled: true })
+
+    expect(tampon()).toBeNull()
+  })
+
   it("une modification faite pendant l'envoi reste dans le tampon, sur la nouvelle version du serveur", async () => {
     let confirmer!: (c: SauvegardeConfirmee) => void
     const onSave = vi.fn(() => new Promise<SauvegardeConfirmee>((r) => (confirmer = r)))

@@ -185,7 +185,11 @@ export function useAutoSave<T>({
   // Chaque modification non envoyée part aussitôt dans le tampon (rechargement de page entre deux envois)
   useEffect(() => {
     if (!enabled || !cleTampon) return
-    if (JSON.stringify(data) === dernierSerialise.current) return
+    // Retour aux réponses du serveur (modification annulée) : plus rien à garder, sinon un F5 la ressusciterait
+    if (JSON.stringify(data) === dernierSerialise.current) {
+      retirer(cleTampon)
+      return
+    }
     ecrireTampon(cleTampon, { version: versionServeur.current, donnees: data })
   }, [data, enabled, cleTampon])
 
