@@ -168,6 +168,36 @@ class SoumissionIntegrationTest {
     }
 
     @Test
+    @DisplayName("Consultation : une fois sa copie remise, l'étudiant ne récupère plus les énoncés ; l'enseignant si")
+    void getDetail_CopieRemise_SansEnoncesPourLEtudiant() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        assertThat(soumissionService.getDetail(soumissionId, emailEtudiant).getQuestions()).isNotEmpty();
+
+        soumissionService.soumettreCopie(soumissionId, emailEtudiant);
+
+        // D'autres étudiants (tiers-temps) peuvent encore composer : le sujet ne doit plus sortir par l'API
+        SoumissionDetailResponse pourEtudiant = soumissionService.getDetail(soumissionId, emailEtudiant);
+        assertThat(pourEtudiant.getId()).isEqualTo(soumissionId);
+        assertThat(pourEtudiant.getStatut()).isNotEqualTo(StatutSoumission.EN_COURS);
+        assertThat(pourEtudiant.getQuestions()).isNullOrEmpty();
+        assertThat(soumissionService.getDetail(soumissionId, "prof@ept.sn").getQuestions()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("Consultation : une copie encore EN_COURS mais expirée ne renvoie plus les énoncés à l'étudiant")
+    void getDetail_CopieExpireeNonCloturee_SansEnoncesPourLEtudiant() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        // Temps écoulé, mais la tâche planifiée n'est pas encore passée : la copie est toujours EN_COURS
+        jdbcTemplate.update("update soumissions set date_debut = ? where id = ?", LocalDateTime.now().minusMinutes(60), soumissionId);
+
+        SoumissionDetailResponse pourEtudiant = soumissionService.getDetail(soumissionId, emailEtudiant);
+
+        assertThat(pourEtudiant.getStatut()).isEqualTo(StatutSoumission.EN_COURS);
+        assertThat(pourEtudiant.getQuestions()).isNullOrEmpty();
+        assertThat(soumissionService.getDetail(soumissionId, "prof@ept.sn").getQuestions()).isNotEmpty();
+    }
+
+    @Test
     @DisplayName("Quiz chronométré : les choix cochés sont enregistrés et corrigés automatiquement")
     void quizChronometre_SauvegardeEtCorrection() throws InterruptedException {
         Long evalQuizId = creerEvaluationQuiz();

@@ -203,10 +203,19 @@ public class SoumissionService {
     }
 
     /**
-     * Récupérer le détail complet d'une soumission.
+     * Récupérer le détail d'une soumission. L'enseignant de l'évaluation et l'administrateur voient toujours
+     * la copie complète ; l'étudiant ne reçoit les énoncés que pendant sa composition (copie EN_COURS dans
+     * les temps), comme à la reprise (DS-10) : d'autres étudiants (tiers-temps) peuvent encore composer.
      */
     @Transactional(readOnly = true)
     public SoumissionDetailResponse getDetail(Long soumissionId, String userEmail) {
-        return soumissionMapper.versDetail(soumissionAccesService.copieConsultable(soumissionId, userEmail));
+        Soumission soumission = soumissionAccesService.copieConsultable(soumissionId, userEmail);
+        boolean consulteeParSonEtudiant = soumission.getEtudiant().getEmail().equalsIgnoreCase(userEmail);
+        boolean enComposition = soumission.getStatut() == StatutSoumission.EN_COURS
+                && !tempsEpreuveService.estExpiree(soumission);
+        if (consulteeParSonEtudiant && !enComposition) {
+            return soumissionMapper.versDetailSansQuestions(soumission);
+        }
+        return soumissionMapper.versDetail(soumission);
     }
 }
