@@ -115,8 +115,13 @@ export function erreurQuestion(q: QuestionLocal): string | null {
   }
   if (q.type === "QUIZ_CHRONOMETREE" && !((q.dureeQuestion ?? 0) >= 5))
     return "La durée de la question doit être d'au moins 5 secondes."
-  if (q.type === "CODE" && (q.casTests ?? []).length === 0)
-    return "Ajoutez au moins un cas de test."
+  if (q.type === "CODE") {
+    const casTests = q.casTests ?? []
+    if (casTests.length === 0) return "Ajoutez au moins un cas de test."
+    // Colonne obligatoire côté serveur, et sans elle le cas ne peut pas être corrigé
+    const sansSortie = casTests.findIndex((c) => !c.sortieAttendue.trim())
+    if (sansSortie >= 0) return `Le cas de test ${sansSortie + 1} n'a pas de sortie attendue.`
+  }
   return null
 }
 

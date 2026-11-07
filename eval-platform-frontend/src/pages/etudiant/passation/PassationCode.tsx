@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { usePassation } from "@/hooks/usePassation"
+import { messageSansReponse, numerosSansReponse } from "@/lib/passation"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import type { QuestionExamen } from "@/types"
@@ -117,6 +118,9 @@ export default function PassationCode() {
   const resultatsCourants = resultats[question.id] ?? []
 
   const nbTraitees = compterTraitees(codes)
+  const sansReponse = messageSansReponse(
+    numerosSansReponse(questions, (id) => (codes[id] ?? "").trim().length > 0)
+  )
   const progression = (nbTraitees / questions.length) * 100
 
   function invaliderResultats(questionId: number) {
@@ -400,8 +404,7 @@ export default function PassationCode() {
             <DialogDescription className="text-sm leading-relaxed">
               Vous avez traité {nbTraitees} question
               {nbTraitees > 1 ? "s" : ""} sur {questions.length}.
-              {nbTraitees < questions.length &&
-                " Les questions laissées vides seront comptées comme non traitées."}{" "}
+              {sansReponse && ` ${sansReponse}`}{" "}
               Le code sera aussi exécuté contre des cas de tests cachés lors de
               la correction. Cette action est définitive.
             </DialogDescription>

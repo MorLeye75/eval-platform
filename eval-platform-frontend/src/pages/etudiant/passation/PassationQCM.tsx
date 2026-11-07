@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { usePassation } from "@/hooks/usePassation"
+import { messageSansReponse, numerosSansReponse } from "@/lib/passation"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import type { QuestionExamen } from "@/types"
@@ -81,6 +82,7 @@ export default function PassationQCM() {
 
   const question = questions[indexCourant]
   const nbRepondues = compterTraitees(reponses)
+  const sansReponse = messageSansReponse(numerosSansReponse(questions, (id) => (reponses[id] ?? []).length > 0))
   const progression = (nbRepondues / questions.length) * 100
 
   // ---------- Gestion des réponses ----------
@@ -289,8 +291,7 @@ export default function PassationQCM() {
             <DialogDescription className="text-sm leading-relaxed">
               Vous avez répondu à {nbRepondues} question
               {nbRepondues > 1 ? "s" : ""} sur {questions.length}.
-              {nbRepondues < questions.length &&
-                " Les questions sans réponse seront comptées comme non traitées."}{" "}
+              {sansReponse && ` ${sansReponse}`}{" "}
               Cette action est définitive.
             </DialogDescription>
           </DialogHeader>

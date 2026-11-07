@@ -70,3 +70,16 @@ export function formatHeure(iso?: string) {
   if (iso && /T\d{2}:\d{2}/.test(iso)) return iso.slice(11, 16)
   return new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
 }
+
+/** Numéros (1, 2…) des questions sans réponse, dans l'ordre de l'épreuve (pas leurs identifiants). */
+export function numerosSansReponse(questions: { id: number }[], estTraitee: (questionId: number) => boolean) {
+  return questions.flatMap((q, i) => (estTraitee(q.id) ? [] : [i + 1]))
+}
+
+/** Phrase de la fenêtre de confirmation listant les questions sans réponse, ou null si tout est traité. */
+export function messageSansReponse(numeros: number[]): string | null {
+  if (numeros.length === 0) return null
+  if (numeros.length === 1) return `La question ${numeros[0]} est sans réponse et sera comptée comme non traitée.`
+  const liste = `${numeros.slice(0, -1).join(", ")} et ${numeros[numeros.length - 1]}`
+  return `Les questions ${liste} sont sans réponse et seront comptées comme non traitées.`
+}

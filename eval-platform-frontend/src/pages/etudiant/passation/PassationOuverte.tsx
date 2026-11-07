@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { usePassation } from "@/hooks/usePassation"
+import { messageSansReponse, numerosSansReponse } from "@/lib/passation"
 import { useAntiCheat } from "@/hooks/useAntiCheat"
 import EtatPassation from "./EtatPassation"
 import type { QuestionExamen } from "@/types"
@@ -81,6 +82,9 @@ export default function PassationOuverte() {
   const question = questions[indexCourant]
   const reponseCourante = reponses[question.id] ?? ""
   const nbRepondues = compterTraitees(reponses)
+  const sansReponse = messageSansReponse(
+    numerosSansReponse(questions, (id) => (reponses[id] ?? "").trim().length > 0)
+  )
   const progression = (nbRepondues / questions.length) * 100
 
   const nbMots = reponseCourante.trim()
@@ -252,8 +256,7 @@ export default function PassationOuverte() {
             <DialogDescription className="text-sm leading-relaxed">
               Vous avez traité {nbRepondues} question
               {nbRepondues > 1 ? "s" : ""} sur {questions.length}.
-              {nbRepondues < questions.length &&
-                " Les questions laissées vides seront comptées comme non traitées."}{" "}
+              {sansReponse && ` ${sansReponse}`}{" "}
               Cette action est définitive.
             </DialogDescription>
           </DialogHeader>
