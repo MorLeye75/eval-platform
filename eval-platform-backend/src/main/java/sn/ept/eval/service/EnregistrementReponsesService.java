@@ -73,11 +73,12 @@ public class EnregistrementReponsesService {
                 ReponseQCM rq = (reponse instanceof ReponseQCM) ? (ReponseQCM) reponse : new ReponseQCM();
                 rq.setSoumission(soumission);
                 rq.setQuestion(question);
-                if (item.getChoixIds() != null && !item.getChoixIds().isEmpty()) {
-                    rq.setChoixCoches(getChoixValides(questionQcm, item.getChoixIds()));
-                } else {
-                    rq.setChoixCoches(new ArrayList<>());
-                }
+                Set<ChoixReponse> coches = (item.getChoixIds() != null && !item.getChoixIds().isEmpty())
+                        ? getChoixValides(questionQcm, item.getChoixIds())
+                        : Set.of();
+                // Mise à jour sur place : Hibernate ne supprime et n'insère que les choix qui changent
+                rq.getChoixCoches().retainAll(coches);
+                rq.getChoixCoches().addAll(coches);
                 reponseEtudiantRepository.save(rq);
             } else if (question instanceof QuestionCode) {
                 ReponseCode rc = (reponse instanceof ReponseCode) ? (ReponseCode) reponse : new ReponseCode();
@@ -111,7 +112,7 @@ public class EnregistrementReponsesService {
         }
     }
 
-    private List<ChoixReponse> getChoixValides(QuestionQCM question, List<Long> choixIds) {
+    private Set<ChoixReponse> getChoixValides(QuestionQCM question, List<Long> choixIds) {
         Set<Long> idsDemandes = new HashSet<>(choixIds);
         List<ChoixReponse> choix = choixReponseRepository.findAllById(idsDemandes);
         boolean tousValides = choix.size() == idsDemandes.size()
@@ -122,7 +123,7 @@ public class EnregistrementReponsesService {
         if (!Boolean.TRUE.equals(question.getEstChoixMultiple()) && choix.size() > 1) {
             throw new IllegalArgumentException("La question " + question.getId() + " n'accepte qu'un seul choix.");
         }
-        return choix;
+        return new HashSet<>(choix);
     }
 
     private boolean estDuBonType(ReponseEtudiant reponse, Question question) {

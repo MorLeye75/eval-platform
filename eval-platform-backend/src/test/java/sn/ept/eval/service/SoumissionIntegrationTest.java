@@ -24,6 +24,7 @@ import sn.ept.eval.repository.*;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -410,7 +411,7 @@ class SoumissionIntegrationTest {
             evaluation.setDateFermeture(LocalDateTime.now().plusHours(2));
             evaluation.setStatut(StatutEvaluation.EN_COURS);
             evaluation.setEnseignant((Enseignant) utilisateurRepository.findByEmail("prof@ept.sn").orElseThrow());
-            evaluation.setPromotions(List.of(promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
+            evaluation.setPromotions(Set.of(promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
 
             QuestionQuiz quiz = new QuestionQuiz("Complexité d'une recherche dichotomique ?", 1, 4.0, false, 30);
             quiz.addChoix(new ChoixReponse("O(n)", false));

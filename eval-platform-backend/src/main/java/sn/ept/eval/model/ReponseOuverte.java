@@ -9,7 +9,8 @@ public class ReponseOuverte extends ReponseEtudiant {
     @Column(columnDefinition = "TEXT")
     private String texteSoumis;
 
-    @OneToOne(cascade = CascadeType.ALL, orphanRemoval = true)
+    // LAZY : la proposition n'est lue que pour la validation par l'enseignant, pas à chaque chargement de copie
+    @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @JoinColumn(name = "proposition_ia_id")
     private PropositionIA propositionIA;
 

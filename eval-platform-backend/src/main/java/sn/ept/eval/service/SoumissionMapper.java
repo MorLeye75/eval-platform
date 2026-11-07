@@ -115,7 +115,7 @@ public class SoumissionMapper {
         ReponseItemDto repDto = new ReponseItemDto();
         repDto.setQuestionId(q.getId());
         if (reponse instanceof ReponseQCM rq) {
-            repDto.setChoixIds(rq.getChoixCoches().stream().map(ChoixReponse::getId).collect(Collectors.toList()));
+            repDto.setChoixIds(rq.getChoixCoches().stream().map(ChoixReponse::getId).sorted().collect(Collectors.toList()));
         } else if (reponse instanceof ReponseCode rc) {
             repDto.setCodeSoumis(rc.getCodeSoumis());
         } else if (reponse instanceof ReponseOuverte ro) {

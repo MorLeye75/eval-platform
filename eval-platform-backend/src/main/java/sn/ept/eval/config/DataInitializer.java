@@ -15,6 +15,7 @@ import sn.ept.eval.repository.UtilisateurRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Jeu de données de démonstration : uniquement pour le développement local et les tests.
@@ -72,7 +73,7 @@ public class DataInitializer implements CommandLineRunner {
         eval1.setStatut(StatutEvaluation.EN_COURS);
         eval1.setResultatsPublies(false);
         eval1.setEnseignant(prof);
-        eval1.setPromotions(List.of(dic2));
+        eval1.setPromotions(Set.of(dic2));
 
         QuestionQCM q1 = new QuestionQCM("Quelle structure de données suit le principe LIFO (Last In, First Out) ?", 1, 2.0, false);
         q1.addChoix(new ChoixReponse("File (Queue)", false));
@@ -100,7 +101,7 @@ public class DataInitializer implements CommandLineRunner {
         eval2.setStatut(StatutEvaluation.EN_COURS);
         eval2.setResultatsPublies(false);
         eval2.setEnseignant(prof);
-        eval2.setPromotions(List.of(dic2));
+        eval2.setPromotions(Set.of(dic2));
 
         QuestionCode qCode = new QuestionCode("Écrire une fonction `estPalindrome(String s)` qui renvoie true si la chaîne est un palindrome.", 1, 5.0);
         qCode.addCasDeTest(new CasDeTest("radar", "true", false));

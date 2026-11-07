@@ -26,6 +26,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -228,7 +229,7 @@ class SoumissionServiceTest {
         evaluation.setDateOuverture(MAINTENANT.minusHours(1));
         evaluation.setDateFermeture(MAINTENANT.plusHours(1));
         evaluation.setStatut(StatutEvaluation.EN_COURS);
-        evaluation.setPromotions(List.of(new Promotion("DIC2 Informatique", "2025/2026")));
+        evaluation.setPromotions(Set.of(new Promotion("DIC2 Informatique", "2025/2026")));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
         when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
@@ -348,6 +349,6 @@ class SoumissionServiceTest {
         Promotion dic2 = new Promotion("DIC2 Informatique", "2025/2026");
         dic2.setId(5L);
         etudiant.setPromotion(dic2);
-        evaluation.setPromotions(List.of(dic2));
+        evaluation.setPromotions(Set.of(dic2));
     }
 }
