@@ -68,6 +68,7 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `DB_URL` | non | `jdbc:postgresql://localhost:5432/eval_platform_db` | URL JDBC |
 | `DB_USERNAME` | non | `postgres` | utilisateur PostgreSQL |
 | `JWT_EXPIRATION_MS` | non | `86400000` (24 h) | durée de validité des jetons |
+| `FORWARD_HEADERS_STRATEGY` | derrière un proxy | `none` | `native` derrière un reverse proxy (nginx, traefik…) pour lire l'IP réelle du client dans `X-Forwarded-For` ; laisser `none` sans proxy (sinon un client pourrait inventer son IP) |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.
 L'absence de `DB_PASSWORD` est détectée avant toute connexion à la base (`ControleConfigurationObligatoire`) :
@@ -82,7 +83,9 @@ ni de secret par défaut) : l'application démarre sans profil et exige ces vari
 |---|---|---|
 | `passation.taches-planifiees.actif` | `true` | clôture automatique des copies et relance des corrections |
 | `passation.taches-planifiees.intervalle-ms` | `60000` | fréquence de ces tâches |
-| `securite.login.max-echecs` | `5` | échecs de connexion avant blocage |
+| `securite.login.max-echecs` | `5` | échecs de connexion avant blocage d'un couple (email, IP) |
+| `securite.login.max-echecs-par-ip` | `100` | échecs depuis une même IP, tous comptes confondus, avant blocage de l'IP (password spraying). À ajuster : les étudiants d'un campus partagent souvent une IP |
+| `securite.login.max-compteurs` | `10000` | entrées en mémoire par type de compteur (couples, IP) ; au-delà, les plus anciennes sont évincées |
 | `securite.login.fenetre-minutes` | `15` | fenêtre de comptage des échecs |
 | `securite.login.duree-blocage-minutes` | `15` | durée du blocage |
 

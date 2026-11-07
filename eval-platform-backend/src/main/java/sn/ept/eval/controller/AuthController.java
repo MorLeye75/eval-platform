@@ -77,8 +77,9 @@ public class AuthController {
     public ResponseEntity<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
                                                           HttpServletRequest request) {
         // Adresse de la connexion TCP : derrière un reverse proxy, configurer server.forward-headers-strategy
-        String cle = TentativesConnexionService.cle(loginRequest.getEmail(), request.getRemoteAddr());
-        tentativesConnexionService.verifierNonBloque(cle);
+        // IP du client : derrière un reverse proxy, celle transmise par le proxy si FORWARD_HEADERS_STRATEGY=native
+        String ip = request.getRemoteAddr();
+        tentativesConnexionService.verifierNonBloque(loginRequest.getEmail(), ip);
 
         Authentication authentication;
         try {
@@ -86,10 +87,10 @@ public class AuthController {
                     new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
             );
         } catch (AuthenticationException e) {
-            tentativesConnexionService.enregistrerEchec(cle);
+            tentativesConnexionService.enregistrerEchec(loginRequest.getEmail(), ip);
             throw e;
         }
-        tentativesConnexionService.reinitialiser(cle);
+        tentativesConnexionService.reinitialiser(loginRequest.getEmail(), ip);
 
         String jwt = jwtUtils.generateJwtToken(authentication);
 

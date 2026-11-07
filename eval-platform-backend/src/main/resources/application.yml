@@ -1,5 +1,9 @@
 server:
   port: 8080
+  # Derrière un reverse proxy (nginx, traefik…) : FORWARD_HEADERS_STRATEGY=native pour lire l'IP réelle du client
+  # dans X-Forwarded-For (Tomcat ne fait confiance qu'aux proxys d'adresses internes). Sans proxy, laisser none :
+  # un client pourrait sinon inventer son IP et contourner la limite des tentatives de connexion.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
   servlet:
     context-path: /api
 
