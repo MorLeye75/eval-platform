@@ -29,6 +29,7 @@ import {
   useBrouillon,
   validerInfos,
   erreurQuestion,
+  basculerChoixMultiple,
   nouvelId as newId,
   type ChoixLocal,
   type CasTestLocal,
@@ -293,7 +294,7 @@ export default function BuilderQuestions() {
                           <input
                             type="checkbox"
                             checked={q.estChoixMultiple ?? false}
-                            onChange={(e) => updateQuestion(q.localId, { estChoixMultiple: e.target.checked })}
+                            onChange={(e) => updateQuestion(q.localId, basculerChoixMultiple(q, e.target.checked))}
                             className="size-4 accent-primary"
                           />
                         </div>

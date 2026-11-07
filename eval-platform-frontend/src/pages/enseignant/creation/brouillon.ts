@@ -104,6 +104,22 @@ export function validerInfos(form: InfosGeneralesForm) {
 }
 
 /** Première erreur bloquante d'une question, ou null si elle est complète. */
+/**
+ * Bascule choix unique / multiple. En repassant en choix unique, seule la première bonne réponse reste cochée :
+ * sinon la question aurait plusieurs bonnes réponses pour un seul choix possible, et personne ne la réussirait.
+ */
+export function basculerChoixMultiple(q: QuestionLocal, multiple: boolean): Partial<QuestionLocal> {
+  if (multiple) return { estChoixMultiple: true }
+  let bonneReponseGardee = false
+  const choix = (q.choix ?? []).map((c) => {
+    if (!c.estCorrect) return c
+    if (bonneReponseGardee) return { ...c, estCorrect: false }
+    bonneReponseGardee = true
+    return c
+  })
+  return { estChoixMultiple: false, choix }
+}
+
 export function erreurQuestion(q: QuestionLocal): string | null {
   if (!q.enonce.trim()) return "Énoncé manquant."
   if (!(q.points > 0)) return "Le barème doit être supérieur à 0."
@@ -112,6 +128,8 @@ export function erreurQuestion(q: QuestionLocal): string | null {
     if (choix.length < 2) return "Au moins 2 choix sont nécessaires."
     if (choix.some((c) => !c.texte.trim())) return "Un des choix est vide."
     if (!choix.some((c) => c.estCorrect)) return "Cochez au moins une bonne réponse."
+    if (!q.estChoixMultiple && choix.filter((c) => c.estCorrect).length > 1)
+      return "Un choix unique ne peut avoir qu'une bonne réponse."
   }
   if (q.type === "QUIZ_CHRONOMETREE" && !((q.dureeQuestion ?? 0) >= 5))
     return "La durée de la question doit être d'au moins 5 secondes."
