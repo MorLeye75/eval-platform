@@ -41,6 +41,12 @@ function formatDT(iso: string) {
   })
 }
 
+/**
+ * API de création / modification d'une évaluation pas encore branchée (DS-03, module d'Aminou). En attendant,
+ * l'enregistrement est désactivé : il effaçait le brouillon sans rien envoyer au serveur.
+ */
+const ENREGISTREMENT_DISPONIBLE = false
+
 export default function Previsualisation() {
   const navigate   = useNavigate()
   const { brouillon, estEdition, chemin } = useBrouillon()
@@ -54,6 +60,7 @@ export default function Previsualisation() {
     try {
       // TODO : création → await api.post("/enseignant/evaluations", { infos, questions })
       //        édition  → await api.put(`/enseignant/evaluations/${brouillon.evaluationId}`, { infos, questions })
+      // N'effacer le brouillon qu'après la confirmation (2xx) de l'API, jamais avant
       effacerBrouillon()
       navigate("/enseignant/evaluations", { replace: true })
     } finally {
@@ -164,11 +171,16 @@ export default function Previsualisation() {
       </Card>
 
       {/* Navigation */}
+      {!ENREGISTREMENT_DISPONIBLE && (
+        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
+          L'enregistrement des évaluations n'est pas encore disponible : votre brouillon est conservé sur cet onglet.
+        </p>
+      )}
       <div className="flex justify-between gap-3">
         <Button variant="outline" className="rounded-xl" onClick={() => navigate(chemin("questions"))}>
           ← Modifier les questions
         </Button>
-        <Button className="rounded-xl" onClick={handlePublier} disabled={saving}>
+        <Button className="rounded-xl" onClick={handlePublier} disabled={saving || !ENREGISTREMENT_DISPONIBLE}>
           {saving ? "Enregistrement..." : (
             <>
               <Send className="size-4" />
