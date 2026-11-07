@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, renderHook } from "@testing-library/react"
+import { act, cleanup, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useExamTimer } from "@/hooks/useExamTimer"
 
@@ -14,6 +14,7 @@ describe("useExamTimer (DS-01 fin du chrono)", () => {
   })
 
   afterEach(() => {
+    cleanup()
     vi.useRealTimers()
   })
 

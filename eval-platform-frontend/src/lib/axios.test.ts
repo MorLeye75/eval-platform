@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { gererErreurReponse } from "@/lib/axios"
+import { api, DELAI_MAX_REQUETE_MS, gererErreurReponse } from "@/lib/axios"
 import { CLE_BROUILLON_EVALUATION, cleTamponCopie } from "@/lib/session"
 
 function erreur(status: number, url: string) {
@@ -14,6 +14,13 @@ function erreur(status: number, url: string) {
     data: null,
   })
 }
+
+describe("client HTTP", () => {
+  it("une requête figée échoue au bout de 15 s au lieu d'attendre indéfiniment", () => {
+    expect(DELAI_MAX_REQUETE_MS).toBe(15_000)
+    expect(api.defaults.timeout).toBe(DELAI_MAX_REQUETE_MS)
+  })
+})
 
 describe("intercepteur 401", () => {
   const redirection = vi.fn()

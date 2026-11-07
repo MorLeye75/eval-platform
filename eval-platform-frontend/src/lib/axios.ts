@@ -1,8 +1,12 @@
 import axios, { isAxiosError } from "axios"
 import { viderSession } from "@/lib/session"
 
+/** Au-delà, une requête figée (réseau instable) échoue au lieu de bloquer la file des sauvegardes et la soumission. */
+export const DELAI_MAX_REQUETE_MS = 15_000
+
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:8080/api",
+  timeout: DELAI_MAX_REQUETE_MS,
 })
 
 // Avant chaque requête : on attache le token JWT s'il existe
