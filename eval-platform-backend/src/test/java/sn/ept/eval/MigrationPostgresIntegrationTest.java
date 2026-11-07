@@ -49,10 +49,11 @@ class MigrationPostgresIntegrationTest {
     private EvaluationRepository evaluationRepository;
 
     @Test
-    @DisplayName("La migration V1 est appliquée et le schéma correspond aux entités")
+    @DisplayName("Toutes les migrations sont appliquées et le schéma correspond aux entités")
     void migrationAppliquee() {
         // Le contexte ne démarre que si Hibernate valide le schéma créé par Flyway
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("1");
+        assertThat(flyway.info().pending()).isEmpty();
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("3");
     }
 
     @Test

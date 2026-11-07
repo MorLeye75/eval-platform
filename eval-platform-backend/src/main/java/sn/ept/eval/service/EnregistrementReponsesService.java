@@ -36,6 +36,7 @@ public class EnregistrementReponsesService {
         if (items == null || items.isEmpty()) {
             return 0;
         }
+        refuserQuestionsEnDouble(items);
 
         // Questions de l'évaluation et réponses existantes chargées en une requête chacune (pas de N+1)
         Map<Long, Question> questionsEvaluation = questionRepository
@@ -94,6 +95,20 @@ public class EnregistrementReponsesService {
             nbSauvegardees++;
         }
         return nbSauvegardees;
+    }
+
+    /**
+     * Une question ne peut apparaître qu'une fois par sauvegarde : sinon chaque occurrence créerait sa propre
+     * réponse, toutes notées puis additionnées dans la note finale (HTTP 400).
+     */
+    private void refuserQuestionsEnDouble(List<ReponseItemDto> items) {
+        Set<Long> vues = new HashSet<>();
+        for (ReponseItemDto item : items) {
+            if (item.getQuestionId() != null && !vues.add(item.getQuestionId())) {
+                throw new IllegalArgumentException("La question " + item.getQuestionId()
+                        + " apparaît plusieurs fois dans la sauvegarde.");
+            }
+        }
     }
 
     private List<ChoixReponse> getChoixValides(QuestionQCM question, List<Long> choixIds) {
