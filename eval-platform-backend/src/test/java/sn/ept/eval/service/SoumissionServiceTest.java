@@ -1,12 +1,12 @@
 package sn.ept.eval.service;
 
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import sn.ept.eval.dto.soumission.QuestionExamenDto;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
@@ -66,9 +66,6 @@ class SoumissionServiceTest {
     @Mock
     private UtilisateurRepository utilisateurRepository;
 
-    @Mock
-    private EntityManager entityManager;
-
     /** Instant de référence figé : les tests ne dépendent plus de l'heure d'exécution. */
     private static final LocalDateTime MAINTENANT = LocalDateTime.of(2026, 10, 19, 10, 0);
     private static final ZoneId ZONE = ZoneId.systemDefault();
@@ -93,7 +90,7 @@ class SoumissionServiceTest {
                 choixReponseRepository, reponseEtudiantRepository);
         CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService);
         ClotureCopiesService clotureCopiesService = new ClotureCopiesService(soumissionRepository, tempsEpreuveService,
-                correctionDeclencheur, entityManager);
+                correctionDeclencheur, mock(PlatformTransactionManager.class));
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
                 enregistrementReponses, correctionDeclencheur, tempsEpreuveService,
                 soumissionMapper, accesService, antiTricheService, clotureCopiesService);

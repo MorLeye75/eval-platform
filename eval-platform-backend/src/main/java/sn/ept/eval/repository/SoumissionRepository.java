@@ -29,6 +29,10 @@ public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
 
     List<Soumission> findByStatut(StatutSoumission statut);
 
+    /** Copies d'un statut avec leur évaluation (durée, fermeture) : les règles de temps s'appliquent sans autre requête. */
+    @Query("select s from Soumission s join fetch s.evaluation where s.statut = :statut")
+    List<Soumission> findByStatutAvecEvaluation(@Param("statut") StatutSoumission statut);
+
     List<Soumission> findByStatutAndDateModificationBefore(StatutSoumission statut, LocalDateTime seuil);
     List<Soumission> findByEtudiantId(Long etudiantId);
 }
