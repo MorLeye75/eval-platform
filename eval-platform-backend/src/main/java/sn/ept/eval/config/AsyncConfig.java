@@ -18,7 +18,9 @@ public class AsyncConfig {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(4);
         executor.setMaxPoolSize(10);
-        executor.setQueueCapacity(100);
+        // Fin d'examen d'une promotion entière : toutes les copies arrivent en même temps. Au-delà, la tâche
+        // est refusée sans faire échouer la remise (CorrectionDeclencheur) et reprise par la relance planifiée.
+        executor.setQueueCapacity(1000);
         executor.setThreadNamePrefix("CorrectionAsync-");
         executor.initialize();
         return executor;
