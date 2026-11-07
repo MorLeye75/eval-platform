@@ -5,7 +5,7 @@ authentification JWT, passation sécurisée des épreuves (sauvegarde automatiqu
 correction automatique des QCM.
 
 - **Stack** : Java 21, Spring Boot 3, Spring Security 6 (JWT), Spring Data JPA / Hibernate, PostgreSQL, Flyway
-- **Documentation interactive** : Swagger UI sur `http://localhost:8080/api/swagger-ui/index.html`
+- **Documentation interactive** : Swagger UI sur `http://localhost:8080/api/swagger-ui/index.html` (profils `dev` et `h2-dev`, ou `SWAGGER_ENABLED=true`)
 - **Collection Postman** : [`docs/Plateforme_Evaluation_Postman_Collection.json`](../docs/Plateforme_Evaluation_Postman_Collection.json)
 
 ## Démarrage rapide
@@ -68,6 +68,8 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `DB_URL` | non | `jdbc:postgresql://localhost:5432/eval_platform_db` | URL JDBC |
 | `DB_USERNAME` | non | `postgres` | utilisateur PostgreSQL |
 | `JWT_EXPIRATION_MS` | non | `86400000` (24 h) | durée de validité des jetons |
+| `CORS_ALLOWED_ORIGINS` | **oui** | `http://localhost:5173,http://127.0.0.1:5173` | origines du front autorisées, séparées par des virgules (ex. `https://eval.ept.sn`) ; pas de `*` |
+| `SWAGGER_ENABLED` | non | `false` (`true` en `dev` et `h2-dev`) | sert la documentation OpenAPI et Swagger UI |
 | `FORWARD_HEADERS_STRATEGY` | derrière un proxy | `none` | `native` derrière un reverse proxy (nginx, traefik…) pour lire l'IP réelle du client dans `X-Forwarded-For` ; laisser `none` sans proxy (sinon un client pourrait inventer son IP) |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.

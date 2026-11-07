@@ -42,6 +42,19 @@ jwt:
   secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 heures
 
+# Origines du front autorisées par CORS, séparées par des virgules (ex. https://eval.ept.sn).
+# Pas de « * » : les requêtes portent des identifiants (allowCredentials).
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+# Documentation OpenAPI / Swagger UI : désactivée hors développement (elle décrit toute l'API),
+# activable explicitement avec SWAGGER_ENABLED=true
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
 ---
 # Profil Dev local avec PostgreSQL (valeurs par défaut uniquement pour le poste de développement)
 spring:
@@ -58,6 +71,12 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWV2YWwtcGxhdGZvcm0tbm90LWZvci1wcm9kdWN0aW9uIQ==}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
 
 ---
 # Profil Dev avec H2 (activable si PostgreSQL n'est pas encore installé localement)
@@ -84,3 +103,9 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWV2YWwtcGxhdGZvcm0tbm90LWZvci1wcm9kdWN0aW9uIQ==}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

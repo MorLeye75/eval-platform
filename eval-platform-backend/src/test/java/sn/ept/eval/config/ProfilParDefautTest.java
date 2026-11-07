@@ -72,4 +72,24 @@ class ProfilParDefautTest {
         assertThat(env.getActiveProfiles()).containsExactly("dev");
         assertThat(env.getRequiredProperty("jwt.secret")).isNotBlank();
     }
+
+    @Test
+    @DisplayName("Sans profil, la documentation Swagger / OpenAPI est désactivée ; en dev elle est active")
+    void swagger_DesactiveHorsDev() {
+        ConfigurableEnvironment prod = environnement(CONFIG_PRINCIPALE, "--spring.datasource.password=fourni");
+        assertThat(prod.getProperty("springdoc.api-docs.enabled")).isEqualTo("false");
+        assertThat(prod.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("false");
+
+        ConfigurableEnvironment dev = environnement(CONFIG_PRINCIPALE, "--spring.profiles.active=dev");
+        assertThat(dev.getProperty("springdoc.api-docs.enabled")).isEqualTo("true");
+        assertThat(dev.getProperty("springdoc.swagger-ui.enabled")).isEqualTo("true");
+    }
+
+    @Test
+    @DisplayName("Les origines CORS se règlent par la configuration (CORS_ALLOWED_ORIGINS)")
+    void cors_Configurable() {
+        ConfigurableEnvironment env = environnement(CONFIG_PRINCIPALE, "--spring.datasource.password=fourni");
+
+        assertThat(env.getProperty("cors.allowed-origins")).isEqualTo("http://localhost:5173,http://127.0.0.1:5173");
+    }
 }
