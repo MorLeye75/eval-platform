@@ -10,6 +10,7 @@ import {
   estCopieVerrouillee,
   messageErreur,
 } from "@/lib/passation"
+import { cleTamponCopie } from "@/lib/session"
 import type { QuestionExamen, ReponseItem } from "@/types"
 
 interface UsePassationOptions<T> {
@@ -63,7 +64,7 @@ export function usePassation<T>({
   // Copie dont les réponses ont été chargées dans le formulaire (rechargée après un conflit de version)
   const copieInitialisee = useRef<typeof copie>(undefined)
 
-  const cleTampon = copie ? `passation-copie-${copie.id}` : undefined
+  const cleTampon = copie ? cleTamponCopie(copie.id) : undefined
   const enCours = copie?.statut === "EN_COURS"
 
   const versReponsesRef = useRef(versReponses)
@@ -114,7 +115,7 @@ export function usePassation<T>({
   useEffect(() => {
     if (!copie || copieInitialisee.current === copie) return
     copieInitialisee.current = copie
-    const cle = `passation-copie-${copie.id}`
+    const cle = cleTamponCopie(copie.id)
     // Copie remise : plus rien à synchroniser
     if (!enCours) viderTampon(cle)
     const serveur = depuisCopie(copie.questions)

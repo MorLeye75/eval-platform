@@ -1,5 +1,7 @@
-import { createContext, useContext, useState, type ReactNode } from "react"
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { api } from "@/lib/axios"
+import { viderSession } from "@/lib/session"
 import type { Role, Utilisateur } from "@/types"
 
 export type { Role }
@@ -22,7 +24,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+/** Réponse de /auth/login ou /auth/me sans le jeton (stocké à part). */
+function sansJeton(donnees: User & { token?: string | null }): User {
+  const utilisateur = { ...donnees }
+  delete utilisateur.token
+  return utilisateur
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient()
   // Au démarrage, on regarde si un utilisateur était déjà connecté
   const [user, setUser] = useState<User | null>(() => {
     try {
@@ -45,9 +55,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return userData
   }
 
+  // L'utilisateur du localStorage (rôle compris) n'est qu'un cache : il est revalidé par le serveur au démarrage.
+  // Jeton refusé (401) : l'intercepteur vide la session et renvoie au login. Réseau absent : le cache est gardé.
+  useEffect(() => {
+    if (!localStorage.getItem("token")) return
+    let annule = false
+    api
+      .get("/auth/me")
+      .then(({ data }) => {
+        // Déconnexion pendant la requête : ne pas restaurer l'utilisateur
+        if (annule || !localStorage.getItem("token")) return
+        const utilisateur = sansJeton(data)
+        localStorage.setItem("user", JSON.stringify(utilisateur))
+        setUser(utilisateur)
+      })
+      .catch(() => {})
+    return () => {
+      annule = true
+    }
+  }, [])
+
+  /**
+   * Déconnexion volontaire (poste partagé) : jeton, utilisateur, brouillon d'évaluation, réponses locales
+   * des copies et cache des requêtes (copies, évaluations…) sont effacés.
+   */
   function logout() {
-    localStorage.removeItem("token")
-    localStorage.removeItem("user")
+    viderSession()
+    queryClient.clear()
     setUser(null)
   }
 

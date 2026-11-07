@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
 import type { StatutEvaluation, TypeQuestion } from "@/types"
 import { getEvaluationEnseignant } from "@/mocks/evaluationsEnseignant"
+import { CLE_BROUILLON_EVALUATION } from "@/lib/session"
 
 // ============================================================
 // Brouillon partagé par les 3 étapes de l'assistant de création / édition.
@@ -61,7 +62,8 @@ export const INFOS_VIDES: InfosGeneralesForm = {
   statut: "BROUILLON",
 }
 
-const CLE_STOCKAGE = "brouillon-evaluation"
+// Effacé à la déconnexion et sur jeton refusé (voir lib/session)
+const CLE_STOCKAGE = CLE_BROUILLON_EVALUATION
 
 // ──────────────────────────────────────────────────────────
 //  Identifiants locaux (questions, choix, cas de test)
