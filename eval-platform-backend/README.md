@@ -108,6 +108,8 @@ Si le schéma et les entités divergent, l'application ne démarre pas et Hibern
 |---|---|
 | `V1__schema_initial.sql` | schéma complet issu du diagramme de classes, index sur les clés étrangères |
 | `V2__version_reponses.sql` | `soumissions.version_reponses` : version des réponses, incrémentée à chaque sauvegarde réussie |
+| `V3__reponse_unique_par_question.sql` | une seule réponse par question et par copie : suppression des doublons existants, contrainte `uk_reponses_soumission_question` |
+| `V4__cles_tables_de_liaison.sql` | clés primaires composites et index inverses sur `evaluation_promotions` et `reponse_qcm_choix` (après dédoublonnage) |
 
 ## API
 

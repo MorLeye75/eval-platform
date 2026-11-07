@@ -116,6 +116,9 @@ class SoumissionServiceTest {
     @Test
     @DisplayName("DS-02 (Cas Normal) : Sauvegarde automatique réussie dans les temps")
     void sauvegarderReponses_DansLesTemps_Succes() {
+        QuestionOuverte question = new QuestionOuverte("Expliquez la récursivité.", 1, 5.0);
+        question.setId(1L);
+        when(questionRepository.findByEvaluationIdOrderByOrdreAsc(10L)).thenReturn(List.of(question));
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
         when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());

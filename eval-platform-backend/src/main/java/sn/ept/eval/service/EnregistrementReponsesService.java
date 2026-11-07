@@ -51,11 +51,9 @@ public class EnregistrementReponsesService {
 
             Question question = questionsEvaluation.get(item.getQuestionId());
             if (question == null) {
-                // La question doit appartenir à l'évaluation de cette copie ; un id inexistant est ignoré
-                if (questionRepository.existsById(item.getQuestionId())) {
-                    throw new IllegalArgumentException("La question " + item.getQuestionId() + " n'appartient pas à cette évaluation.");
-                }
-                continue;
+                // La question doit appartenir à l'évaluation de cette copie. Même refus qu'elle existe ailleurs ou
+                // non : une réponse différente révélerait quels identifiants de question existent.
+                throw new IllegalArgumentException("La question " + item.getQuestionId() + " n'appartient pas à cette évaluation.");
             }
 
             ReponseEtudiant reponse = reponsesExistantes.get(question.getId());

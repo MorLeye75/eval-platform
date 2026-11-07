@@ -86,4 +86,20 @@ class EnregistrementReponsesServiceTest {
         assertThat(existante.getTexteSoumis()).isEqualTo("nouvelle");
         verify(reponseEtudiantRepository, times(1)).save(existante);
     }
+
+    @Test
+    @DisplayName("Question hors de l'évaluation, existante ailleurs ou non : même refus, sans révéler laquelle existe")
+    void questionHorsEvaluation_MemeRefus() {
+        when(questionRepository.findByEvaluationIdOrderByOrdreAsc(10L)).thenReturn(List.of(questionOuverte(1L)));
+        lenient().when(questionRepository.existsById(77L)).thenReturn(true);   // question d'une autre évaluation
+        lenient().when(questionRepository.existsById(999L)).thenReturn(false); // identifiant inexistant
+
+        for (Long id : List.of(77L, 999L)) {
+            assertThatThrownBy(() -> service.enregistrer(soumission, List.of(new ReponseItemDto(id, "x", null, null))))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessage("La question " + id + " n'appartient pas à cette évaluation.");
+        }
+        verify(questionRepository, never()).existsById(any());
+        verify(reponseEtudiantRepository, never()).save(any());
+    }
 }
