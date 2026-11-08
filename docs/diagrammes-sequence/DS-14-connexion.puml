@@ -1,0 +1,101 @@
+@startuml DS-14_connexion
+title DS-14 — Connexion, requêtes authentifiées et déconnexion (JWT)
+hide footbox
+autonumber
+actor "Utilisateur\n(étudiant, enseignant, admin)" as U
+boundary "Frontend React\n(LoginForm, AuthContext, axios)" as F
+control "AuthController\n+ AuthTokenFilter" as B
+control "TentativesConnexionService\n(compteurs en mémoire)" as TC
+control "AuthenticationManager\n(UserDetailsService, BCrypt)" as AM
+database "BDD" as D
+
+== Connexion ==
+U -> F : saisit email et mot de passe, « Se connecter »
+activate F
+F -> B ++ : POST /api/auth/login { email, motDePasse }
+B -> TC : verifierNonBloque(email, ip)
+note right of TC
+  deux compteurs d'échecs sur 15 min :
+  couple (email, IP) : blocage à 5 échecs ;
+  IP seule, tous comptes : blocage à 100 (password spraying,
+  seuil haut à cause du NAT du campus). IP réelle derrière
+  un proxy : FORWARD_HEADERS_STRATEGY=native
+end note
+alt couple ou IP bloqué
+  B --> F : 429 TROP_DE_TENTATIVES + en-tête Retry-After
+  F --> U : message du serveur (délai avant le prochain essai)
+else
+  B -> AM : authenticate(email, motDePasse)
+  AM -> D : SELECT Utilisateur WHERE email = :email
+  D --> AM : compte (mot de passe haché, rôle, actif)
+  alt email inconnu, mot de passe faux ou compte désactivé
+    AM --> B : AuthenticationException
+    B -> TC : enregistrerEchec(email, ip)
+    B --> F : 401 AUTHENTIFICATION_ECHOUEE\n« Identifiants invalides ou compte désactivé. »
+    note right of F : même message dans tous les cas : on ne révèle pas\nsi le compte existe. Un 401 sur /auth/login ne vide pas\nla session et ne recharge pas la page
+    F --> U : « Email ou mot de passe incorrect. »
+  else identifiants valides et compte actif
+    AM --> B : utilisateur authentifié
+    B -> TC : reinitialiser(email, ip)
+    note right of TC : seul le compteur du couple repart à zéro ;\ncelui de l'IP non (un attaquant se connecterait\nà son propre compte pour l'effacer)
+    B -> B : JwtUtils.generateJwtToken :\nsub = email, id, role, nom, prenom,\nexpiration = maintenant + 24 h (Clock), signature HMAC
+    B -> D : UPDATE utilisateurs SET derniere_connexion = :maintenant
+    note right of D : mise à jour directe : l'audit du compte\n(modifié par / le) n'est pas touché
+    B --> F -- : 200 { token, id, nom, prenom, email, role }
+    F -> F : preparerSession(email) : sur un poste partagé, la session\nd'un autre compte encore présente est effacée ;\ncache des requêtes vidé ; token et user dans localStorage
+    F --> U : accueil de son rôle (/etudiant/dashboard, /enseignant, /admin)
+  end
+end
+deactivate F
+
+== Requête authentifiée (toute l'API) ==
+F -> B ++ : requête avec Authorization: Bearer <jeton>\n(ajouté par l'intercepteur axios)
+B -> B : AuthTokenFilter : signature et expiration du jeton
+alt jeton valide
+  B -> D : SELECT Utilisateur WHERE email = sub
+  D --> B : compte
+  note right of B : rôle et état relus en base à chaque requête :\nun compte désactivé ou un rôle changé après\nl'émission du jeton s'applique aussitôt
+end
+alt jeton absent, invalide, expiré, ou compte désactivé
+  B --> F : 401 NON_AUTHENTIFIE (AuthEntryPointJwt)
+  F -> F : intercepteur : viderSession (réponses d'examen non envoyées\ngardées pour le même compte), retour à /login
+else rôle insuffisant (@PreAuthorize)
+  B --> F : 403
+else autorisé
+  B --> F -- : réponse
+end
+
+== Ouverture de l'application avec une session enregistrée ==
+activate F
+F -> F : token dans localStorage ? sinon utilisateur considéré déconnecté
+F -> B ++ : GET /api/auth/me
+alt jeton accepté
+  B --> F : 200 { id, nom, prenom, email, role }
+  F -> F : l'utilisateur enregistré (rôle compris) n'est qu'un cache :\nremplacé par la réponse du serveur
+else 401
+  B --> F -- : 401
+  F -> F : intercepteur : session vidée, /login
+else serveur injoignable
+  F -> F : cache gardé (la prochaine requête tranchera)
+end
+note right of F : ProtectedRoute : non connecté -> /login ;\nmauvais rôle -> accueil de son propre rôle
+deactivate F
+
+== Déconnexion ==
+U -> F : « Se déconnecter »
+activate F
+F -> F : viderSession : jeton, utilisateur, brouillon d'évaluation,\nréponses locales des copies ; cache des requêtes vidé
+F --> U : page de connexion
+deactivate F
+note right of F
+  Aucun appel au serveur : le jeton JWT est sans état.
+  **Limite connue** : un jeton copié avant la déconnexion
+  reste valable jusqu'à son expiration (24 h au plus).
+end note
+
+note over F, D
+  Configuration : JWT_SECRET (Base64, 256 bits minimum, refus de démarrer sinon), JWT_EXPIRATION_MS (24 h),
+  securite.login.* (seuils, fenêtre, durée de blocage, 10 000 compteurs au plus, purge toutes les 10 min).
+  Compteurs en mémoire : suffisant pour une instance unique (cache partagé à prévoir si plusieurs instances).
+end note
+@enduml
