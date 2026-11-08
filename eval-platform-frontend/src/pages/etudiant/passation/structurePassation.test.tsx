@@ -4,9 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { QuestionExamen, TypeQuestion } from "@/types"
-import PassationQCM from "./PassationQCM"
-import PassationOuverte from "./PassationOuverte"
-import PassationCode from "./PassationCode"
+import PassationEpreuve from "./PassationEpreuve"
 
 /**
  * Caractérisation des parties communes aux trois écrans de passation (en-tête, bandeaux, navigation) :
@@ -61,9 +59,9 @@ function afficher(Page: ComponentType) {
 
 // Écran, type, réponses avec la 1re question traitée sur 2, libellé du compteur
 const cas: [string, ComponentType, TypeQuestion, Record<number, unknown>, string][] = [
-  ["QCM", PassationQCM, "QCM", { 11: [110], 12: [] }, "1 / 2 répondues"],
-  ["questions ouvertes", PassationOuverte, "OUVERTE", { 11: "réponse", 12: "" }, "1 / 2 traitées"],
-  ["code", PassationCode, "CODE", { 11: { code: "print(1)", langage: "python" }, 12: { code: "", langage: "python" } }, "1 / 2 traitées"],
+  ["QCM", PassationEpreuve, "QCM", { 11: { type: "choix", choixIds: [110] }, 12: { type: "choix", choixIds: [] } }, "1 / 2 répondues"],
+  ["questions ouvertes", PassationEpreuve, "OUVERTE", { 11: { type: "texte", texte: "réponse" }, 12: { type: "texte", texte: "" } }, "1 / 2 traitées"],
+  ["code", PassationEpreuve, "CODE", { 11: { type: "code", code: "print(1)", langage: "python" }, 12: { type: "code", code: "", langage: "python" } }, "1 / 2 traitées"],
 ]
 
 describe.each(cas)("écran de passation %s : parties communes", (_, Page, type, reponses, compteur) => {

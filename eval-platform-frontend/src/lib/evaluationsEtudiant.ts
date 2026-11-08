@@ -33,18 +33,9 @@ export function typeEpreuve(e: EvaluationEtudiant): TypeEpreuve {
   return type === "QUIZ_CHRONOMETREE" ? "QUIZ" : type
 }
 
-const CHEMINS: Record<TypeEpreuve, string | null> = {
-  QCM: "qcm",
-  CODE: "code",
-  OUVERTE: "ouverte",
-  QUIZ: "quiz",
-  MIXTE: null, // écran unique pour les épreuves mixtes : en préparation
-}
-
-/** Chemin de l'écran de passation, ou null si aucun écran ne sait encore l'afficher. */
-export function cheminPassation(e: EvaluationEtudiant): string | null {
-  const chemin = CHEMINS[typeEpreuve(e)]
-  return chemin ? `/examen/${e.id}/${chemin}` : null
+/** Chemin de l'écran de passation : le quiz chronométré a le sien, tout le reste passe par l'écran unique. */
+export function cheminPassation(e: EvaluationEtudiant): string {
+  return `/examen/${e.id}/${typeEpreuve(e) === "QUIZ" ? "quiz" : "epreuve"}`
 }
 
 /** « 12 juil. 2026 à 23:59 » (date du serveur lue en heure locale). */

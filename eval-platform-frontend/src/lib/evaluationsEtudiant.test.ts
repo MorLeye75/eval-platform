@@ -28,9 +28,9 @@ describe("état d'une évaluation pour l'étudiant", () => {
 
 describe("type d'épreuve et écran de passation", () => {
   it.each([
-    [["QCM"], "QCM", "/examen/7/qcm"],
-    [["CODE"], "CODE", "/examen/7/code"],
-    [["OUVERTE"], "OUVERTE", "/examen/7/ouverte"],
+    [["QCM"], "QCM", "/examen/7/epreuve"],
+    [["CODE"], "CODE", "/examen/7/epreuve"],
+    [["OUVERTE"], "OUVERTE", "/examen/7/epreuve"],
     [["QUIZ_CHRONOMETREE"], "QUIZ", "/examen/7/quiz"],
   ] as const)("%j : %s → %s", (types, type, chemin) => {
     const e = evaluation({ typesQuestions: [...types] })
@@ -38,9 +38,9 @@ describe("type d'épreuve et écran de passation", () => {
     expect(cheminPassation(e)).toBe(chemin)
   })
 
-  it("plusieurs types mélangés : épreuve mixte, sans écran tant que l'écran unique n'existe pas", () => {
+  it("plusieurs types mélangés : épreuve mixte, sur l'écran unique comme les autres", () => {
     const e = evaluation({ typesQuestions: ["QCM", "OUVERTE"] })
     expect(typeEpreuve(e)).toBe("MIXTE")
-    expect(cheminPassation(e)).toBeNull()
+    expect(cheminPassation(e)).toBe("/examen/7/epreuve")
   })
 })

@@ -172,8 +172,8 @@ export default function DetailEvaluation() {
         </AlertDescription>
       </Alert>
 
-      {/* Action principale — active uniquement si l'évaluation est disponible et qu'un écran sait l'afficher */}
-      {etat === "disponible" && chemin ? (
+      {/* Action principale — active uniquement si l'évaluation est disponible */}
+      {etat === "disponible" ? (
         <Button size="lg" className="w-full shadow-md sm:w-auto sm:self-end" onClick={() => navigate(chemin)}>
           <Play className="mr-1 size-4" />
           {enCours ? "Reprendre l'évaluation" : "Démarrer l'évaluation"}
@@ -182,9 +182,7 @@ export default function DetailEvaluation() {
         <div className="rounded-xl border border-border/60 bg-muted/50 px-4 py-3 text-center text-sm text-muted-foreground">
           {etat === "a_venir"
             ? `Cette évaluation ouvre le ${formatDateHeure(evaluation.dateOuverture)}.`
-            : etat === "terminee"
-              ? "Cette évaluation est terminée."
-              : "Épreuve mixte : l'écran qui réunit plusieurs types de questions est en préparation."}
+            : "Cette évaluation est terminée."}
         </div>
       )}
     </div>

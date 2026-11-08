@@ -79,15 +79,15 @@ describe("parcours étudiant branché sur GET /etudiant/evaluations", () => {
     expect(await screen.findByText("Structures de données — QCM")).toBeTruthy()
     expect(screen.getByText("10 pts")).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: /Démarrer l'évaluation/ }))
-    expect(navigate).toHaveBeenCalledWith("/examen/7/qcm")
+    expect(navigate).toHaveBeenCalledWith("/examen/7/epreuve")
   })
 
-  it("détail d'une épreuve mixte : pas de démarrage tant que l'écran unique n'existe pas", async () => {
+  it("détail d'une épreuve mixte : démarrage sur l'écran unique", async () => {
     afficher(<DetailEvaluation />, "/etudiant/evaluations/8", "/etudiant/evaluations/:id")
 
     expect(await screen.findByText("Réseaux — mixte")).toBeTruthy()
-    expect(screen.queryByRole("button", { name: /Démarrer l'évaluation/ })).toBeNull()
-    expect(screen.getByText(/mixte/i, { selector: "div" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: /Démarrer l'évaluation/ }))
+    expect(navigate).toHaveBeenCalledWith("/examen/8/epreuve")
   })
 
   it("évaluation inconnue de l'étudiant : message d'absence", async () => {

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { QuestionExamen, ReponseItem } from "@/types"
-import PassationCode from "./PassationCode"
+import PassationEpreuve from "./PassationEpreuve"
 
 /** Options passées à usePassation par l'écran (conversion copie <-> réponses) et props reçues par l'éditeur. */
 const etat = vi.hoisted(() => ({
@@ -43,7 +43,7 @@ function afficher() {
   render(
     <MemoryRouter initialEntries={["/examen/7/code"]}>
       <Routes>
-        <Route path="/examen/:id/code" element={<PassationCode />} />
+        <Route path="/examen/:id/code" element={<PassationEpreuve />} />
       </Routes>
     </MemoryRouter>
   )
@@ -64,14 +64,14 @@ describe("écran de code : langage enregistré, pas d'exécution simulée", () =
   })
 
   it("l'éditeur utilise le langage enregistré", () => {
-    etat.reponses = { 11: { code: "System.out.println(5);", langage: "java" } }
+    etat.reponses = { 11: { type: "code", code: "System.out.println(5);", langage: "java" } }
     afficher()
 
     expect(etat.langageEditeur).toBe("java")
   })
 
   it("pas de faux « Réussi » : l'exécution est annoncée pour la correction, le bouton est désactivé", () => {
-    etat.reponses = { 11: { code: "print(5)", langage: "python" } }
+    etat.reponses = { 11: { type: "code", code: "print(5)", langage: "python" } }
     afficher()
 
     const bouton = screen.getByRole("button", { name: /Exécution disponible à la correction/ }) as HTMLButtonElement

@@ -4,9 +4,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { QuestionExamen, TypeQuestion } from "@/types"
-import PassationQCM from "./PassationQCM"
-import PassationOuverte from "./PassationOuverte"
-import PassationCode from "./PassationCode"
+import PassationEpreuve from "./PassationEpreuve"
 
 const etat = vi.hoisted(() => ({
   questions: [] as unknown[],
@@ -64,9 +62,9 @@ function ouvrirConfirmation(Page: ComponentType) {
 
 // Écran, type de question, réponses où seules les questions 2 et 4 (sur 4) sont traitées
 const cas: [string, ComponentType, TypeQuestion, Record<number, unknown>][] = [
-  ["QCM", PassationQCM, "QCM", { 11: [], 12: [120], 13: [], 14: [140] }],
-  ["questions ouvertes", PassationOuverte, "OUVERTE", { 11: "  ", 12: "réponse", 13: "", 14: "réponse" }],
-  ["code", PassationCode, "CODE", { 11: { code: "", langage: "python" }, 12: { code: "print(1)", langage: "python" }, 13: { code: " ", langage: "python" }, 14: { code: "print(2)", langage: "python" } }],
+  ["QCM", PassationEpreuve, "QCM", { 11: { type: "choix", choixIds: [] }, 12: { type: "choix", choixIds: [120] }, 13: { type: "choix", choixIds: [] }, 14: { type: "choix", choixIds: [140] } }],
+  ["questions ouvertes", PassationEpreuve, "OUVERTE", { 11: { type: "texte", texte: "  " }, 12: { type: "texte", texte: "réponse" }, 13: { type: "texte", texte: "" }, 14: { type: "texte", texte: "réponse" } }],
+  ["code", PassationEpreuve, "CODE", { 11: { type: "code", code: "", langage: "python" }, 12: { type: "code", code: "print(1)", langage: "python" }, 13: { type: "code", code: " ", langage: "python" }, 14: { type: "code", code: "print(2)", langage: "python" } }],
 ]
 
 describe("confirmation de soumission : questions sans réponse", () => {
@@ -103,10 +101,10 @@ describe("confirmation de soumission : questions sans réponse", () => {
     etat.questions = [11, 12].map((id, i) => question(id, i + 1, type))
     etat.reponses =
       type === "QCM"
-        ? { 11: [110], 12: [120] }
+        ? { 11: { type: "choix", choixIds: [110] }, 12: { type: "choix", choixIds: [120] } }
         : type === "CODE"
-          ? { 11: { code: "a", langage: "python" }, 12: { code: "b", langage: "python" } }
-          : { 11: "a", 12: "b" }
+          ? { 11: { type: "code", code: "a", langage: "python" }, 12: { type: "code", code: "b", langage: "python" } }
+          : { 11: { type: "texte", texte: "a" }, 12: { type: "texte", texte: "b" } }
 
     const fenetre = ouvrirConfirmation(Page)
 
