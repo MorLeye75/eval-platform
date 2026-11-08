@@ -1,0 +1,74 @@
+@startuml DS-12_correction_code_judge0
+title DS-12 — Correction automatique du code via Judge0
+autonumber
+control "CorrectionDeclencheur" as CD
+control "CorrectionService\n(@Async)" as CS
+entity "BDD" as D
+control "Judge0Client" as JC
+boundary "Judge0\n(sandbox isolé)" as J
+
+note over CD : déclenché après le commit de la remise (DS-01),\nde la clôture automatique (DS-11)\nou de la relance d'une correction bloquée
+CD -> CS ++ : corrigerSoumissionAsync(id)
+
+== Phase 1 — lecture sous verrou (transaction courte) ==
+CS -> D ++ : SELECT Soumission WHERE id = :id FOR UPDATE
+D --> CS -- : copie
+alt statut ≠ SOUMIS (déjà corrigée, rouverte)
+  CS --> CD : sans effet (idempotence : la note de l'enseignant est conservée)
+else statut = SOUMIS
+  CS -> D : SELECT réponses de code + cas de test de leurs questions\n(visibles ET masqués)
+  D --> CS : code, langage, cas (entrée, sortie attendue)
+  note right of CS : copie des données à exécuter puis fin de la transaction :\naucun verrou n'est gardé pendant les appels à Judge0
+end
+
+== Phase 2 — exécutions, hors transaction ==
+loop pour chaque réponse de code
+  alt code vide
+    CS -> CS : question notée 0, aucun appel
+  else code soumis
+    loop pour chaque cas de test de la question
+      CS -> JC ++ : executer(code, langage, entrée, sortie attendue)
+      JC -> J ++ : POST /submissions?wait=true\n{ language_id, source_code, stdin, expected_output,\n  cpu_time_limit, memory_limit }
+      note right of J : exécution isolée (temps CPU et mémoire bornés) :\naucun code étudiant ne s'exécute sur le serveur
+      alt Judge0 répond
+        J --> JC -- : { status, stdout, stderr, compile_output, time }
+        JC --> CS -- : résultat du cas
+        note right of CS : status 3 « Accepted » : cas réussi ;\nWrong Answer, Time Limit Exceeded, Compilation Error,\nRuntime Error : cas échoué (message conservé)
+      else délai dépassé, erreur 5xx ou réseau
+        JC --> CS : Judge0 indisponible
+        note right of CS : on arrête les exécutions de cette copie :\nelle part en correction manuelle (phase 3)
+      end
+    end
+  end
+end
+
+== Phase 3 — écriture sous verrou (transaction courte) ==
+CS -> D ++ : SELECT Soumission WHERE id = :id FOR UPDATE
+D --> CS -- : copie
+alt statut ≠ SOUMIS (modifiée pendant les exécutions)
+  CS --> CD : résultats abandonnés, rien n'est écrit
+else Judge0 indisponible
+  CS -> D : UPDATE notes QCM (bonne réponse exacte ou 0, DS-01) ; réponses de code sans note
+  CS -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
+  note right of D : correction manuelle par l'enseignant\n(repli prévu par le cahier des charges)
+else toutes les exécutions ont abouti
+  CS -> D : UPDATE notes QCM (bonne réponse exacte ou 0, DS-01)
+  CS -> D : INSERT ResultatCasTest (estValide, sortieObtenue,\ntempsExecution, messageErreur) par cas
+  CS -> D : UPDATE ReponseCode SET noteObtenue =\npoints × cas réussis / nombre de cas
+  alt toutes les questions sont des QCM ou du code
+    CS -> D : UPDATE Soumission SET noteFinale = somme des notes,\nstatut = 'EVALUE'
+  else questions ouvertes présentes
+    CS -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
+    note right of D : les questions ouvertes restent à corriger\n(correction assistée IA, puis validation enseignant)
+  end
+end
+deactivate CS
+
+note over CS, J
+  **Configuration** (variables d'environnement) : JUDGE0_URL, JUDGE0_TOKEN (optionnel),
+  limites de temps CPU et de mémoire, correspondance langage -> language_id de Judge0
+  (c, cpp, java, python, javascript ; enregistré avec la réponse depuis V6).
+  Une erreur imprévue annule la transaction en cours (rien d'écrit) ; la relance planifiée
+  reprend les copies restées SOUMIS.
+end note
+@enduml
