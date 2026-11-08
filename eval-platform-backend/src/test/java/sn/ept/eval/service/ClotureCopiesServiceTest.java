@@ -84,7 +84,7 @@ class ClotureCopiesServiceTest {
     @DisplayName("Copie expirée : relue sous verrou, clôturée à sa fin théorique, correction lancée")
     void copieExpiree_Cloturee() {
         when(soumissionRepository.findByStatutAvecEvaluation(StatutSoumission.EN_COURS)).thenReturn(List.of(soumission));
-        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdateSansAttente(100L)).thenReturn(Optional.of(soumission));
 
         assertThat(service.cloturerCopiesExpirees()).isEqualTo(1);
 
@@ -103,7 +103,7 @@ class ClotureCopiesServiceTest {
         Soumission relue = copie(100L, MAINTENANT.minusMinutes(40));
         relue.setStatut(StatutSoumission.SOUMIS);
         relue.setDateRemise(MAINTENANT.minusMinutes(12));
-        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(relue));
+        when(soumissionRepository.findByIdForUpdateSansAttente(100L)).thenReturn(Optional.of(relue));
 
         assertThat(service.cloturerCopiesExpirees()).isZero();
 
@@ -115,7 +115,7 @@ class ClotureCopiesServiceTest {
     @DisplayName("Aménagement accordé entre la sélection et le verrou : la copie, relue avec sa nouvelle durée, reste ouverte")
     void amenagementAccordeEntreTemps_CopieIntacte() {
         when(soumissionRepository.findByStatutAvecEvaluation(StatutSoumission.EN_COURS)).thenReturn(List.of(soumission));
-        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
+        when(soumissionRepository.findByIdForUpdateSansAttente(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L))
                 .thenReturn(Optional.of(new AmenagementTemps(etudiant, evaluation, 90)));
 
@@ -134,7 +134,7 @@ class ClotureCopiesServiceTest {
 
         assertThat(service.cloturerCopiesExpirees()).isZero();
 
-        verify(soumissionRepository, never()).findByIdForUpdate(any());
+        verify(soumissionRepository, never()).findByIdForUpdateSansAttente(any());
     }
 
     @Test
@@ -142,8 +142,8 @@ class ClotureCopiesServiceTest {
     void echecSurUneCopie_LesAutresCloturees() {
         Soumission autre = copie(101L, MAINTENANT.minusMinutes(40));
         when(soumissionRepository.findByStatutAvecEvaluation(StatutSoumission.EN_COURS)).thenReturn(List.of(soumission, autre));
-        when(soumissionRepository.findByIdForUpdate(100L)).thenThrow(new PessimisticLockingFailureException("verrou détenu"));
-        when(soumissionRepository.findByIdForUpdate(101L)).thenReturn(Optional.of(autre));
+        when(soumissionRepository.findByIdForUpdateSansAttente(100L)).thenThrow(new PessimisticLockingFailureException("verrou détenu"));
+        when(soumissionRepository.findByIdForUpdateSansAttente(101L)).thenReturn(Optional.of(autre));
 
         assertThat(service.cloturerCopiesExpirees()).isEqualTo(1);
 
@@ -159,7 +159,7 @@ class ClotureCopiesServiceTest {
 
         assertThat(service.cloturerCopiesExpirees()).isZero();
 
-        verify(soumissionRepository, never()).findByIdForUpdate(any());
+        verify(soumissionRepository, never()).findByIdForUpdateSansAttente(any());
         assertThat(soumission.getStatut()).isEqualTo(StatutSoumission.EN_COURS);
     }
 

@@ -1,11 +1,13 @@
 package sn.ept.eval.repository;
 
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import sn.ept.eval.model.Soumission;
@@ -20,6 +22,16 @@ public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Soumission s where s.id = :id")
     Optional<Soumission> findByIdForUpdate(@Param("id") Long id);
+
+    /**
+     * Verrou sans attente (NOWAIT), pour les tâches de fond (DS-11) : une copie déjà verrouillée (sauvegarde,
+     * remise, correction) lève aussitôt une exception au lieu de bloquer la tâche planifiée. PostgreSQL attend
+     * sinon indéfiniment (aucun lock_timeout configuré).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
+    @Query("select s from Soumission s where s.id = :id")
+    Optional<Soumission> findByIdForUpdateSansAttente(@Param("id") Long id);
 
     Optional<Soumission> findByEvaluationIdAndEtudiantId(Long evaluationId, Long etudiantId);
 

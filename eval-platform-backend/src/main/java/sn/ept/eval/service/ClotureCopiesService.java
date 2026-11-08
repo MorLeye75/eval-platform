@@ -74,9 +74,13 @@ public class ClotureCopiesService {
         return nbCloturees;
     }
 
-    /** Relue sous verrou : une soumission, une reprise ou un aménagement accordé a pu intervenir entre-temps. */
+    /**
+     * Relue sous verrou : une soumission, une reprise ou un aménagement accordé a pu intervenir entre-temps.
+     * Verrou sans attente : une copie verrouillée ailleurs fait échouer cette seule transaction, la copie est
+     * reprise au passage suivant et la tâche planifiée n'est jamais bloquée (DS-11).
+     */
     private boolean cloturerSiToujoursExpiree(Long soumissionId) {
-        Soumission soumission = soumissionRepository.findByIdForUpdate(soumissionId).orElse(null);
+        Soumission soumission = soumissionRepository.findByIdForUpdateSansAttente(soumissionId).orElse(null);
         if (soumission == null || soumission.getStatut() != StatutSoumission.EN_COURS) return false;
         int duree = tempsEpreuveService.dureeEffectiveMinutes(soumission);
         if (!tempsEpreuveService.estExpiree(soumission, duree)) return false;
