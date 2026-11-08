@@ -1,0 +1,82 @@
+@startuml DS-13_consultation_resultats
+title DS-13 — Consultation des résultats par l'étudiant
+hide footbox
+autonumber
+actor "Étudiant" as E
+boundary "Frontend React" as F
+control "Backend Spring\n(ResultatsService)" as B
+database "BDD" as D
+
+note over E, F : point d'entrée : « Voir les résultats » (liste ou détail des évaluations),\nou notification « Résultats publiés » envoyée à la publication (module d'Aminou) :\nune notification par étudiant, qui porte l'identifiant de SA copie (soumissionId)
+
+== Détail d'une copie ==
+E -> F : ouvre /etudiant/resultats/{soumissionId}
+activate F
+F -> B ++ : GET /api/soumissions/{id}/resultats (JWT)
+B -> D : SELECT Soumission JOIN FETCH evaluation WHERE id = :id
+D --> B : copie
+alt copie inexistante
+  B --> F : 404
+else copie d'un autre étudiant
+  B --> F : 403 (même règle que la passation, SoumissionAccesService)
+else copie EN_COURS
+  B --> F : 200 { etat = NON_REMISE }
+  F --> E : renvoi vers la passation
+else copie SOUMIS ou EN_CORRECTION, ou EVALUE non publiée
+  B --> F : 200 { etat = EN_ATTENTE, titre, dateRemise }
+  note right of F : aucune note, même partielle : les notes automatiques\n(QCM, code) restent cachées jusqu'à la publication
+  F --> E : « Résultats en attente de publication »
+else EVALUE et evaluation.resultatsPublies
+  B -> D : SELECT questions, réponses, choix cochés,\nResultatCasTest (+ CasDeTest) de la copie
+  D --> B : copie complète
+  B -> D : SELECT count(*), avg(note_finale) FROM soumissions\nWHERE evaluation_id = :e AND statut = 'EVALUE'
+  D --> B : nombre de copies notées, moyenne
+  B -> B : construit la réponse (règles de confidentialité ci-dessous)
+  note right of B
+    **Bonnes réponses** (choix corrects des QCM, entrées / sorties des cas visibles) :
+    seulement après dateFermeture + 2 min de marge — plus personne ne compose,
+    tiers-temps compris (fin de chaque épreuve plafonnée à la fermeture) ;
+    avant, l'étudiant voit ses notes et commentaires, pas le corrigé.
+    (Option future côté publication, module d'Aminou : « corrigé jamais visible ».)
+    **Cas de test masqués** : verdict (réussi, mauvaise réponse, temps dépassé,
+    erreur à l'exécution, erreur de compilation) et temps ; jamais l'entrée,
+    la sortie attendue, la sortie obtenue ni le message d'erreur (réutilisables,
+    et la sortie d'erreur d'un programme peut recopier son entrée).
+    **Questions ouvertes** : note et commentaire validés par l'enseignant ;
+    la proposition de l'IA n'est jamais renvoyée.
+    **Moyenne de la promotion** : seulement à partir de 5 copies notées
+    (en dessous, quelques étudiants qui comparent leurs notes retrouveraient
+    celle d'un autre) ; sinon null.
+  end note
+  B --> F -- : 200 { etat = PUBLIES, noteFinale, totalPoints, feedbackGeneral,\nmoyennePromotion, ecartMoyenne, corrigeVisible, questions[] }
+  F --> E : note, moyenne, détail par question\n(points, commentaire, résultats des cas de test)
+end
+deactivate F
+
+== Tableau de bord (performances) ==
+E -> F : ouvre /etudiant/performances
+activate F
+F -> B ++ : GET /api/etudiant/performances (JWT)
+B -> D : SELECT copies de l'étudiant JOIN FETCH evaluation\nWHERE statut = 'EVALUE' AND evaluation.resultatsPublies\nORDER BY dateRemise
+D --> B : copies publiées
+B -> D : SELECT evaluation_id, count(*), avg(note_finale) FROM soumissions\nWHERE statut = 'EVALUE' AND evaluation_id IN (…) GROUP BY evaluation_id
+D --> B : moyenne et effectif par évaluation
+note right of B : une requête pour toutes les évaluations (pas une par évaluation).\nNotes ramenées sur 20 (note / totalPoints × 20, 2 décimales) ;\névaluation à totalPoints = 0 ignorée ; moyenne null sous 5 copies
+B --> F -- : 200 { historique[] (titre, date, note/20, moyennePromotion/20),\nmoyenneGenerale, moyennePromotionGenerale, nbEvaluations }
+alt aucune évaluation publiée
+  F --> E : « Pas encore de résultats publiés »
+else
+  F --> E : courbe d'évolution (ma note, moyenne de la promotion),\nhistorique, écart à la moyenne (ex. « +2,5 points »)
+end
+deactivate F
+
+note over E, D
+  Statistiques côté étudiant : seules les copies EVALUE d'évaluations publiées comptent (une copie
+  en correction fausserait la moyenne) ; count = 0 géré (moyenne null, jamais de division par zéro).
+  Pas de rang dans la promotion : le cahier des charges demande une comparaison anonyme avec la moyenne,
+  affichée comme un écart (« +2,5 points au-dessus de la moyenne »).
+  **Migration V8** : resultats_cas_tests.verdict, rempli par la correction (DS-12, phase 3) à partir
+  du statut Judge0 (3 réussi, 4 mauvaise réponse, 5 temps dépassé, 6 compilation, 7 à 12 exécution).
+  Lecture seule : aucun verrou, aucune écriture.
+end note
+@enduml
