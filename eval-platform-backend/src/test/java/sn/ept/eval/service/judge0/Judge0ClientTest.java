@@ -134,6 +134,34 @@ class Judge0ClientTest {
     }
 
     @Test
+    @DisplayName("Lot : la liste des jetons arrive à Judge0 séparée par des virgules une fois l'URL décodée (pas de double encodage)")
+    void lot_JetonsSeparesParDesVirgules() throws Exception {
+        attendrePremierCas("t1");
+        serveur.expect(once(), requestTo(startsWith(BASE + "/submissions/t1")))
+                .andRespond(withSuccess(resultat(3, "ok"), MediaType.APPLICATION_JSON));
+        serveur.expect(once(), requestTo(BASE + "/submissions/batch?base64_encoded=true"))
+                .andRespond(withSuccess("[{\"token\":\"a1-b2\"},{\"token\":\"c3-d4\"}]", MediaType.APPLICATION_JSON));
+        serveur.expect(once(), requestTo(containsString("/submissions/batch?tokens=")))
+                .andExpect(requete -> {
+                    String brute = requete.getURI().getRawQuery();
+                    // Ce que fait Rails (Rack) avant le split(",") de SubmissionsController#batch_show
+                    java.util.Map<String, String> params = java.util.Arrays.stream(brute.split("&"))
+                            .map(p -> p.split("=", 2))
+                            .collect(Collectors.toMap(p -> p[0],
+                                    p -> java.net.URLDecoder.decode(p[1], StandardCharsets.UTF_8)));
+                    assertThat(params.get("tokens").split(",")).containsExactly("a1-b2", "c3-d4");
+                    assertThat(params.get("base64_encoded")).isEqualTo("true");
+                    assertThat(params.get("fields").split(",")).contains("status", "stdout", "compile_output", "message");
+                })
+                .andRespond(withSuccess("{\"submissions\":[" + resultat(3, "ok") + "," + resultat(3, "ok") + "]}",
+                        MediaType.APPLICATION_JSON));
+
+        client.executer("code", "python", cas(3), dans10Minutes());
+
+        serveur.verify(); // envoyé : ?tokens=a1-b2%2Cc3-d4&base64_encoded=true&fields=token%2Cstdout…
+    }
+
+    @Test
     @DisplayName("Erreur de compilation sur le premier cas : tous les cas échouent avec le message, rien d'autre n'est exécuté")
     void erreurCompilation_TousEchoues() throws Exception {
         attendrePremierCas("t1");
