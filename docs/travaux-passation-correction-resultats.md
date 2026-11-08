@@ -165,6 +165,18 @@ cd eval-platform-frontend && npm test && npx tsc -b --noEmit && npm run lint
 
 `mvn clean test` plutôt qu'une compilation incrémentale : celle-ci a déjà produit des `NoClassDefFoundError`.
 
+**Collection Postman** (`docs/Plateforme_Evaluation_Postman_Collection.json`). Elle couvre la connexion et
+`/auth/me`, la passation QCM, le quiz, l'épreuve de code et les résultats. Parcours étudiant, à lancer sur une
+base neuve (profil `h2-dev`) :
+
+```bash
+postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
+  --env-var "baseUrl=http://localhost:8080/api" \
+  -i "1.1 Login Étudiant (Aminou Niang)" -i "1.4 Profil de l'utilisateur connecté (/auth/me)" \
+  -i "02 - Passation & Soumission (DS-01, DS-02, DS-10)" -i "03 - Épreuve de code (DS-12)" \
+  -i "04 - Résultats de l'étudiant (DS-13)"
+```
+
 ## 9. Reste à faire
 
 **Pour Mor (fin de projet)**
@@ -173,7 +185,6 @@ cd eval-platform-frontend && npm test && npx tsc -b --noEmit && npm run lint
 - Brancher l'**accueil étudiant** (`DashboardEtudiant`), encore simulé : son lien vers une copie corrigée ne mène
   plus à rien. Il peut réutiliser `/etudiant/evaluations` et `/etudiant/performances`. La page des notifications
   et le profil sont aussi simulés.
-- Ajouter les nouvelles routes à la collection Postman (`docs/Plateforme_Evaluation_Postman_Collection.json`).
 - Révocation des jetons à la déconnexion (liste de révocation ou jetons plus courts), si on la juge utile.
 
 **À voir avec Aminou**
