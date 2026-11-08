@@ -55,12 +55,12 @@ else copie EN_COURS
   note over B : **Calcule :**\nfin = min(dateDebut + durée effective, dateFermeture)\ndurée effective = tiers-temps, sinon dureeStandard
 
   alt Cas normal : now() ≤ fin + marge (2 min)
-    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = now()
+    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = now(),\nprochaine_tentative_le = now() + 5 min
     B ->> C : corrigerSoumissionAsync(id), après le commit
     B --> F : 200 OK { statut = SOUMIS, message = "Copie soumise avec succès." }
   else Cas critique : temps dépassé au-delà de la marge de tolérance
     note over B : **Mécanisme anti-triche :**\nle serveur fige la copie à l'état\nde la dernière sauvegarde (DS-02)
-    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = fin
+    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = fin,\nprochaine_tentative_le = now() + 5 min
     B -> D : INSERT AlerteAntiTriche (niveau = 'ELEVE', soumission tardive)
     B ->> C : corrigerSoumissionAsync(id), après le commit
     B --> F : 409 Conflict (code TEMPS_EXPIRE)
@@ -82,17 +82,17 @@ else échec réseau, soumission automatique en fin de chrono
 end
 deactivate F
 
-== Correction asynchrone ==
+== Correction asynchrone (détail : DS-12) ==
 activate C
 C -> D ++ : SELECT Soumission WHERE id = :id FOR UPDATE
 D --> C -- : copie
 alt statut ≠ SOUMIS (déjà corrigée)
   note right of C : sans effet : la note de l'enseignant est conservée
 else statut = SOUMIS
-  C -> C : corrige les réponses QCM et quiz
-  alt toutes les questions sont des QCM / quiz
+  C -> C : corrige les réponses QCM et quiz ;\ncode exécuté par Judge0, noté au prorata des cas réussis (DS-12)
+  alt QCM, quiz et code, tout noté automatiquement
     C -> D : UPDATE Soumission SET noteFinale, statut = 'EVALUE'
-  else questions ouvertes ou de code présentes
+  else questions ouvertes, ou code sans cas de test
     C -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
     note right of C : correction par l'enseignant (module d'Aminou)
   end
@@ -103,6 +103,7 @@ note over B, C
   Cohérence avec DS-11 (clôture automatique) : même fin effective et même marge (TempsEpreuveService),
   même dateRemise = fin, même verrou avec revérification du statut, correction après le commit.
   Seule différence voulue : pas d'alerte anti-triche, l'étudiant n'a rien envoyé hors délai.
-  Copie restée SOUMIS (correction perdue, redémarrage) : relancée par la tâche planifiée après 5 min.
+  Copie restée SOUMIS (correction perdue, redémarrage, Judge0 indisponible) : relancée par la tâche
+  planifiée une fois prochaine_tentative_le passée, 5 tentatives au plus (DS-12).
 end note
 @enduml

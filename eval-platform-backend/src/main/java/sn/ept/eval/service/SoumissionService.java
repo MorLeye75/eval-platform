@@ -194,6 +194,7 @@ public class SoumissionService {
             // Le serveur fige la copie à l'état du dernier auto-save
             soumission.setStatut(StatutSoumission.SOUMIS);
             soumission.setDateRemise(finEpreuve);
+            reserverCorrection(soumission, now);
             soumissionRepository.save(soumission);
             antiTricheService.signalerSoumissionTardive(soumission);
 
@@ -206,12 +207,18 @@ public class SoumissionService {
         // [Cas Normal : Temps dans les clous ou dans la marge]
         soumission.setStatut(StatutSoumission.SOUMIS);
         soumission.setDateRemise(now);
+        reserverCorrection(soumission, now);
         soumission = soumissionRepository.save(soumission);
 
         // Déclenche CorrectionService en arrière-plan (async), une fois le statut SOUMIS commité
         correctionDeclencheur.apresCommit(soumission.getId());
 
         return soumissionMapper.versResponse(soumission, "Copie soumise avec succès.");
+    }
+
+    /** La relance planifiée ne reprend la copie que si la correction lancée à la remise ne l'a pas prise en charge à temps (DS-12). */
+    private static void reserverCorrection(Soumission soumission, LocalDateTime maintenant) {
+        soumission.setProchaineTentativeLe(maintenant.plusMinutes(CorrectionService.DELAI_AVANT_RELANCE_MINUTES));
     }
 
     /**

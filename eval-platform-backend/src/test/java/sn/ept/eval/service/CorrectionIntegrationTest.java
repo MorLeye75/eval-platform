@@ -131,6 +131,11 @@ class CorrectionIntegrationTest {
         List<Double> notes = jdbcTemplate.queryForList(
                 "select note_obtenue from reponses_etudiant where soumission_id = ?", Double.class, soumissionId);
         assertThat(notes).isNotEmpty().containsOnlyNulls();
+        // DS-12 : l'échec est compté et la copie n'est pas reprise avant 1 min
+        Soumission enEchec = soumissionRepository.findById(soumissionId).orElseThrow();
+        assertThat(enEchec.getTentativesCorrection()).isEqualTo(1);
+        assertThat(enEchec.getCorrectionDemarreeLe()).isNull();
+        assertThat(enEchec.getProchaineTentativeLe()).isAfter(java.time.LocalDateTime.now().plusSeconds(30));
 
         // Relance (tâche planifiée) : la correction aboutit
         correctionService.corrigerSoumissionAsync(soumissionId).get(10, TimeUnit.SECONDS);

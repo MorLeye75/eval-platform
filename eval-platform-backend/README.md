@@ -70,6 +70,9 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `JWT_EXPIRATION_MS` | non | `86400000` (24 h) | durée de validité des jetons |
 | `CORS_ALLOWED_ORIGINS` | **oui** | `http://localhost:5173,http://127.0.0.1:5173` | origines du front autorisées, séparées par des virgules (ex. `https://eval.ept.sn`) ; pas de `*` |
 | `SWAGGER_ENABLED` | non | `false` (`true` en `dev` et `h2-dev`) | sert la documentation OpenAPI et Swagger UI |
+| `JUDGE0_URL` | oui, pour corriger le code | `http://localhost:2358` | Judge0 auto-hébergé, sur le réseau interne uniquement (DS-12) |
+| `JUDGE0_TOKEN` | si Judge0 en exige un | vide | jeton envoyé dans l'en-tête `X-Auth-Token` (`AUTHN_TOKEN` de Judge0) |
+| `JUDGE0_CONCURRENCE` | non | `2` | corrections avec du code simultanées : le nombre de workers Judge0 |
 | `FORWARD_HEADERS_STRATEGY` | derrière un proxy | `none` | `native` derrière un reverse proxy (nginx, traefik…) pour lire l'IP réelle du client dans `X-Forwarded-For` ; laisser `none` sans proxy (sinon un client pourrait inventer son IP) |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.
@@ -85,6 +88,10 @@ ni de secret par défaut) : l'application démarre sans profil et exige ces vari
 |---|---|---|
 | `passation.taches-planifiees.actif` | `true` | clôture automatique des copies et relance des corrections |
 | `passation.taches-planifiees.intervalle-ms` | `60000` | fréquence de ces tâches |
+| `correction.judge0.cpu-time-limit` / `wall-time-limit` | `2` / `5` s | limites d'exécution d'un cas de test |
+| `correction.judge0.memory-limit-ko` | `256000` | mémoire d'un cas de test (Java en a besoin) |
+| `correction.judge0.duree-max-execution` | `10m` | durée maximale de toutes les exécutions d'une copie |
+| `correction.judge0.langages.*` | c 50, cpp 54, java 62, python 71, javascript 63 | `language_id` de Judge0 CE 1.13 |
 | `securite.login.max-echecs` | `5` | échecs de connexion avant blocage d'un couple (email, IP) |
 | `securite.login.max-echecs-par-ip` | `100` | échecs depuis une même IP, tous comptes confondus, avant blocage de l'IP (password spraying). À ajuster : les étudiants d'un campus partagent souvent une IP |
 | `securite.login.max-compteurs` | `10000` | entrées en mémoire par type de compteur (couples, IP) ; au-delà, les plus anciennes sont évincées |

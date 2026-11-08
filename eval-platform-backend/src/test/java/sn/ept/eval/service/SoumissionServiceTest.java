@@ -90,7 +90,8 @@ class SoumissionServiceTest {
                 accesService, tempsEpreuveService);
         EnregistrementReponsesService enregistrementReponses = new EnregistrementReponsesService(questionRepository,
                 choixReponseRepository, reponseEtudiantRepository);
-        CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService);
+        CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService,
+                new CorrectionsEnFile(), soumissionRepository);
         ClotureCopiesService clotureCopiesService = new ClotureCopiesService(soumissionRepository, tempsEpreuveService,
                 correctionDeclencheur, mock(PlatformTransactionManager.class));
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
@@ -164,6 +165,8 @@ class SoumissionServiceTest {
 
         assertThat(response.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
         assertThat(soumission.getDateRemise()).isNotNull();
+        // DS-12 : la relance planifiée ne reprend la copie que si la correction lancée ne l'a pas prise en charge à temps
+        assertThat(soumission.getProchaineTentativeLe()).isEqualTo(MAINTENANT.plusMinutes(5));
 
         // Vérifie que CorrectionService est bien déclenché en tâche de fond (@Async)
         verify(correctionService, times(1)).corrigerSoumissionAsync(100L);
@@ -185,6 +188,7 @@ class SoumissionServiceTest {
 
         // Vérifie que la copie est bien figée et verrouillée au statut SOUMIS
         assertThat(soumission.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(soumission.getProchaineTentativeLe()).isEqualTo(MAINTENANT.plusMinutes(5));
         verify(soumissionRepository).save(soumission);
 
         // Vérifie qu'une alerte anti-triche de niveau ELEVE a été journalisée

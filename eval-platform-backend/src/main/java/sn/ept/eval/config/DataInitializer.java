@@ -103,7 +103,10 @@ public class DataInitializer implements CommandLineRunner {
         eval2.setEnseignant(prof);
         eval2.setPromotions(Set.of(dic2));
 
-        QuestionCode qCode = new QuestionCode("Écrire une fonction `estPalindrome(String s)` qui renvoie true si la chaîne est un palindrome.", 1, 5.0);
+        // Judge0 exécute un programme complet : l'entrée du cas de test arrive sur l'entrée standard
+        // et la sortie standard est comparée à la sortie attendue
+        QuestionCode qCode = new QuestionCode("Écrire un programme qui lit une chaîne sur l'entrée standard et affiche "
+                + "true si c'est un palindrome, false sinon.", 1, 5.0);
         qCode.addCasDeTest(new CasDeTest("radar", "true", false));
         qCode.addCasDeTest(new CasDeTest("bonjour", "false", false));
         qCode.addCasDeTest(new CasDeTest("kayak", "true", true)); // Cas masqué

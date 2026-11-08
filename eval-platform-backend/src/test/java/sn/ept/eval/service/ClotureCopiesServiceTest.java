@@ -25,6 +25,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,7 +57,7 @@ class ClotureCopiesServiceTest {
     void setUp() {
         Clock horlogeFigee = Clock.fixed(MAINTENANT.atZone(ZONE).toInstant(), ZONE);
         TempsEpreuveService temps = new TempsEpreuveService(amenagementTempsRepository, horlogeFigee);
-        service = new ClotureCopiesService(soumissionRepository, temps, new CorrectionDeclencheur(correctionService),
+        service = new ClotureCopiesService(soumissionRepository, temps, new CorrectionDeclencheur(correctionService, new CorrectionsEnFile(), soumissionRepository),
                 transactionManager);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
@@ -88,6 +90,8 @@ class ClotureCopiesServiceTest {
 
         assertThat(soumission.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
         assertThat(soumission.getDateRemise()).isEqualTo(MAINTENANT.minusMinutes(10));
+        // La relance ne la reprend pas tant que la correction lancée peut encore la prendre en charge
+        assertThat(soumission.getProchaineTentativeLe()).isEqualTo(MAINTENANT.plusMinutes(5));
         verify(correctionService).corrigerSoumissionAsync(100L);
     }
 
@@ -157,5 +161,21 @@ class ClotureCopiesServiceTest {
 
         verify(soumissionRepository, never()).findByIdForUpdate(any());
         assertThat(soumission.getStatut()).isEqualTo(StatutSoumission.EN_COURS);
+    }
+
+    @Test
+    @DisplayName("Relance : copies sans prise en charge récente et dont le délai est écoulé, 50 au plus, réservées 5 min")
+    void relance_CopiesReserveesPuisRemisesEnFile() {
+        when(soumissionRepository.findIdsCorrectionARelancer(any(), any(), any())).thenReturn(List.of(100L, 101L));
+        when(soumissionRepository.reporterProchaineTentative(100L, MAINTENANT.plusMinutes(5))).thenReturn(1);
+        // 101 a été corrigée entre la sélection et la réservation : plus SOUMIS
+        when(soumissionRepository.reporterProchaineTentative(101L, MAINTENANT.plusMinutes(5))).thenReturn(0);
+
+        assertThat(service.relancerCorrectionsBloquees()).isEqualTo(1);
+
+        verify(soumissionRepository).findIdsCorrectionARelancer(eq(MAINTENANT.minusMinutes(15)), eq(MAINTENANT),
+                argThat(page -> page.getPageSize() == 50));
+        verify(correctionService).corrigerSoumissionAsync(100L);
+        verify(correctionService, never()).corrigerSoumissionAsync(101L);
     }
 }

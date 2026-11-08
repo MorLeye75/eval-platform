@@ -2,6 +2,7 @@ package sn.ept.eval.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -24,8 +25,8 @@ public class ClotureCopiesService {
 
     private static final Logger log = LoggerFactory.getLogger(ClotureCopiesService.class);
 
-    /** Au-delà de ce délai sans modification, une copie SOUMIS est considérée comme bloquée. */
-    public static final int DELAI_CORRECTION_BLOQUEE_MINUTES = 5;
+    /** Corrections remises en file à chaque passage de la relance planifiée, au plus. */
+    static final int RELANCES_PAR_PASSAGE = 50;
 
     private final SoumissionRepository soumissionRepository;
     private final TempsEpreuveService tempsEpreuveService;
@@ -96,23 +97,35 @@ public class ClotureCopiesService {
     private void cloturerExpiree(Soumission soumission, int dureeEffectiveMinutes) {
         soumission.setStatut(StatutSoumission.SOUMIS);
         soumission.setDateRemise(tempsEpreuveService.finEpreuve(soumission, dureeEffectiveMinutes));
+        // La relance ne reprend la copie que si la correction lancée ci-dessous ne l'a pas prise en charge à temps
+        soumission.setProchaineTentativeLe(
+                tempsEpreuveService.maintenant().plusMinutes(CorrectionService.DELAI_AVANT_RELANCE_MINUTES));
         correctionDeclencheur.apresCommit(soumission.getId());
     }
 
     /**
-     * Copies restées SOUMIS : la correction asynchrone a échoué ou le serveur a redémarré
-     * entre la soumission et la correction.
+     * Copies restées SOUMIS (DS-12) : tentative précédente échouée dont le délai est écoulé, correction perdue
+     * (serveur redémarré, file pleine) ou prise en charge abandonnée depuis plus de 15 min.
+     * Chaque copie est réservée 5 min avant d'être remise en file : tant que sa tâche attend dans la file,
+     * elle n'y est pas remise à la minute suivante. Au plus {@value #RELANCES_PAR_PASSAGE} copies par passage.
      *
      * @return le nombre de corrections relancées
      */
     @Transactional
     public int relancerCorrectionsBloquees() {
-        LocalDateTime seuil = tempsEpreuveService.maintenant().minusMinutes(DELAI_CORRECTION_BLOQUEE_MINUTES);
-        List<Soumission> bloquees = soumissionRepository.findByStatutAndDateModificationBefore(StatutSoumission.SOUMIS, seuil);
-        bloquees.forEach(s -> {
-            log.warn("Relance de la correction de la soumission ID={} (bloquée en SOUMIS)", s.getId());
-            correctionDeclencheur.apresCommit(s.getId());
-        });
-        return bloquees.size();
+        LocalDateTime maintenant = tempsEpreuveService.maintenant();
+        List<Long> ids = soumissionRepository.findIdsCorrectionARelancer(
+                maintenant.minusMinutes(CorrectionService.PRISE_EN_CHARGE_MINUTES), maintenant,
+                PageRequest.of(0, RELANCES_PAR_PASSAGE));
+        int relancees = 0;
+        for (Long id : ids) {
+            if (soumissionRepository.reporterProchaineTentative(id,
+                    maintenant.plusMinutes(CorrectionService.DELAI_AVANT_RELANCE_MINUTES)) == 1) {
+                log.warn("Relance de la correction de la soumission ID={}", id);
+                correctionDeclencheur.apresCommit(id);
+                relancees++;
+            }
+        }
+        return relancees;
     }
 }

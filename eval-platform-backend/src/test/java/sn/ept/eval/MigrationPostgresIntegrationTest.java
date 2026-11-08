@@ -5,6 +5,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -13,8 +14,10 @@ import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.model.Evaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.EvaluationRepository;
+import sn.ept.eval.repository.SoumissionRepository;
 import sn.ept.eval.repository.UtilisateurRepository;
 import sn.ept.eval.service.AntiTricheService;
+import sn.ept.eval.service.ClotureCopiesService;
 import sn.ept.eval.service.SoumissionService;
 
 import java.time.LocalDateTime;
@@ -55,12 +58,21 @@ class MigrationPostgresIntegrationTest {
     @Autowired
     private UtilisateurRepository utilisateurRepository;
 
+    @Autowired
+    private SoumissionRepository soumissionRepository;
+
+    @Autowired
+    private ClotureCopiesService clotureCopiesService;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("Toutes les migrations sont appliquées et le schéma correspond aux entités")
     void migrationAppliquee() {
         // Le contexte ne démarre que si Hibernate valide le schéma créé par Flyway
         assertThat(flyway.info().pending()).isEmpty();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("6");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("7");
     }
 
     @Test
@@ -89,5 +101,23 @@ class MigrationPostgresIntegrationTest {
         var utilisateur = utilisateurRepository.findById(id).orElseThrow();
         assertThat(utilisateur.getDerniereConnexion()).isEqualTo(connexion);
         assertThat(utilisateur.getModifiePar()).isEqualTo(modifiePar);
+    }
+
+    @Test
+    @DisplayName("V7 : index partiel de la relance, requêtes de relance et choix de l'exécuteur sur PostgreSQL")
+    void suiviCorrectionSurPostgres() {
+        assertThat(jdbcTemplate.queryForObject(
+                "select indexdef from pg_indexes where indexname = 'idx_soumissions_relance'", String.class))
+                .contains("WHERE").contains("SOUMIS");
+
+        Long evalCodeId = evaluationRepository.findAll().stream()
+                .filter(e -> e.getTitre().contains("code")).map(Evaluation::getId).findFirst().orElseThrow();
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalCodeId, "etudiant@ept.sn").getId();
+        assertThat(soumissionRepository.evaluationContientCode(soumissionId)).isTrue();
+
+        // Copie restée SOUMIS sans correction : sélectionnée, réservée 5 min, puis plus sélectionnée
+        jdbcTemplate.update("update soumissions set statut = 'SOUMIS', prochaine_tentative_le = null where id = ?", soumissionId);
+        assertThat(clotureCopiesService.relancerCorrectionsBloquees()).isGreaterThanOrEqualTo(1);
+        assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getProchaineTentativeLe()).isNotNull();
     }
 }

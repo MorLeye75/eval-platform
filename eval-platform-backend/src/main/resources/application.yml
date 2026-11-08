@@ -47,6 +47,14 @@ jwt:
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
 
+# Correction automatique du code (DS-12) : Judge0 auto-hébergé, jamais exposé publiquement.
+# Limites d'exécution et correspondance des langages : voir Judge0Proprietes (valeurs par défaut).
+correction:
+  judge0:
+    url: ${JUDGE0_URL:http://localhost:2358}
+    token: ${JUDGE0_TOKEN:}
+    concurrence: ${JUDGE0_CONCURRENCE:2}
+
 # Documentation OpenAPI / Swagger UI : désactivée hors développement (elle décrit toute l'API),
 # activable explicitement avec SWAGGER_ENABLED=true
 springdoc:
