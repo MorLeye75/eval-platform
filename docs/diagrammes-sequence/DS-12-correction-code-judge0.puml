@@ -92,7 +92,8 @@ alt Judge0 indisponible (ou phase 2 trop longue)
 else exécutions abouties
   CS -> D : UPDATE notes QCM (bonne réponse exacte ou 0, DS-01)
   CS -> D : DELETE anciens ResultatCasTest des réponses de code (correction précédente)
-  CS -> D : INSERT ResultatCasTest (estValide, sortieObtenue, tempsExecution, messageErreur) par cas
+  CS -> D : INSERT ResultatCasTest (estValide, verdict, sortieObtenue, tempsExecution, messageErreur) par cas
+  note right of D : verdict (V8) : REUSSI, MAUVAISE_REPONSE, TEMPS_DEPASSE,\nERREUR_COMPILATION, ERREUR_EXECUTION ; seule information\nmontrée à l'étudiant pour un cas masqué (DS-13)
   CS -> D : UPDATE ReponseCode SET noteObtenue =\narrondi(points × cas réussis / nombre de cas, 2 décimales) ; code vide : 0
   alt que des QCM et du code, tout noté automatiquement
     CS -> D : UPDATE Soumission SET noteFinale = somme des notes, statut = 'EVALUE'

@@ -121,11 +121,11 @@ function EvaluationCard({ evaluation }: { evaluation: EvaluationEtudiant }) {
               render={<Link to={`/etudiant/evaluations/${evaluation.id}`}>Voir les détails</Link>}
             />
           )}
-          {etat === "terminee" && evaluation.resultatsPublies && evaluation.statutSoumission && (
+          {etat === "terminee" && evaluation.resultatsPublies && evaluation.soumissionId != null && (
             <Button
               size="sm"
               variant="ghost"
-              render={<Link to={`/etudiant/resultats/${evaluation.id}`}>Voir mes résultats</Link>}
+              render={<Link to={`/etudiant/resultats/${evaluation.soumissionId}`}>Voir mes résultats</Link>}
             />
           )}
         </div>

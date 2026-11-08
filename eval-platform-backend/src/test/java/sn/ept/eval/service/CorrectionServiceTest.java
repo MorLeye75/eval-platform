@@ -11,6 +11,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import sn.ept.eval.config.Judge0Proprietes;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutSoumission;
+import sn.ept.eval.model.enums.VerdictCas;
 import sn.ept.eval.repository.SoumissionRepository;
 import sn.ept.eval.service.judge0.Judge0Client;
 import sn.ept.eval.service.judge0.Judge0Client.CasAExecuter;
@@ -109,7 +110,8 @@ class CorrectionServiceTest {
 
     private static List<ResultatCas> resultats(int reussis, int total) {
         return IntStream.rangeClosed(1, total)
-                .mapToObj(i -> new ResultatCas(100L + i, i <= reussis, "sortie", 0.01, i <= reussis ? null : "Wrong Answer"))
+                .mapToObj(i -> new ResultatCas(100L + i, i <= reussis ? VerdictCas.REUSSI : VerdictCas.MAUVAISE_REPONSE,
+                        "sortie", 0.01, i <= reussis ? null : "Wrong Answer"))
                 .toList();
     }
 
@@ -312,6 +314,8 @@ class CorrectionServiceTest {
         assertThat(rc.getResultatsCasTests()).hasSize(7);
         assertThat(rc.getResultatsCasTests()).filteredOn(ResultatCasTest::getEstValide).hasSize(3);
         assertThat(rc.getResultatsCasTests().get(5).getMessageErreur()).isEqualTo("Wrong Answer");
+        assertThat(rc.getResultatsCasTests().get(5).getVerdict()).isEqualTo(VerdictCas.MAUVAISE_REPONSE);
+        assertThat(rc.getResultatsCasTests().get(0).getVerdict()).isEqualTo(VerdictCas.REUSSI);
         assertThat(rc.getResultatsCasTests().get(0).getCasDeTest().getId()).isEqualTo(101L);
         assertThat(rc.getCommentaireProf()).contains("3/7");
         // QCM et code tous notés automatiquement : note finale 2 + 2,14

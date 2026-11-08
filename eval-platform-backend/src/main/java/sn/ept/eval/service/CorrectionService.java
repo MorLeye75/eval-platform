@@ -297,6 +297,7 @@ public class CorrectionService {
             resultat.setSortieObtenue(r.sortie());
             resultat.setTempsExecution(r.tempsSecondes());
             resultat.setMessageErreur(r.message());
+            resultat.setVerdict(r.verdict());
             reponse.addResultat(resultat);
             if (r.reussi()) reussis++;
         }

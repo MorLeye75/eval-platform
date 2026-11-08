@@ -2,6 +2,7 @@ package sn.ept.eval.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import sn.ept.eval.model.enums.VerdictCas;
 
 @Entity
 @Table(name = "resultats_cas_tests")
@@ -22,6 +23,11 @@ public class ResultatCasTest {
 
     @Column(columnDefinition = "TEXT")
     private String messageErreur;
+
+    /** Verdict déduit du statut Judge0 (V8) ; nul pour les résultats antérieurs. */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30)
+    private VerdictCas verdict;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cas_de_test_id", nullable = false)
@@ -48,6 +54,9 @@ public class ResultatCasTest {
 
     public String getMessageErreur() { return messageErreur; }
     public void setMessageErreur(String messageErreur) { this.messageErreur = messageErreur; }
+
+    public VerdictCas getVerdict() { return verdict; }
+    public void setVerdict(VerdictCas verdict) { this.verdict = verdict; }
 
     public CasDeTest getCasDeTest() { return casDeTest; }
     public void setCasDeTest(CasDeTest casDeTest) { this.casDeTest = casDeTest; }

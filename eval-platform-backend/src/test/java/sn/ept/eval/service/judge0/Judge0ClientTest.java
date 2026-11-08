@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 import sn.ept.eval.config.Judge0Proprietes;
+import sn.ept.eval.model.enums.VerdictCas;
 import sn.ept.eval.service.judge0.Judge0Client.CasAExecuter;
 import sn.ept.eval.service.judge0.Judge0Client.ResultatCas;
 
@@ -128,6 +129,8 @@ class Judge0ClientTest {
         assertThat(resultats.get(0).sortie()).isEqualTo("radar\n");
         assertThat(resultats.get(0).tempsSecondes()).isEqualTo(0.012);
         assertThat(resultats.get(2).message()).isEqualTo("statut 4");
+        assertThat(resultats).extracting(ResultatCas::verdict)
+                .containsExactly(VerdictCas.REUSSI, VerdictCas.REUSSI, VerdictCas.MAUVAISE_REPONSE);
         // 0,5 s puis ×1,5 pour chaque interrogation, remis à 0,5 s pour le lot
         assertThat(pauses).containsExactly(Duration.ofMillis(500), Duration.ofMillis(750),
                 Duration.ofMillis(500), Duration.ofMillis(750));
@@ -175,6 +178,7 @@ class Judge0ClientTest {
         assertThat(resultats).hasSize(3).allSatisfy(r -> {
             assertThat(r.reussi()).isFalse();
             assertThat(r.message()).isEqualTo("main.c:1: erreur : ';' attendu");
+            assertThat(r.verdict()).isEqualTo(VerdictCas.ERREUR_COMPILATION);
         });
     }
 

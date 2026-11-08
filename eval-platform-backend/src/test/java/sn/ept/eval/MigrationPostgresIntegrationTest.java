@@ -18,6 +18,8 @@ import sn.ept.eval.repository.SoumissionRepository;
 import sn.ept.eval.repository.UtilisateurRepository;
 import sn.ept.eval.service.AntiTricheService;
 import sn.ept.eval.service.ClotureCopiesService;
+import sn.ept.eval.service.ResultatsService;
+import sn.ept.eval.repository.QuestionRepository;
 import sn.ept.eval.service.SoumissionService;
 
 import java.time.LocalDateTime;
@@ -67,12 +69,21 @@ class MigrationPostgresIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private ResultatsService resultatsService;
+
+    @Autowired
+    private QuestionRepository questionRepository;
+
+    @Autowired
+    private sn.ept.eval.repository.PromotionRepository promotionRepository;
+
     @Test
     @DisplayName("Toutes les migrations sont appliquées et le schéma correspond aux entités")
     void migrationAppliquee() {
         // Le contexte ne démarre que si Hibernate valide le schéma créé par Flyway
         assertThat(flyway.info().pending()).isEmpty();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("7");
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("8");
     }
 
     @Test
@@ -119,5 +130,32 @@ class MigrationPostgresIntegrationTest {
         jdbcTemplate.update("update soumissions set statut = 'SOUMIS', prochaine_tentative_le = null where id = ?", soumissionId);
         assertThat(clotureCopiesService.relancerCorrectionsBloquees()).isGreaterThanOrEqualTo(1);
         assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getProchaineTentativeLe()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("DS-13 : statistiques groupées, barèmes et copies publiées sur PostgreSQL")
+    void resultatsSurPostgres() {
+        Long evalQcmId = evaluationRepository.findAll().stream()
+                .filter(e -> e.getTitre().contains("QCM")).map(Evaluation::getId).findFirst().orElseThrow();
+        assertThat(questionRepository.totalPointsParEvaluation(java.util.List.of(evalQcmId)))
+                .singleElement().satisfies(t -> assertThat(t.getTotal()).isEqualTo(5.0));
+
+        // Étudiant propre à ce test : la copie de etudiant@ept.sn sert à passationSurPostgres
+        String email = "etu-pg-" + java.util.UUID.randomUUID() + "@ept.sn";
+        utilisateurRepository.save(new sn.ept.eval.model.Etudiant("Test", "Postgres", email, "x",
+                "ETU-" + java.util.UUID.randomUUID(), promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
+        Long id = soumissionService.demarrerOuReprendre(evalQcmId, email).getId();
+        jdbcTemplate.update("update soumissions set statut = 'EVALUE', note_finale = 4, date_remise = now() where id = ?", id);
+        jdbcTemplate.update("update evaluations set resultats_publies = true where id = ?", evalQcmId);
+
+        assertThat(soumissionRepository.statistiquesNotes(java.util.List.of(evalQcmId))).singleElement().satisfies(st -> {
+            assertThat(st.getNbCopies()).isEqualTo(1L);
+            assertThat(st.getMoyenne()).isEqualTo(4.0);
+        });
+        var performances = resultatsService.performances(email);
+        assertThat(performances.nbEvaluations()).isEqualTo(1);
+        assertThat(performances.historique().get(0).noteSur20()).isEqualTo(16.0);
+        assertThat(performances.historique().get(0).moyennePromotionSur20()).isNull(); // une seule copie
+        assertThat(resultatsService.resultatsCopie(id, email).noteFinale()).isEqualTo(4.0);
     }
 }

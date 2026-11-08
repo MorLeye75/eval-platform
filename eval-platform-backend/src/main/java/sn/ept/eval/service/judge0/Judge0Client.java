@@ -12,6 +12,7 @@ import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import sn.ept.eval.config.Judge0Proprietes;
+import sn.ept.eval.model.enums.VerdictCas;
 
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
@@ -41,8 +42,15 @@ public class Judge0Client {
 
     public record CasAExecuter(Long casId, String entree, String sortieAttendue) {}
 
-    /** Résultat d'un cas : sortie et message tronqués à 10 Ko (contenu étudiant, à échapper à l'affichage). */
-    public record ResultatCas(Long casId, boolean reussi, String sortie, double tempsSecondes, String message) {}
+    /**
+     * Résultat d'un cas : sortie et message tronqués à 10 Ko (contenu étudiant, à échapper à l'affichage).
+     * Le verdict est la seule information montrée à l'étudiant pour un cas masqué (DS-13).
+     */
+    public record ResultatCas(Long casId, VerdictCas verdict, String sortie, double tempsSecondes, String message) {
+        public boolean reussi() {
+            return verdict == VerdictCas.REUSSI;
+        }
+    }
 
     @FunctionalInterface
     interface Attente {
@@ -120,7 +128,9 @@ public class Judge0Client {
                 // Le même code échouerait partout : aucun autre cas n'est exécuté
                 String message = tronquer(premierRenseigne(decoder(reponse.compileOutput()), decoder(reponse.message()),
                         description(reponse)));
-                return cas.stream().map(c -> new ResultatCas(c.casId(), false, null, 0.0, message)).toList();
+                return cas.stream()
+                        .map(c -> new ResultatCas(c.casId(), VerdictCas.ERREUR_COMPILATION, null, 0.0, message))
+                        .toList();
             }
 
             List<ResultatCas> resultats = new ArrayList<>(cas.size());
@@ -185,15 +195,25 @@ public class Judge0Client {
         int statut = statut(reponse);
         String sortie = tronquer(decoder(reponse.stdout()));
         if (statut == ACCEPTE) {
-            return new ResultatCas(cas.casId(), true, sortie, temps(reponse), null);
+            return new ResultatCas(cas.casId(), VerdictCas.REUSSI, sortie, temps(reponse), null);
         }
         if (statut > ACCEPTE && statut <= DERNIER_ECHEC_ETUDIANT) {
             String message = premierRenseigne(decoder(reponse.compileOutput()), decoder(reponse.stderr()),
                     decoder(reponse.message()), description(reponse));
-            return new ResultatCas(cas.casId(), false, sortie, temps(reponse), tronquer(message));
+            return new ResultatCas(cas.casId(), verdict(statut), sortie, temps(reponse), tronquer(message));
         }
         // 13 « Internal Error », 14 « Exec Format Error » ou statut inconnu : panne de Judge0
         throw new Judge0IndisponibleException("Judge0 : statut " + statut + " (" + description(reponse) + ")");
+    }
+
+    /** Statuts 4 à 12 de Judge0 : échecs dus au code de l'étudiant. */
+    private static VerdictCas verdict(int statut) {
+        return switch (statut) {
+            case 4 -> VerdictCas.MAUVAISE_REPONSE;
+            case 5 -> VerdictCas.TEMPS_DEPASSE;
+            case ERREUR_COMPILATION -> VerdictCas.ERREUR_COMPILATION;
+            default -> VerdictCas.ERREUR_EXECUTION; // 7 à 12 : signal, mémoire, exception…
+        };
     }
 
     private SoumissionJudge0 soumission(String code, int languageId, CasAExecuter cas) {

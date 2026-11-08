@@ -33,11 +33,13 @@ else EVALUE et evaluation.resultatsPublies
   D --> B : nombre de copies notées, moyenne
   B -> B : construit la réponse (règles de confidentialité ci-dessous)
   note right of B
-    **Bonnes réponses** (choix corrects des QCM, entrées / sorties des cas visibles) :
+    **Bonnes réponses des QCM** (choix corrects) :
     seulement après dateFermeture + 2 min de marge — plus personne ne compose,
     tiers-temps compris (fin de chaque épreuve plafonnée à la fermeture) ;
     avant, l'étudiant voit ses notes et commentaires, pas le corrigé.
     (Option future côté publication, module d'Aminou : « corrigé jamais visible ».)
+    **Cas de test visibles** : toujours affichés (entrée, sortie attendue, sortie obtenue,
+    message) : ils étaient déjà montrés pendant l'épreuve.
     **Cas de test masqués** : verdict (réussi, mauvaise réponse, temps dépassé,
     erreur à l'exécution, erreur de compilation) et temps ; jamais l'entrée,
     la sortie attendue, la sortie obtenue ni le message d'erreur (réutilisables,
@@ -61,8 +63,8 @@ B -> D : SELECT copies de l'étudiant JOIN FETCH evaluation\nWHERE statut = 'EVA
 D --> B : copies publiées
 B -> D : SELECT evaluation_id, count(*), avg(note_finale) FROM soumissions\nWHERE statut = 'EVALUE' AND evaluation_id IN (…) GROUP BY evaluation_id
 D --> B : moyenne et effectif par évaluation
-note right of B : une requête pour toutes les évaluations (pas une par évaluation).\nNotes ramenées sur 20 (note / totalPoints × 20, 2 décimales) ;\névaluation à totalPoints = 0 ignorée ; moyenne null sous 5 copies
-B --> F -- : 200 { historique[] (titre, date, note/20, moyennePromotion/20),\nmoyenneGenerale, moyennePromotionGenerale, nbEvaluations }
+note right of B : une requête pour toutes les évaluations (pas une par évaluation).\necartMoyenne et moyennePromotionGenerale : calculés sur les seules évaluations\ndont la moyenne est connue (comparaison à périmètre égal).\nNotes ramenées sur 20 (note / totalPoints × 20, 2 décimales) ;\névaluation à totalPoints = 0 ignorée ; moyenne null sous 5 copies
+B --> F -- : 200 { historique[] (titre, date, note/20, moyennePromotion/20),\nmoyenneGenerale, moyennePromotionGenerale, ecartMoyenne, nbEvaluations }
 alt aucune évaluation publiée
   F --> E : « Pas encore de résultats publiés »
 else

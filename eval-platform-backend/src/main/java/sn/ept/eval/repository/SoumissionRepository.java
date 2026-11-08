@@ -14,6 +14,7 @@ import sn.ept.eval.model.Soumission;
 import sn.ept.eval.model.enums.StatutSoumission;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,6 +64,28 @@ public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
     @Query("update Soumission s set s.prochaineTentativeLe = :date"
             + " where s.id = :id and s.statut = sn.ept.eval.model.enums.StatutSoumission.SOUMIS")
     int reporterProchaineTentative(@Param("id") Long id, @Param("date") LocalDateTime date);
+
+    /** Effectif et moyenne des copies notées d'une évaluation (DS-13). */
+    interface StatistiquesNotes {
+        Long getEvaluationId();
+        Long getNbCopies();
+        Double getMoyenne();
+    }
+
+    /**
+     * Statistiques des copies EVALUE de plusieurs évaluations, en une requête (DS-13). Une copie en correction
+     * n'est pas comptée : elle fausserait la moyenne.
+     */
+    @Query("select s.evaluation.id as evaluationId, count(s.noteFinale) as nbCopies, avg(s.noteFinale) as moyenne"
+            + " from Soumission s where s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE"
+            + " and s.evaluation.id in :evaluationIds group by s.evaluation.id")
+    List<StatistiquesNotes> statistiquesNotes(@Param("evaluationIds") Collection<Long> evaluationIds);
+
+    /** Copies notées de l'étudiant dont les résultats sont publiés, de la plus ancienne à la plus récente (DS-13). */
+    @Query("select s from Soumission s join fetch s.evaluation e where s.etudiant.id = :etudiantId"
+            + " and s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE and e.resultatsPublies = true"
+            + " order by s.dateRemise")
+    List<Soumission> findCopiesPubliees(@Param("etudiantId") Long etudiantId);
 
     /** L'évaluation de la copie contient-elle au moins une question de code (exécutée par Judge0) ? */
     @Query("select case when count(q) > 0 then true else false end from QuestionCode q"

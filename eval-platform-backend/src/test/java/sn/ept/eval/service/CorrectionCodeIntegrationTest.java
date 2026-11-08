@@ -14,6 +14,7 @@ import sn.ept.eval.model.Evaluation;
 import sn.ept.eval.model.Promotion;
 import sn.ept.eval.model.Soumission;
 import sn.ept.eval.model.enums.StatutSoumission;
+import sn.ept.eval.model.enums.VerdictCas;
 import sn.ept.eval.repository.*;
 import sn.ept.eval.service.judge0.Judge0Client;
 import sn.ept.eval.service.judge0.Judge0Client.CasAExecuter;
@@ -121,9 +122,9 @@ class CorrectionCodeIntegrationTest {
             thread.set(Thread.currentThread().getName());
             List<CasAExecuter> cas = inv.getArgument(2);
             return List.of(
-                    new ResultatCas(cas.get(0).casId(), true, "true\n", 0.02, null),
-                    new ResultatCas(cas.get(1).casId(), true, "false\n", 0.02, null),
-                    new ResultatCas(cas.get(2).casId(), false, "false\n", 0.02, "Wrong Answer")); // cas masqué
+                    new ResultatCas(cas.get(0).casId(), VerdictCas.REUSSI, "true\n", 0.02, null),
+                    new ResultatCas(cas.get(1).casId(), VerdictCas.REUSSI, "false\n", 0.02, null),
+                    new ResultatCas(cas.get(2).casId(), VerdictCas.MAUVAISE_REPONSE, "false\n", 0.02, "Wrong Answer")); // cas masqué
         });
 
         Long soumissionId = remettreCode();
@@ -135,6 +136,9 @@ class CorrectionCodeIntegrationTest {
         assertThat(corrigee.getTentativesCorrection()).isZero();
         assertThat(corrigee.getCorrectionDemarreeLe()).isNull();
         assertThat(nbResultatsCasTests(soumissionId)).isEqualTo(3);
+        assertThat(jdbcTemplate.queryForList("select r.verdict from resultats_cas_tests r join reponses_etudiant e "
+                + "on e.id = r.reponse_code_id where e.soumission_id = ? order by r.id", String.class, soumissionId))
+                .containsExactly("REUSSI", "REUSSI", "MAUVAISE_REPONSE");
         assertThat(jdbcTemplate.queryForObject("select count(*) from resultats_cas_tests r join reponses_etudiant e "
                 + "on e.id = r.reponse_code_id where e.soumission_id = ? and r.est_valide", Integer.class, soumissionId))
                 .isEqualTo(2);
@@ -165,7 +169,7 @@ class CorrectionCodeIntegrationTest {
     void erreurApresPriseEnCharge_RienNEstEcrit() throws Exception {
         // Résultat pour un cas de test inconnu : l'écriture (phase 3) échoue après les premières notes
         when(judge0.executer(any(), any(), anyList(), any()))
-                .thenReturn(List.of(new ResultatCas(-1L, true, "true\n", 0.01, null)));
+                .thenReturn(List.of(new ResultatCas(-1L, VerdictCas.REUSSI, "true\n", 0.01, null)));
 
         Long soumissionId = remettreCode();
 
