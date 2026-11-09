@@ -46,12 +46,13 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 
 | Écran | Source des données |
 |---|---|
-| Connexion | API (`POST /auth/login`) |
-| Passation QCM, question ouverte, code | API : démarrage, sauvegarde automatique, soumission |
-| Quiz chronométré | mocks (`src/mocks`) |
-| Listes, tableaux de bord, résultats, espaces enseignant et admin | mocks (`src/mocks`) |
-
-L'endpoint `GET /etudiant/evaluations` est disponible côté backend pour remplacer les mocks de la liste des évaluations.
+| Connexion, session (`/auth/me`) | API |
+| Espace étudiant : accueil, liste et détail des évaluations | API (`GET /etudiant/evaluations`, `GET /etudiant/performances`) |
+| Passation : QCM, question ouverte, code, épreuve mixte (écran unique) | API : démarrage, sauvegarde automatique, anti-triche, remise |
+| Quiz chronométré | API : question en cours et temps imposés par le serveur (`POST /soumissions/{id}/quiz/suivante`) |
+| Résultats d'une copie, tableau de bord des performances | API (`GET /soumissions/{id}/resultats`, `GET /etudiant/performances`) |
+| Notifications, profil | simulés (à brancher, voir DS-15) |
+| Espaces enseignant et administrateur | simulés (`src/mocks`), module d'Aminou |
 
 ## Passation d'une épreuve
 
