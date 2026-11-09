@@ -182,14 +182,14 @@ postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
 **Pour Mor (fin de projet)**
 
 - Faire tourner un **vrai Judge0** : Docker Compose à écrire, puis machine Linux ou WSL passé en cgroups v1.
-- Brancher l'**accueil étudiant** (`DashboardEtudiant`), encore simulé : son lien vers une copie corrigée ne mène
-  plus à rien. Il peut réutiliser `/etudiant/evaluations` et `/etudiant/performances`. La page des notifications
-  et le profil sont aussi simulés.
+- La page des notifications et le profil étudiant sont encore simulés (Aminou a des branches `feature/notifications`
+  et `feature/profil` : répartition à confirmer).
 - **Service de notifications** côté serveur (`NotificationService`), laissé à Mor par Aminou dans son DS-05 :
   diagramme DS-15 à écrire avec lui (événements, contenu), puis la page des notifications étudiant.
 - Révocation des jetons à la déconnexion (liste de révocation ou jetons plus courts), si on la juge utile.
 - Fait le 9 novembre : verrou partagé sur l'évaluation au démarrage d'une copie (point ouvert du DS-04 d'Aminou,
-  test de concurrence sur PostgreSQL).
+  test de concurrence sur PostgreSQL) ; accueil étudiant branché sur `/etudiant/evaluations` et
+  `/etudiant/performances`.
 
 **À voir avec Aminou**
 
