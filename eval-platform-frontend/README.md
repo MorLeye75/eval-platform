@@ -39,7 +39,8 @@ cd ../eval-platform-frontend && npx playwright install chromium   # une seule fo
 npm run test:e2e
 ```
 
-L'éditeur de code (Monaco) est chargé depuis un CDN : le scénario du code a besoin d'Internet.
+L'éditeur de code (Monaco) est livré avec l'application, sans CDN : le scénario du code bloque d'ailleurs jsDelivr
+pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécharge pas Monaco.
 
 ## État du branchement sur l'API
 

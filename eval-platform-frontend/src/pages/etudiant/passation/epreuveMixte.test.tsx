@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import type { QuestionExamen, ReponseItem, TypeQuestion } from "@/types"
 import PassationEpreuve from "./PassationEpreuve"
 
@@ -45,13 +45,19 @@ function afficher() {
   )
 }
 
+
+// Saisie de code chargée à la demande (React.lazy) : préchargée pour ne pas dépendre de la charge de la machine
+beforeAll(async () => {
+  await import("./SaisieCode")
+})
+
 describe("écran unique : épreuve mêlant QCM, question ouverte et code", () => {
   afterEach(() => {
     cleanup()
     etat.reponses = {}
   })
 
-  it("chaque question s'affiche avec la saisie de son type", () => {
+  it("chaque question s'affiche avec la saisie de son type", async () => {
     etat.questions = [question(11, 1, "QCM"), question(12, 2, "OUVERTE"), question(13, 3, "CODE")]
     afficher()
 
@@ -59,7 +65,7 @@ describe("écran unique : épreuve mêlant QCM, question ouverte et code", () =>
     fireEvent.click(screen.getByRole("button", { name: /Suivant/ }))
     expect(screen.getByPlaceholderText(/Rédigez votre réponse/)).toBeTruthy()
     fireEvent.click(screen.getByRole("button", { name: /Suivant/ }))
-    expect(screen.getByText("éditeur de code")).toBeTruthy()
+    expect(await screen.findByText("éditeur de code")).toBeTruthy() // chargée à la demande
     expect(screen.getByText("2 3")).toBeTruthy() // cas de test visible
   })
 

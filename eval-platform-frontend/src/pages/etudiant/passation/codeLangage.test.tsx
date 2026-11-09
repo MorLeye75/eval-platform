@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest"
 import type { QuestionExamen, ReponseItem } from "@/types"
 import PassationEpreuve from "./PassationEpreuve"
 
@@ -49,6 +49,12 @@ function afficher() {
   )
 }
 
+
+// Saisie de code chargée à la demande (React.lazy) : préchargée pour ne pas dépendre de la charge de la machine
+beforeAll(async () => {
+  await import("./SaisieCode")
+})
+
 describe("écran de code : langage enregistré, pas d'exécution simulée", () => {
   afterEach(() => {
     cleanup()
@@ -63,18 +69,19 @@ describe("écran de code : langage enregistré, pas d'exécution simulée", () =
     expect(versReponses(reponses)).toEqual([{ questionId: 11, codeSoumis: "print(5)", langage: "python" }])
   })
 
-  it("l'éditeur utilise le langage enregistré", () => {
+  it("l'éditeur utilise le langage enregistré", async () => {
     etat.reponses = { 11: { type: "code", code: "System.out.println(5);", langage: "java" } }
     afficher()
 
+    await screen.findByText("éditeur") // saisie de code chargée à la demande
     expect(etat.langageEditeur).toBe("java")
   })
 
-  it("pas de faux « Réussi » : l'exécution est annoncée pour la correction, le bouton est désactivé", () => {
+  it("pas de faux « Réussi » : l'exécution est annoncée pour la correction, le bouton est désactivé", async () => {
     etat.reponses = { 11: { type: "code", code: "print(5)", langage: "python" } }
     afficher()
 
-    const bouton = screen.getByRole("button", { name: /Exécution disponible à la correction/ }) as HTMLButtonElement
+    const bouton = (await screen.findByRole("button", { name: /Exécution disponible à la correction/ })) as HTMLButtonElement
     expect(bouton.disabled).toBe(true)
     fireEvent.click(bouton)
     expect(screen.queryByText("Réussi")).toBeNull()

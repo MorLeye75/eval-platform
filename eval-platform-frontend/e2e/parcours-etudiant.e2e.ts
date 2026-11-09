@@ -40,6 +40,11 @@ test("connexion : l'étudiant arrive sur son accueil, sans données simulées", 
 })
 
 test("QCM : réponse sauvegardée côté serveur et retrouvée après rechargement, puis remise", async ({ page }) => {
+  // Une épreuve sans code ne télécharge pas l'éditeur Monaco (plusieurs Mo)
+  const fichiersMonaco: string[] = []
+  page.on("request", (requete) => {
+    if (/editor\.api|monaco|\.worker-/.test(requete.url())) fichiersMonaco.push(requete.url())
+  })
   await connecter(page)
   await demarrer(page, QCM)
 
@@ -64,6 +69,7 @@ test("QCM : réponse sauvegardée côté serveur et retrouvée après rechargeme
   await page.getByRole("dialog").getByRole("button", { name: "Soumettre" }).click()
 
   await expect(page.getByRole("heading", { name: "Évaluation soumise" })).toBeVisible()
+  expect(fichiersMonaco).toEqual([])
 })
 
 test("résultats : copie remise mais non publiée, aucune note affichée (DS-13)", async ({ page }) => {
@@ -99,11 +105,13 @@ test("quiz chronométré : une question à la fois, sans retour en arrière, imp
 })
 
 test("code : le programme est saisi dans l'éditeur, enregistré avec son langage, puis la copie est remise", async ({ page }) => {
+  // L'éditeur est livré avec l'application : il fonctionne même si le CDN est bloqué (réseau du campus)
+  await page.route(/cdn\.jsdelivr\.net/, (route) => route.abort())
   await connecter(page)
   await demarrer(page, CODE)
 
   const editeur = page.locator(".monaco-editor").first()
-  await expect(editeur).toBeVisible({ timeout: 30_000 }) // Monaco est chargé depuis un CDN
+  await expect(editeur).toBeVisible({ timeout: 30_000 })
   // Frappe avant le choix du langage : en mode Python, les complétions automatiques de l'éditeur
   // s'appliqueraient au clavier simulé
   await editeur.click()
