@@ -185,7 +185,11 @@ postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
 - Brancher l'**accueil étudiant** (`DashboardEtudiant`), encore simulé : son lien vers une copie corrigée ne mène
   plus à rien. Il peut réutiliser `/etudiant/evaluations` et `/etudiant/performances`. La page des notifications
   et le profil sont aussi simulés.
+- **Service de notifications** côté serveur (`NotificationService`), laissé à Mor par Aminou dans son DS-05 :
+  diagramme DS-15 à écrire avec lui (événements, contenu), puis la page des notifications étudiant.
 - Révocation des jetons à la déconnexion (liste de révocation ou jetons plus courts), si on la juge utile.
+- Fait le 9 novembre : verrou partagé sur l'évaluation au démarrage d'une copie (point ouvert du DS-04 d'Aminou,
+  test de concurrence sur PostgreSQL).
 
 **À voir avec Aminou**
 
@@ -196,7 +200,17 @@ postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
 - **Option future** à la publication : « corrigé jamais visible », pour réutiliser un sujet.
 - Bouton enseignant « Relancer la correction automatique » d'une copie passée en correction manuelle
   (remise à zéro des tentatives, retour à `SOUMIS`).
-- **Attribution de DS-15**, correction assistée par IA. Le cahier des charges met l'intégration OpenAI dans le
-  même rôle que Judge0, mais l'écran de validation est côté enseignant.
+- **Fusion de nos branches** (`feature/creation-evaluation-ds03` et celle-ci) : deux migrations V3 différentes.
+  Proposition : sa `V3__evaluation_version.sql` devient V9. Quatre conflits de contenu : collection Postman,
+  README du backend, `GlobalExceptionHandler`, `AmenagementTempsRepository`.
+- **Publication des résultats** : aucune branche ne fait passer `resultatsPublies` à vrai. Sans elle, l'état
+  « publié » de DS-13 n'est jamais atteint dans l'application. Diagramme et route côté enseignant à prévoir.
+- **Tiers-temps** : la fin d'une épreuve est plafonnée à la fermeture. Refuser ou avertir quand
+  `dateOuverture + durée aménagée > dateFermeture` (aménagement DS-06 et publication DS-04).
+- **Aménagement (DS-06)** : verrouiller l'évaluation comme la dépublication, pour qu'un étudiant qui démarre au
+  même instant ne voie pas sa durée changer.
+- **Cas de test** : entrée facultative, sortie attendue obligatoire et non vide (Judge0 traite une sortie vide
+  comme absente).
+- La correction assistée par IA est réservée à Aminou (DS-07).
 - **Épreuves mixtes** : leur besoin n'est pas confirmé par le cahier des charges. Elles sont gérées côté
   passation ; l'autre choix était de les interdire dans le Builder.
