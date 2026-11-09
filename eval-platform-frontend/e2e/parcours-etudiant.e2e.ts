@@ -112,10 +112,10 @@ test("code : le programme est saisi dans l'éditeur, enregistré avec son langag
 
   const editeur = page.locator(".monaco-editor").first()
   await expect(editeur).toBeVisible({ timeout: 30_000 })
-  // Frappe avant le choix du langage : en mode Python, les complétions automatiques de l'éditeur
-  // s'appliqueraient au clavier simulé
+  // Code inséré d'un bloc, comme un collage : tapé caractère par caractère, la fermeture automatique des
+  // guillemets et parenthèses de l'éditeur dépend du minutage et rendait le test instable (vu en CI)
   await editeur.click()
-  await page.keyboard.type("s = input(); print('true' if s == s[::-1] else 'false')")
+  await page.keyboard.insertText("s = input(); print('true' if s == s[::-1] else 'false')")
   await expect(page.locator(".view-lines")).toContainText("print('true' if s == s[::-1] else 'false')")
   // Le langage proposé par défaut est le C : l'étudiant choisit Python
   await page.getByRole("combobox").click()
