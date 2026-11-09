@@ -14,7 +14,7 @@ F --> E : affiche la liste
 
 E -> F : clique sur "Commencer"
 F -> B ++ : POST /api/soumissions/evaluations/{id}/demarrer
-B -> D : évaluation, inscription, copie existante (sous verrou)
+B -> D : évaluation (verrou partagé), inscription, copie existante (sous verrou)
 
 alt refus : inconnue, non inscrit, non ouverte
   B --> F : 404 / 403 / 400

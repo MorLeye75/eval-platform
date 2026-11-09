@@ -224,7 +224,7 @@ class SoumissionServiceTest {
         inscrireEtudiantALEvaluation();
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
         when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
@@ -240,7 +240,7 @@ class SoumissionServiceTest {
         evaluation.setPromotions(Set.of(new Promotion("DIC2 Informatique", "2025/2026")));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
 
         assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
                 .isInstanceOf(AccesRefuseException.class);
@@ -278,7 +278,7 @@ class SoumissionServiceTest {
         soumission.setStatut(StatutSoumission.EVALUE);
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
         when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.of(soumission));
 
         SoumissionDetailResponse detail = soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn");
@@ -298,7 +298,7 @@ class SoumissionServiceTest {
         soumission.setDateDebut(MAINTENANT.minusMinutes(40)); // 30 min + marge 2 min dépassées
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
         when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.of(soumission));
 
         SoumissionDetailResponse detail = soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn");

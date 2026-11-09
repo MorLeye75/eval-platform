@@ -23,8 +23,9 @@ E -> F : clique sur "Commencer" / "Reprendre"
 activate F
 F -> B ++ : POST /api/soumissions/evaluations/{id}/demarrer (JWT)
 note over B, D : une seule transaction (@Transactional), verrous libérés au commit
-B -> D ++ : SELECT Evaluation WHERE id = :id
+B -> D ++ : SELECT Evaluation WHERE id = :id FOR SHARE
 D --> B -- : statut, dates, promotions
+note right of B : verrou partagé : une dépublication en cours (DS-04, FOR UPDATE)\nest attendue et son statut BROUILLON est vu ; sans lui, une copie\npourrait naître sur un brouillon. Compatible entre étudiants :\nles démarrages simultanés ne se bloquent pas
 
 alt évaluation inconnue
   B --> F : 404 Not Found

@@ -68,7 +68,9 @@ public class SoumissionService {
      */
     public SoumissionDetailResponse demarrerOuReprendre(Long evaluationId, String userEmail) {
         Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
-        Evaluation evaluation = evaluationRepository.findById(evaluationId)
+        // Verrou partagé avant tout contrôle : une dépublication en cours (DS-04, FOR UPDATE) est attendue, et son
+        // statut BROUILLON est vu ; sans lui, la copie serait créée sur l'évaluation repassée en brouillon
+        Evaluation evaluation = evaluationRepository.findByIdForShare(evaluationId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + evaluationId + ")"));
 
         // L'étudiant doit appartenir à l'une des promotions assignées à l'évaluation
