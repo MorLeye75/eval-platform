@@ -29,3 +29,6 @@ pnpm-debug.log*
 *.ipr
 .DS_Store
 Thumbs.db
+
+# Judge0 : configuration réelle (secrets), seul le modèle est versionné
+deploy/judge0/judge0.conf

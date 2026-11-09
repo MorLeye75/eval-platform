@@ -181,7 +181,9 @@ postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
 
 **Pour Mor (fin de projet)**
 
-- Faire tourner un **vrai Judge0** : Docker Compose à écrire, puis machine Linux ou WSL passé en cgroups v1.
+- Faire tourner un **vrai Judge0** : le Docker Compose est prêt (`deploy/judge0/`, avec `verifier.sh`). Il faut un
+  hôte Linux en cgroups v1 (Ubuntu 20.04, ou paramètre de démarrage `systemd.unified_cgroup_hierarchy=0`) : ce
+  n'est pas possible sur le poste de Mor (WSL 2.7.3 ne propose plus les cgroups v1).
 - La page des notifications et le profil étudiant sont encore simulés (Aminou a des branches `feature/notifications`
   et `feature/profil` : répartition à confirmer).
 - **Service de notifications** côté serveur (`NotificationService`), laissé à Mor par Aminou dans son DS-05 :

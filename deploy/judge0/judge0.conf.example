@@ -1,0 +1,39 @@
+################################################################################
+# Configuration de Judge0 CE 1.13.1 pour la plateforme d'évaluation (DS-12)
+# Copier en judge0.conf (ignoré par Git) et remplacer chaque <à-renseigner>.
+# Liste complète des options : judge0.conf de la version 1.13.1 sur GitHub.
+################################################################################
+
+# --- Authentification : le backend envoie ce jeton (variable JUDGE0_TOKEN) ---
+AUTHN_HEADER=X-Auth-Token
+AUTHN_TOKEN=<à-renseigner : chaîne aléatoire, même valeur que JUDGE0_TOKEN>
+# Routes d'administration désactivées (jeton vide)
+AUTHZ_TOKEN=
+
+# --- Sécurité : seules les fonctions utilisées par la plateforme ---
+# Les programmes des étudiants n'accèdent jamais au réseau, même si une requête le demande
+ALLOW_ENABLE_NETWORK=false
+ENABLE_NETWORK=false
+# Pas de rappel HTTP sortant (le backend interroge Judge0), pas d'options de compilation ni d'arguments
+ENABLE_CALLBACKS=false
+ENABLE_COMPILER_OPTIONS=false
+ENABLE_COMMAND_LINE_ARGUMENTS=false
+ENABLE_SUBMISSION_DELETE=false
+# Le backend interroge les résultats à intervalle croissant : pas d'attente synchrone (wait=true)
+ENABLE_WAIT_RESULT=false
+
+# --- Capacité ---
+# Nombre de workers : JUDGE0_CONCURRENCE côté backend doit valoir cette valeur
+COUNT=2
+# File d'attente : une correction envoie au plus 1 + 20 cas à la fois, par worker
+MAX_QUEUE_SIZE=100
+
+# --- Base et cache internes à Judge0 ---
+REDIS_HOST=redis
+REDIS_PASSWORD=<à-renseigner>
+POSTGRES_HOST=db
+POSTGRES_DB=judge0
+POSTGRES_USER=judge0
+POSTGRES_PASSWORD=<à-renseigner>
+
+RAILS_ENV=production
