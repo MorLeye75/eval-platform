@@ -78,6 +78,8 @@ deactivate B
 alt HTTP 200 et statut = EN_COURS
   alt tampon localStorage saisi sur la version = versionReponses
     F -> F : restaure le tampon (réponses non encore synchronisées)
+  else version plus récente, mais les réponses du serveur sont un envoi de ce tampon resté sans réponse
+    F -> F : restaure le tampon (sauvegarde enregistrée dont la réponse s'est perdue :\nles réponses tapées depuis ne sont pas perdues)
   else tampon saisi sur une version plus ancienne
     F -> F : réponses du serveur affichées (source de vérité) ;\ntampon mis de côté (non restauré, non détruit)
   end

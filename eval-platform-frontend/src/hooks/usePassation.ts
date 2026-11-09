@@ -137,7 +137,11 @@ export function usePassation<T>({
     // Copie remise : plus rien à synchroniser
     if (!enCours) viderTampon(cle)
     const serveur = depuisCopie(copie.questions)
-    const tampon = enCours ? lireTampon<T>(cle, copie.versionReponses) : null
+    // Version du serveur plus récente que le tampon : vient-elle d'un envoi de ce navigateur resté sans réponse ?
+    const ids = new Set(copie.questions.map((q) => q.id))
+    const reponsesServeur = versReponsesRef.current(serveur)
+    const estNotreEnvoi = (envoi: T) => memesReponses(versReponsesRef.current(envoi), reponsesServeur, ids)
+    const tampon = enCours ? lireTampon<T>(cle, copie.versionReponses, estNotreEnvoi) : null
     setReponses(tampon ?? serveur)
     marquerSauvegarde(serveur, copie.versionReponses)
     setPret(true)

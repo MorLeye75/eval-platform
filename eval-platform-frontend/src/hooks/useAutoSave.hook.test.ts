@@ -126,7 +126,8 @@ describe("useAutoSave : tampon local et fermeture de page (DS-02)", () => {
       premier = await result.current.sauvegarderMaintenant()
     })
     expect(premier).toBe("echec")
-    expect(tampon()).toEqual({ version: 3, donnees: { 1: "modifiée" } })
+    // L'envoi sans réponse est retenu : le serveur a pu l'enregistrer (relu après un rechargement de la page)
+    expect(tampon()).toEqual({ version: 3, donnees: { 1: "modifiée" }, envois: [{ 1: "modifiée" }] })
     expect(result.current.erreurSauvegarde).toBe(true)
 
     let second!: unknown

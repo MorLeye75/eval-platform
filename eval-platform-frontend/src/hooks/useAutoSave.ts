@@ -41,22 +41,27 @@ const ENVOIS_INCERTAINS_MAX = 3
 interface Tampon<T> {
   version: number | null
   donnees: T
+  /** Envois restés sans réponse depuis la dernière sauvegarde confirmée : le serveur a pu les enregistrer. */
+  envois?: T[]
 }
 
 /** Clé où un tampon en conflit avec le serveur est mis de côté jusqu'à la remise de la copie. */
 const cleConflit = (cle: string) => `${cle}-conflit`
 
 /**
- * Réponses du tampon, seulement s'il a été saisi sur la version actuelle du serveur.
- * Si le serveur a reçu une sauvegarde plus récente (autre navigateur), les réponses du serveur font foi :
+ * Réponses du tampon, s'il a été saisi sur la version actuelle du serveur, ou si le serveur contient l'un de ses
+ * envois restés sans réponse (`estNotreEnvoi`) : la version plus récente du serveur vient alors de ce navigateur
+ * (sauvegarde enregistrée dont la réponse s'est perdue) et les réponses tapées depuis ne doivent pas disparaître.
+ * Sinon le serveur a reçu une sauvegarde d'ailleurs (autre navigateur) et ses réponses font foi :
  * le tampon n'est pas restauré mais mis de côté, pour ne pas détruire un travail jamais synchronisé.
  */
-export function lireTampon<T>(cle: string, versionServeur: number): T | null {
+export function lireTampon<T>(cle: string, versionServeur: number, estNotreEnvoi?: (envoi: T) => boolean): T | null {
   try {
     const brut = localStorage.getItem(cle)
     if (!brut) return null
     const tampon = JSON.parse(brut) as Tampon<T>
     if (tampon.version === versionServeur) return tampon.donnees
+    if (estNotreEnvoi && tampon.envois?.some(estNotreEnvoi)) return tampon.donnees
     localStorage.setItem(cleConflit(cle), brut)
     localStorage.removeItem(cle)
     return null
@@ -134,6 +139,11 @@ export function useAutoSave<T>({
   // Version serveur des réponses : celle de la dernière sauvegarde confirmée
   const versionServeur = useRef<number | null>(null)
   const file = useRef<Promise<ResultatSauvegarde>>(Promise.resolve("ok"))
+  /** Tampon des réponses données, avec les envois restés sans réponse (relus après un rechargement de la page). */
+  const tamponCourant = useCallback((donnees: T): Tampon<T> => {
+    const envois = envoisIncertains.current.map((e) => e.donnees)
+    return { version: versionServeur.current, donnees, ...(envois.length > 0 ? { envois } : {}) }
+  }, [])
   useEffect(() => {
     dataRef.current = data
     onSaveRef.current = onSave
@@ -159,7 +169,7 @@ export function useAutoSave<T>({
         const actuelles = dataRef.current
         if (JSON.stringify(actuelles) === serialise) retirer(cle)
         // Modifié pendant l'envoi : ces réponses restent à envoyer, sur la version que le serveur vient de donner
-        else ecrireTampon(cle, { version: versionServeur.current, donnees: actuelles })
+        else ecrireTampon(cle, tamponCourant(actuelles))
       }
       setErreurSauvegarde(false)
       setDerniereSauvegarde(formatHeure(confirmation?.dateSauvegarde))
@@ -198,12 +208,12 @@ export function useAutoSave<T>({
         envoisIncertains.current = [...envoisIncertains.current, { donnees, serialise }].slice(-ENVOIS_INCERTAINS_MAX)
       }
       if (cleTamponRef.current) {
-        ecrireTampon(cleTamponRef.current, { version: versionServeur.current, donnees: dataRef.current })
+        ecrireTampon(cleTamponRef.current, tamponCourant(dataRef.current))
       }
       setErreurSauvegarde(true)
       return "echec"
     }
-  }, [])
+  }, [tamponCourant])
 
   /** Sauvegarde immédiate (ex. avant la soumission), placée dans la file des envois. */
   const sauvegarderMaintenant = useCallback(() => {
@@ -225,8 +235,8 @@ export function useAutoSave<T>({
       retirer(cleTampon)
       return
     }
-    ecrireTampon(cleTampon, { version: versionServeur.current, donnees: data })
-  }, [data, enabled, cleTampon])
+    ecrireTampon(cleTampon, tamponCourant(data))
+  }, [data, enabled, cleTampon, tamponCourant])
 
   // Fermeture ou rechargement avec des réponses non envoyées : le navigateur demande confirmation
   useEffect(() => {

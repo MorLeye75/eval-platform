@@ -52,9 +52,13 @@ deactivate B
 note over F #FFEEEE
   **Si la requête PUT n'aboutit pas (pas de réponse, ou aucune réponse au bout de 15 s) :**
   -> les réponses restent dans le localStorage, avec la version serveur sur laquelle elles ont été saisies
+     et l'envoi resté sans réponse (le serveur a pu l'enregistrer, 3 envois retenus au plus)
   -> "Hors ligne : réponses conservées sur cet appareil"
   -> nouvelle tentative automatique dès que la reconnexion est détectée (événement online)
-  -> au rechargement de la page, le tampon n'est restauré que si sa version = versionReponses (DS-10)
+  -> 409 VERSION_OBSOLETE juste après : si le serveur contient l'un de ces envois, ce n'est pas un conflit,
+     la version du serveur est adoptée et les réponses actuelles repartent aussitôt
+  -> au rechargement de la page, le tampon est restauré si sa version = versionReponses (DS-10),
+     ou si les réponses du serveur sont l'un de ses envois sans réponse ; sinon il est mis de côté
 end note
 
 == Fermeture de la page, session expirée ==
