@@ -3,13 +3,17 @@ package sn.ept.eval.dto.evaluation;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-/** Cas de test d'une question de code (DS-03). */
+/** Cas de test d'une question de code (DS-03). Le code de l'étudiant est un programme complet : entrée standard → sortie standard. */
 public class CasDeTestDTO {
 
-    @NotBlank(message = "L'entrée du cas de test est obligatoire")
+    /** Facultative : un programme peut ne rien lire. Sinon, texte envoyé sur l'entrée standard du programme. */
     @Size(max = 5000, message = "L'entrée est limitée à 5000 caractères")
     private String entree;
 
+    /**
+     * Obligatoire et non vide : Judge0 considère une sortie vide comme absente, donc un cas qui attendrait une
+     * sortie vide échouerait toujours. Comparée à la sortie standard du programme (espaces de fin de ligne ignorés).
+     */
     @NotBlank(message = "La sortie attendue est obligatoire")
     @Size(max = 5000, message = "La sortie attendue est limitée à 5000 caractères")
     private String sortieAttendue;

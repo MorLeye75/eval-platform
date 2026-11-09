@@ -87,8 +87,12 @@ function ecrireTampon<T>(cle: string, tampon: Tampon<T>) {
 /**
  * Hook gérant la sauvegarde automatique des réponses de l'étudiant (Diagramme de Séquence DS-02).
  *
+ * - Chaque modification est écrite aussitôt dans le tampon localStorage : un rechargement de la page
+ *   entre deux envois ne perd rien. Fermer ou recharger la page avec des réponses non envoyées
+ *   demande confirmation.
  * - Toutes les 30 secondes (par défaut), envoie les données si elles ont changé.
- * - Succès : affiche l'heure de sauvegarde renvoyée par le serveur et vide le tampon.
+ * - Succès : affiche l'heure de sauvegarde renvoyée par le serveur et vide le tampon, sauf si
+ *   l'étudiant a modifié ses réponses pendant l'envoi (le tampon passe alors sur la nouvelle version).
  * - 409 (temps expiré ou copie verrouillée) : `onVerrouillage`, l'édition doit être bloquée.
  * - 409 VERSION_OBSOLETE (copie enregistrée depuis un autre onglet ou appareil) : les réponses locales
  *   sont mises de côté et `onConflit` doit recharger la copie du serveur.
@@ -134,8 +138,14 @@ export function useAutoSave<T>({
       const confirmation = await onSaveRef.current?.(donnees, versionServeur.current)
       dernierSerialise.current = serialise
       if (confirmation?.version !== undefined) versionServeur.current = confirmation.version
-      // Tampon synchronisé : seul le tampon courant est vidé, un tampon en conflit reste de côté
-      if (cleTamponRef.current) retirer(cleTamponRef.current)
+      const cle = cleTamponRef.current
+      if (cle) {
+        // Seul le tampon courant est concerné, un tampon en conflit reste de côté
+        const actuelles = dataRef.current
+        if (JSON.stringify(actuelles) === serialise) retirer(cle)
+        // Modifié pendant l'envoi : ces réponses restent à envoyer, sur la version que le serveur vient de donner
+        else ecrireTampon(cle, { version: versionServeur.current, donnees: actuelles })
+      }
       setErreurSauvegarde(false)
       setDerniereSauvegarde(formatHeure(confirmation?.dateSauvegarde))
       return "ok"
@@ -144,15 +154,16 @@ export function useAutoSave<T>({
         onVerrouillageRef.current?.()
         return "verrouillee"
       }
+      // Les réponses les plus récentes (celles tapées pendant l'envoi comprises) sont gardées, pas celles envoyées
       if (estVersionObsolete(err)) {
         if (cleTamponRef.current) {
-          mettreDeCote(cleTamponRef.current, { version: versionServeur.current, donnees })
+          mettreDeCote(cleTamponRef.current, { version: versionServeur.current, donnees: dataRef.current })
         }
         onConflitRef.current?.()
         return "conflit"
       }
       if (cleTamponRef.current) {
-        ecrireTampon(cleTamponRef.current, { version: versionServeur.current, donnees })
+        ecrireTampon(cleTamponRef.current, { version: versionServeur.current, donnees: dataRef.current })
       }
       setErreurSauvegarde(true)
       return "echec"
@@ -170,6 +181,28 @@ export function useAutoSave<T>({
     dernierSerialise.current = JSON.stringify(donnees)
     versionServeur.current = version
   }, [])
+
+  // Chaque modification non envoyée part aussitôt dans le tampon (rechargement de page entre deux envois)
+  useEffect(() => {
+    if (!enabled || !cleTampon) return
+    // Retour aux réponses du serveur (modification annulée) : plus rien à garder, sinon un F5 la ressusciterait
+    if (JSON.stringify(data) === dernierSerialise.current) {
+      retirer(cleTampon)
+      return
+    }
+    ecrireTampon(cleTampon, { version: versionServeur.current, donnees: data })
+  }, [data, enabled, cleTampon])
+
+  // Fermeture ou rechargement avec des réponses non envoyées : le navigateur demande confirmation
+  useEffect(() => {
+    if (!enabled) return
+    const avantFermeture = (event: BeforeUnloadEvent) => {
+      if (JSON.stringify(dataRef.current) === dernierSerialise.current) return
+      event.preventDefault()
+    }
+    window.addEventListener("beforeunload", avantFermeture)
+    return () => window.removeEventListener("beforeunload", avantFermeture)
+  }, [enabled])
 
   useEffect(() => {
     if (!enabled) return

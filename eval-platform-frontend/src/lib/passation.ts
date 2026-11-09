@@ -4,6 +4,16 @@ import type { CopieEnCours, ReponseItem, SauvegardeResponse } from "@/types"
 
 // Appels de la passation : DS-01 (soumission) et DS-02 (auto-save)
 
+/**
+ * Tailles maximales d'une réponse, identiques à celles du serveur (ReponseItemDto) : au-delà, chaque sauvegarde
+ * serait refusée (400) et la remise manuelle bloquée faute de « dernière sauvegarde » réussie.
+ */
+export const TAILLE_MAX_TEXTE = 20_000
+export const TAILLE_MAX_CODE = 50_000
+
+/** « 20 000 » : nombre lisible pour les messages de limite. */
+export const formatNombre = (n: number) => n.toLocaleString("fr-FR").replace(/\s/g, " ")
+
 /** Démarre la copie, ou reprend celle qui existe déjà (questions et réponses enregistrées). */
 export async function demarrerEpreuve(evaluationId: string) {
   const { data } = await api.post<CopieEnCours>(
@@ -25,9 +35,22 @@ export async function sauvegarderReponses(
   return data
 }
 
-/** DS-01 : POST /soumissions/{id}/soumettre */
+/** DS-01 : POST /soumissions/{id}/soumettre. Renvoie l'heure de remise enregistrée par le serveur. */
 export async function soumettreCopie(soumissionId: number) {
-  await api.post(`/soumissions/${soumissionId}/soumettre`)
+  const { data } = await api.post<{ dateRemise: string | null }>(`/soumissions/${soumissionId}/soumettre`)
+  return data?.dateRemise ?? null
+}
+
+/** Quiz chronométré : passe à la question suivante si la copie est encore sur `indexActuel` (renvoie la copie). */
+export async function questionQuizSuivante(soumissionId: number, indexActuel: number) {
+  const { data } = await api.post<CopieEnCours>(`/soumissions/${soumissionId}/quiz/suivante`, { indexActuel })
+  return data
+}
+
+/** Anti-triche : signale une sortie de la page ; renvoie le nombre de sorties enregistrées par le serveur. */
+export async function signalerChangementOnglet(soumissionId: number) {
+  const { data } = await api.post<{ nbChangementsOnglet: number }>(`/soumissions/${soumissionId}/changement-onglet`)
+  return data.nbChangementsOnglet
 }
 
 function codeConflit(err: unknown): string | null {
@@ -40,13 +63,18 @@ export function estVersionObsolete(err: unknown) {
   return codeConflit(err) === "VERSION_OBSOLETE"
 }
 
+/** Codes 409 qui figent définitivement la copie (l'épreuve est terminée pour l'étudiant). */
+const CODES_COPIE_FIGEE = ["TEMPS_EXPIRE", "SOUMISSION_VERROUILLEE"]
+
 /**
  * Le serveur a refusé l'action parce que la copie est figée : temps dépassé
- * au-delà de la marge, ou copie déjà soumise (409 Conflict hors conflit de version).
+ * au-delà de la marge, ou copie déjà soumise. Les autres 409 (conflit de version, conflit en base,
+ * verrou momentanément indisponible, code inconnu) sont passagers : l'étudiant reste dans l'épreuve.
+ * Un 409 sans code (serveur ancien) reste traité comme une copie figée.
  */
 export function estCopieVerrouillee(err: unknown) {
   const code = codeConflit(err)
-  return code !== null && code !== "VERSION_OBSOLETE"
+  return code !== null && (code === "" || CODES_COPIE_FIGEE.includes(code))
 }
 
 /** La requête n'a pas atteint le serveur (coupure réseau). */
@@ -69,4 +97,17 @@ export function messageErreur(err: unknown, parDefaut: string) {
 export function formatHeure(iso?: string) {
   if (iso && /T\d{2}:\d{2}/.test(iso)) return iso.slice(11, 16)
   return new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })
+}
+
+/** Numéros (1, 2…) des questions sans réponse, dans l'ordre de l'épreuve (pas leurs identifiants). */
+export function numerosSansReponse(questions: { id: number }[], estTraitee: (questionId: number) => boolean) {
+  return questions.flatMap((q, i) => (estTraitee(q.id) ? [] : [i + 1]))
+}
+
+/** Phrase de la fenêtre de confirmation listant les questions sans réponse, ou null si tout est traité. */
+export function messageSansReponse(numeros: number[]): string | null {
+  if (numeros.length === 0) return null
+  if (numeros.length === 1) return `La question ${numeros[0]} est sans réponse et sera comptée comme non traitée.`
+  const liste = `${numeros.slice(0, -1).join(", ")} et ${numeros[numeros.length - 1]}`
+  return `Les questions ${liste} sont sans réponse et seront comptées comme non traitées.`
 }

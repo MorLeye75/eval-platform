@@ -16,6 +16,7 @@ import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -34,6 +35,7 @@ public class SoumissionService {
     private final SoumissionAccesService soumissionAccesService;
     private final AntiTricheService antiTricheService;
     private final ClotureCopiesService clotureCopiesService;
+    private final QuizService quizService;
 
     public SoumissionService(SoumissionRepository soumissionRepository,
                              EvaluationRepository evaluationRepository,
@@ -44,7 +46,9 @@ public class SoumissionService {
                              SoumissionMapper soumissionMapper,
                              SoumissionAccesService soumissionAccesService,
                              AntiTricheService antiTricheService,
-                             ClotureCopiesService clotureCopiesService) {
+                             ClotureCopiesService clotureCopiesService,
+                             QuizService quizService) {
+        this.quizService = quizService;
         this.soumissionRepository = soumissionRepository;
         this.evaluationRepository = evaluationRepository;
         this.etudiantRepository = etudiantRepository;
@@ -64,7 +68,9 @@ public class SoumissionService {
      */
     public SoumissionDetailResponse demarrerOuReprendre(Long evaluationId, String userEmail) {
         Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
-        Evaluation evaluation = evaluationRepository.findById(evaluationId)
+        // Verrou partagé avant tout contrôle : une dépublication en cours (DS-04, FOR UPDATE) est attendue, et son
+        // statut BROUILLON est vu ; sans lui, la copie serait créée sur l'évaluation repassée en brouillon
+        Evaluation evaluation = evaluationRepository.findByIdForShare(evaluationId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + evaluationId + ")"));
 
         // L'étudiant doit appartenir à l'une des promotions assignées à l'évaluation
@@ -150,10 +156,18 @@ public class SoumissionService {
                     soumission.getVersionReponses());
         }
 
-        // 4. Mise à jour ou création des réponses
-        int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, request.getReponses());
+        // 4. Quiz chronométré : seule la réponse à la question en cours est enregistrée (ni retour en arrière,
+        //    ni réponse en avance, ni réponse hors délai)
+        List<ReponseItemDto> reponses = request.getReponses();
+        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(soumission);
+        if (!questionsQuiz.isEmpty()) {
+            reponses = quizService.reponsesAutorisees(soumission, questionsQuiz, reponses);
+        }
 
-        // 5. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
+        // 5. Mise à jour ou création des réponses
+        int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, reponses);
+
+        // 6. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
         int version = soumission.getVersionReponses() + 1;
         soumission.setVersionReponses(version);
 
@@ -182,6 +196,7 @@ public class SoumissionService {
             // Le serveur fige la copie à l'état du dernier auto-save
             soumission.setStatut(StatutSoumission.SOUMIS);
             soumission.setDateRemise(finEpreuve);
+            reserverCorrection(soumission, now);
             soumissionRepository.save(soumission);
             antiTricheService.signalerSoumissionTardive(soumission);
 
@@ -194,6 +209,7 @@ public class SoumissionService {
         // [Cas Normal : Temps dans les clous ou dans la marge]
         soumission.setStatut(StatutSoumission.SOUMIS);
         soumission.setDateRemise(now);
+        reserverCorrection(soumission, now);
         soumission = soumissionRepository.save(soumission);
 
         // Déclenche CorrectionService en arrière-plan (async), une fois le statut SOUMIS commité
@@ -202,11 +218,46 @@ public class SoumissionService {
         return soumissionMapper.versResponse(soumission, "Copie soumise avec succès.");
     }
 
+    /** La relance planifiée ne reprend la copie que si la correction lancée à la remise ne l'a pas prise en charge à temps (DS-12). */
+    private static void reserverCorrection(Soumission soumission, LocalDateTime maintenant) {
+        soumission.setProchaineTentativeLe(maintenant.plusMinutes(CorrectionService.DELAI_AVANT_RELANCE_MINUTES));
+    }
+
     /**
-     * Récupérer le détail complet d'une soumission.
+     * Quiz chronométré : passe à la question suivante si la copie est encore sur `indexActuel` (un double clic
+     * n'avance pas deux fois) et renvoie la copie sur sa nouvelle question.
+     */
+    public SoumissionDetailResponse passerQuestionSuivante(Long soumissionId, int indexActuel, String userEmail) {
+        Etudiant etudiant = soumissionAccesService.etudiantConnecte(userEmail);
+        Soumission soumission = soumissionAccesService.copieVerrouilleeDeLEtudiant(soumissionId, etudiant);
+        if (soumission.getStatut() != StatutSoumission.EN_COURS) {
+            throw new SoumissionNonModifiableException("Action rejetée : la copie a déjà été soumise ou verrouillée.");
+        }
+        if (tempsEpreuveService.estExpiree(soumission)) {
+            throw new TempsEcouleException("Action rejetée : temps imparti expiré.");
+        }
+        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(soumission);
+        if (questionsQuiz.isEmpty()) {
+            throw new IllegalArgumentException("Cette évaluation n'est pas un quiz chronométré.");
+        }
+        quizService.passerALaSuivante(soumission, questionsQuiz, indexActuel);
+        return soumissionMapper.versDetail(soumission);
+    }
+
+    /**
+     * Récupérer le détail d'une soumission. L'enseignant de l'évaluation et l'administrateur voient toujours
+     * la copie complète ; l'étudiant ne reçoit les énoncés que pendant sa composition (copie EN_COURS dans
+     * les temps), comme à la reprise (DS-10) : d'autres étudiants (tiers-temps) peuvent encore composer.
      */
     @Transactional(readOnly = true)
     public SoumissionDetailResponse getDetail(Long soumissionId, String userEmail) {
-        return soumissionMapper.versDetail(soumissionAccesService.copieConsultable(soumissionId, userEmail));
+        Soumission soumission = soumissionAccesService.copieConsultable(soumissionId, userEmail);
+        boolean consulteeParSonEtudiant = soumission.getEtudiant().getEmail().equalsIgnoreCase(userEmail);
+        boolean enComposition = soumission.getStatut() == StatutSoumission.EN_COURS
+                && !tempsEpreuveService.estExpiree(soumission);
+        if (consulteeParSonEtudiant && !enComposition) {
+            return soumissionMapper.versDetailSansQuestions(soumission);
+        }
+        return soumissionMapper.versDetail(soumission);
     }
 }

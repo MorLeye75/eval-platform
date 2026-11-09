@@ -192,36 +192,55 @@ export default function ListeEvaluationsEnseignant() {
                       <div className="flex justify-end gap-1.5">
                         {/* Voir stats — disponible si terminée ou publiée */}
                         {(e.statut === "TERMINEE" || e.statut === "PUBLIEE") && (
-                          <Link to={`/enseignant/statistiques/${e.id}`}>
-                            <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                              <BarChart3 className="size-3.5" />
-                            </button>
+                          <Link
+                            to={`/enseignant/statistiques/${e.id}`}
+                            aria-label={`Statistiques : ${e.titre}`}
+                            title="Statistiques"
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            <BarChart3 className="size-3.5" aria-hidden />
                           </Link>
                         )}
                         {/* Supervision — disponible si en cours */}
                         {e.statut === "EN_COURS" && (
-                          <Link to={`/enseignant/supervision/${e.id}`}>
-                            <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                              <Eye className="size-3.5" />
-                            </button>
+                          <Link
+                            to={`/enseignant/supervision/${e.id}`}
+                            aria-label={`Supervision : ${e.titre}`}
+                            title="Supervision"
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            <Eye className="size-3.5" aria-hidden />
                           </Link>
                         )}
                         {/* Modifier — disponible si brouillon */}
                         {e.statut === "BROUILLON" && (
-                          <Link to={`/enseignant/evaluations/${e.id}/edition`} state={{ nouveau: true }}>
-                            <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                              <Pencil className="size-3.5" />
-                            </button>
+                          <Link
+                            to={`/enseignant/evaluations/${e.id}/edition`} state={{ nouveau: true }}
+                            aria-label={`Modifier : ${e.titre}`}
+                            title="Modifier"
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                          >
+                            <Pencil className="size-3.5" aria-hidden />
                           </Link>
                         )}
                         {/* Dupliquer — toujours disponible */}
-                        <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-                          <Copy className="size-3.5" />
+                        <button
+                          type="button"
+                          aria-label={`Dupliquer : ${e.titre}`}
+                          title="Dupliquer"
+                          className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                        >
+                          <Copy className="size-3.5" aria-hidden />
                         </button>
                         {/* Supprimer — disponible si brouillon seulement */}
                         {e.statut === "BROUILLON" && (
-                          <button className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive">
-                            <Trash2 className="size-3.5" />
+                          <button
+                            type="button"
+                            aria-label={`Supprimer : ${e.titre}`}
+                            title="Supprimer"
+                            className="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="size-3.5" aria-hidden />
                           </button>
                         )}
                       </div>

@@ -40,7 +40,8 @@ public class AmenagementTempsService {
 
     public AmenagementResponse definir(Long evaluationId, Long etudiantId, int dureeMinutes, String email) {
         Enseignant enseignant = evaluationService.enseignantConnecte(email);
-        Evaluation evaluation = evaluationService.evaluationDeLEnseignant(evaluationId, enseignant);
+        // Évaluation verrouillée (FOR UPDATE) : un démarrage de copie simultané attend (DS-10 prend le verrou partagé)
+        Evaluation evaluation = evaluationService.evaluationVerrouilleeDeLEnseignant(evaluationId, enseignant);
         Etudiant etudiant = etudiantRepository.findById(etudiantId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Étudiant introuvable (ID: " + etudiantId + ")"));
 
@@ -54,6 +55,12 @@ public class AmenagementTempsService {
             throw new IllegalArgumentException("Un aménagement ne peut qu'augmenter la durée (minimum : "
                     + evaluation.getDureeStandard() + " minutes).");
         }
+        // La fin de l'épreuve est plafonnée à la fermeture : un tiers-temps plus long que la plage serait sans effet
+        long plage = EvaluationService.plageEnMinutes(evaluation);
+        if (dureeMinutes > plage) {
+            throw new IllegalArgumentException("La plage d'ouverture (" + plage + " min) est plus courte que la durée aménagée ("
+                    + dureeMinutes + " min) : allongez la fermeture ou réduisez le tiers-temps.");
+        }
         verifierCopieNonCommencee(evaluation, etudiant);
 
         AmenagementTemps amenagement = amenagementTempsRepository
@@ -66,7 +73,7 @@ public class AmenagementTempsService {
 
     public void supprimer(Long evaluationId, Long etudiantId, String email) {
         Enseignant enseignant = evaluationService.enseignantConnecte(email);
-        Evaluation evaluation = evaluationService.evaluationDeLEnseignant(evaluationId, enseignant);
+        Evaluation evaluation = evaluationService.evaluationVerrouilleeDeLEnseignant(evaluationId, enseignant);
         Etudiant etudiant = etudiantRepository.findById(etudiantId)
                 .orElseThrow(() -> new RessourceNonTrouveeException("Étudiant introuvable (ID: " + etudiantId + ")"));
 

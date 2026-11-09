@@ -1,12 +1,12 @@
 package sn.ept.eval.service;
 
-import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.PlatformTransactionManager;
 import sn.ept.eval.dto.soumission.QuestionExamenDto;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
@@ -26,6 +26,7 @@ import java.time.Clock;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Set;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -66,9 +67,6 @@ class SoumissionServiceTest {
     @Mock
     private UtilisateurRepository utilisateurRepository;
 
-    @Mock
-    private EntityManager entityManager;
-
     /** Instant de référence figé : les tests ne dépendent plus de l'heure d'exécution. */
     private static final LocalDateTime MAINTENANT = LocalDateTime.of(2026, 10, 19, 10, 0);
     private static final ZoneId ZONE = ZoneId.systemDefault();
@@ -85,18 +83,20 @@ class SoumissionServiceTest {
         Clock horlogeFigee = Clock.fixed(MAINTENANT.atZone(ZONE).toInstant(), ZONE);
         // Collaborateurs réels (règles de temps) branchés sur les dépôts simulés et une horloge figée
         TempsEpreuveService tempsEpreuveService = new TempsEpreuveService(amenagementTempsRepository, horlogeFigee);
-        soumissionMapper = new SoumissionMapper(questionRepository, reponseEtudiantRepository, tempsEpreuveService);
+        QuizService quizService = new QuizService(questionRepository, tempsEpreuveService);
+        soumissionMapper = new SoumissionMapper(questionRepository, reponseEtudiantRepository, tempsEpreuveService, quizService);
         SoumissionAccesService accesService = new SoumissionAccesService(etudiantRepository, utilisateurRepository, soumissionRepository);
         AntiTricheService antiTricheService = new AntiTricheService(soumissionRepository, alerteAntiTricheRepository,
                 accesService, tempsEpreuveService);
         EnregistrementReponsesService enregistrementReponses = new EnregistrementReponsesService(questionRepository,
                 choixReponseRepository, reponseEtudiantRepository);
-        CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService);
+        CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService,
+                new CorrectionsEnFile(), soumissionRepository);
         ClotureCopiesService clotureCopiesService = new ClotureCopiesService(soumissionRepository, tempsEpreuveService,
-                correctionDeclencheur, entityManager);
+                correctionDeclencheur, mock(PlatformTransactionManager.class));
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
                 enregistrementReponses, correctionDeclencheur, tempsEpreuveService,
-                soumissionMapper, accesService, antiTricheService, clotureCopiesService);
+                soumissionMapper, accesService, antiTricheService, clotureCopiesService, quizService);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);
         etudiant.setId(1L);
@@ -118,6 +118,9 @@ class SoumissionServiceTest {
     @Test
     @DisplayName("DS-02 (Cas Normal) : Sauvegarde automatique réussie dans les temps")
     void sauvegarderReponses_DansLesTemps_Succes() {
+        QuestionOuverte question = new QuestionOuverte("Expliquez la récursivité.", 1, 5.0);
+        question.setId(1L);
+        when(questionRepository.findByEvaluationIdOrderByOrdreAsc(10L)).thenReturn(List.of(question));
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
         when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
         when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(1L, 10L)).thenReturn(Optional.empty());
@@ -162,6 +165,8 @@ class SoumissionServiceTest {
 
         assertThat(response.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
         assertThat(soumission.getDateRemise()).isNotNull();
+        // DS-12 : la relance planifiée ne reprend la copie que si la correction lancée ne l'a pas prise en charge à temps
+        assertThat(soumission.getProchaineTentativeLe()).isEqualTo(MAINTENANT.plusMinutes(5));
 
         // Vérifie que CorrectionService est bien déclenché en tâche de fond (@Async)
         verify(correctionService, times(1)).corrigerSoumissionAsync(100L);
@@ -183,6 +188,7 @@ class SoumissionServiceTest {
 
         // Vérifie que la copie est bien figée et verrouillée au statut SOUMIS
         assertThat(soumission.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(soumission.getProchaineTentativeLe()).isEqualTo(MAINTENANT.plusMinutes(5));
         verify(soumissionRepository).save(soumission);
 
         // Vérifie qu'une alerte anti-triche de niveau ELEVE a été journalisée
@@ -218,7 +224,7 @@ class SoumissionServiceTest {
         inscrireEtudiantALEvaluation();
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
         when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
@@ -231,10 +237,10 @@ class SoumissionServiceTest {
         evaluation.setDateOuverture(MAINTENANT.minusHours(1));
         evaluation.setDateFermeture(MAINTENANT.plusHours(1));
         evaluation.setStatut(StatutEvaluation.EN_COURS);
-        evaluation.setPromotions(List.of(new Promotion("DIC2 Informatique", "2025/2026")));
+        evaluation.setPromotions(Set.of(new Promotion("DIC2 Informatique", "2025/2026")));
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
 
         assertThatThrownBy(() -> soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn"))
                 .isInstanceOf(AccesRefuseException.class);
@@ -272,7 +278,7 @@ class SoumissionServiceTest {
         soumission.setStatut(StatutSoumission.EVALUE);
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
         when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.of(soumission));
 
         SoumissionDetailResponse detail = soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn");
@@ -292,7 +298,7 @@ class SoumissionServiceTest {
         soumission.setDateDebut(MAINTENANT.minusMinutes(40)); // 30 min + marge 2 min dépassées
 
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
-        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation));
+        when(evaluationRepository.findByIdForShare(10L)).thenReturn(Optional.of(evaluation));
         when(soumissionRepository.findByEvaluationIdAndEtudiantIdForUpdate(10L, 1L)).thenReturn(Optional.of(soumission));
 
         SoumissionDetailResponse detail = soumissionService.demarrerOuReprendre(10L, "etudiant@ept.sn");
@@ -351,6 +357,6 @@ class SoumissionServiceTest {
         Promotion dic2 = new Promotion("DIC2 Informatique", "2025/2026");
         dic2.setId(5L);
         etudiant.setPromotion(dic2);
-        evaluation.setPromotions(List.of(dic2));
+        evaluation.setPromotions(Set.of(dic2));
     }
 }

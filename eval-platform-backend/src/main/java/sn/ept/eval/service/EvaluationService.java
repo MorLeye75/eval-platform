@@ -26,6 +26,7 @@ import sn.ept.eval.model.QuestionQuiz;
 import sn.ept.eval.model.Utilisateur;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.repository.AmenagementTempsRepository;
+import sn.ept.eval.repository.EtudiantRepository;
 import sn.ept.eval.repository.EvaluationRepository;
 import sn.ept.eval.repository.PromotionRepository;
 import sn.ept.eval.repository.SoumissionRepository;
@@ -33,10 +34,13 @@ import sn.ept.eval.repository.UtilisateurRepository;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Cycle de vie d'une évaluation côté enseignant : création, modification, suppression (brouillon),
@@ -52,6 +56,7 @@ public class EvaluationService {
     private final UtilisateurRepository utilisateurRepository;
     private final SoumissionRepository soumissionRepository;
     private final AmenagementTempsRepository amenagementTempsRepository;
+    private final EtudiantRepository etudiantRepository;
     private final Clock clock;
 
     public EvaluationService(EvaluationRepository evaluationRepository,
@@ -59,12 +64,14 @@ public class EvaluationService {
                              UtilisateurRepository utilisateurRepository,
                              SoumissionRepository soumissionRepository,
                              AmenagementTempsRepository amenagementTempsRepository,
+                             EtudiantRepository etudiantRepository,
                              Clock clock) {
         this.evaluationRepository = evaluationRepository;
         this.promotionRepository = promotionRepository;
         this.utilisateurRepository = utilisateurRepository;
         this.soumissionRepository = soumissionRepository;
         this.amenagementTempsRepository = amenagementTempsRepository;
+        this.etudiantRepository = etudiantRepository;
         this.clock = clock;
     }
 
@@ -74,7 +81,7 @@ public class EvaluationService {
     public EvaluationResponse creer(CreateEvaluationRequest request, String email) {
         Enseignant enseignant = enseignantConnecte(email);
         verifierRegles(request);
-        List<Promotion> promotions = promotionsExistantes(request.getPromotionIds());
+        Set<Promotion> promotions = promotionsExistantes(request.getPromotionIds());
 
         Evaluation evaluation = new Evaluation();
         evaluation.setEnseignant(enseignant);
@@ -86,15 +93,35 @@ public class EvaluationService {
     @Transactional(readOnly = true)
     public EvaluationResponse details(Long id, String email) {
         Enseignant enseignant = enseignantConnecte(email);
-        return versResponse(evaluationDeLEnseignant(id, enseignant), true);
+        Evaluation evaluation = evaluationDeLEnseignant(id, enseignant);
+        EvaluationResponse r = versResponse(evaluation, true);
+        r.setNbCopies(soumissionRepository.countByEvaluationId(id));
+        r.setNbAttendus(effectifAttendu(evaluation, new HashMap<>()));
+        return r;
     }
 
     @Transactional(readOnly = true)
     public List<EvaluationResponse> mesEvaluations(String email) {
         Enseignant enseignant = enseignantConnecte(email);
+        // Copies de toutes les évaluations en une requête, effectif de chaque promotion compté une seule fois
+        Map<Long, Long> copies = soumissionRepository.compterCopiesParEvaluation(enseignant.getId()).stream()
+                .collect(Collectors.toMap(c -> c.getEvaluationId(), c -> c.getNbCopies()));
+        Map<Long, Long> effectifs = new HashMap<>();
         return evaluationRepository.findByEnseignantIdOrderByDateOuvertureDesc(enseignant.getId()).stream()
-                .map(e -> versResponse(e, false))
+                .map(e -> {
+                    EvaluationResponse r = versResponse(e, false);
+                    r.setNbCopies(copies.getOrDefault(e.getId(), 0L));
+                    r.setNbAttendus(effectifAttendu(e, effectifs));
+                    return r;
+                })
                 .toList();
+    }
+
+    /** Étudiants des promotions de l'évaluation. `effectifs` mémorise l'effectif de chaque promotion déjà comptée. */
+    private long effectifAttendu(Evaluation evaluation, Map<Long, Long> effectifs) {
+        return evaluation.getPromotions().stream()
+                .mapToLong(p -> effectifs.computeIfAbsent(p.getId(), etudiantRepository::countByPromotionId))
+                .sum();
     }
 
     /** Modifie un brouillon : les questions sont remplacées en bloc (orphanRemoval). */
@@ -104,7 +131,7 @@ public class EvaluationService {
         exigerBrouillon(evaluation, "Seul un brouillon peut être modifié. Repassez l'évaluation en brouillon pour la modifier.");
 
         verifierRegles(request);
-        List<Promotion> promotions = promotionsExistantes(request.getPromotionIds());
+        Set<Promotion> promotions = promotionsExistantes(request.getPromotionIds());
 
         evaluation.getQuestions().clear();
         remplir(evaluation, request, promotions);
@@ -132,6 +159,16 @@ public class EvaluationService {
         }
         if (!evaluation.getDateFermeture().isAfter(maintenant())) {
             throw new IllegalArgumentException("La date de fermeture est déjà passée : modifiez les dates avant de publier.");
+        }
+        // La fin d'une épreuve est plafonnée à la fermeture : la durée la plus longue (tiers-temps compris) doit tenir dans la plage
+        int dureeMaximale = amenagementTempsRepository.findByEvaluationId(evaluation.getId()).stream()
+                .mapToInt(a -> a.getDureePersonnalisee())
+                .max().orElse(0);
+        dureeMaximale = Math.max(dureeMaximale, evaluation.getDureeStandard());
+        long plage = plageEnMinutes(evaluation);
+        if (dureeMaximale > plage) {
+            throw new IllegalArgumentException("La plage d'ouverture (" + plage + " min) est plus courte que la durée maximale de "
+                    + "l'épreuve (" + dureeMaximale + " min, tiers-temps compris) : allongez la fermeture ou réduisez la durée.");
         }
 
         evaluation.setStatut(StatutEvaluation.PUBLIEE);
@@ -167,6 +204,23 @@ public class EvaluationService {
                 .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + id + ")"));
         verifierProprietaire(evaluation, enseignant);
         return evaluation;
+    }
+
+    /**
+     * Comme {@link #evaluationDeLEnseignant}, mais verrouillée en écriture (FOR UPDATE) jusqu'à la fin de la transaction :
+     * le démarrage d'une copie (DS-10) prend le verrou partagé et attend, donc un étudiant ne voit jamais sa durée
+     * changer pendant qu'il démarre (DS-06).
+     */
+    Evaluation evaluationVerrouilleeDeLEnseignant(Long id, Enseignant enseignant) {
+        Evaluation evaluation = evaluationRepository.findByIdForUpdate(id)
+                .orElseThrow(() -> new RessourceNonTrouveeException("Évaluation introuvable (ID: " + id + ")"));
+        verifierProprietaire(evaluation, enseignant);
+        return evaluation;
+    }
+
+    /** Durée de la plage d'ouverture, en minutes : borne maximale de toute épreuve (la fin est plafonnée à la fermeture). */
+    static long plageEnMinutes(Evaluation evaluation) {
+        return java.time.Duration.between(evaluation.getDateOuverture(), evaluation.getDateFermeture()).toMinutes();
     }
 
     Enseignant enseignantConnecte(String email) {
@@ -226,6 +280,12 @@ public class EvaluationService {
                 if (q.getCasTests() == null || q.getCasTests().isEmpty()) {
                     return "une question de code doit avoir au moins un cas de test.";
                 }
+                // Judge0 considère une sortie vide comme absente : un cas qui l'attendrait échouerait toujours
+                boolean sortieVide = q.getCasTests().stream()
+                        .anyMatch(c -> c.getSortieAttendue() == null || c.getSortieAttendue().isBlank());
+                if (sortieVide) {
+                    return "chaque cas de test doit avoir une sortie attendue non vide.";
+                }
                 return null;
             }
             case OUVERTE -> {
@@ -252,7 +312,7 @@ public class EvaluationService {
         return null;
     }
 
-    private List<Promotion> promotionsExistantes(List<Long> ids) {
+    private Set<Promotion> promotionsExistantes(List<Long> ids) {
         Set<Long> distincts = new HashSet<>(ids);
         List<Promotion> promotions = promotionRepository.findAllById(distincts);
         if (promotions.size() != distincts.size()) {
@@ -261,12 +321,12 @@ public class EvaluationService {
             distincts.removeAll(trouvees);
             throw new RessourceNonTrouveeException("Promotion introuvable (ID: " + distincts.iterator().next() + ")");
         }
-        return new ArrayList<>(promotions);
+        return new LinkedHashSet<>(promotions);
     }
 
     // ---------------------------------------------------------------- construction
 
-    private void remplir(Evaluation evaluation, CreateEvaluationRequest request, List<Promotion> promotions) {
+    private void remplir(Evaluation evaluation, CreateEvaluationRequest request, Set<Promotion> promotions) {
         evaluation.setTitre(request.getTitre().trim());
         evaluation.setDescription(request.getDescription());
         evaluation.setDureeStandard(request.getDureeStandard());
@@ -295,8 +355,10 @@ public class EvaluationService {
             }
             case CODE -> {
                 QuestionCode question = new QuestionCode(q.getEnonce(), ordre, q.getPoints());
-                q.getCasTests().forEach(c -> question.addCasDeTest(
-                        new CasDeTest(c.getEntree(), c.getSortieAttendue(), Boolean.TRUE.equals(c.getEstMasque()))));
+                // Entrée facultative : un programme peut ne rien lire. Vide = absente.
+                q.getCasTests().forEach(c -> question.addCasDeTest(new CasDeTest(
+                        c.getEntree() == null || c.getEntree().isEmpty() ? null : c.getEntree(),
+                        c.getSortieAttendue(), Boolean.TRUE.equals(c.getEstMasque()))));
                 return question;
             }
             default -> {

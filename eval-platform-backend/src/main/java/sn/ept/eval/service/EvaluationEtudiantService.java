@@ -10,6 +10,7 @@ import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutEvaluation;
+import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.AmenagementTempsRepository;
 import sn.ept.eval.repository.EvaluationRepository;
 import sn.ept.eval.repository.SoumissionRepository;
@@ -99,6 +100,7 @@ public class EvaluationEtudiantService {
 
         List<Question> questions = evaluation.getQuestions();
         r.setNbQuestions(questions.size());
+        r.setTotalPoints(questions.stream().mapToDouble(q -> q.getPoints() != null ? q.getPoints() : 0).sum());
         r.setTypesQuestions(questions.stream().map(Question::getType).distinct().toList());
         questions.stream()
                 .map(Hibernate::unproxy)
@@ -110,6 +112,10 @@ public class EvaluationEtudiantService {
         if (copie != null) {
             r.setSoumissionId(copie.getId());
             r.setStatutSoumission(copie.getStatut());
+            // La note n'est communiquée qu'une fois les résultats publiés par l'enseignant
+            if (Boolean.TRUE.equals(evaluation.getResultatsPublies()) && copie.getStatut() == StatutSoumission.EVALUE) {
+                r.setNoteFinale(copie.getNoteFinale());
+            }
         }
         return r;
     }

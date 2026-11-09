@@ -5,7 +5,9 @@ import sn.ept.eval.model.enums.StatutEvaluation;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "evaluations")
@@ -51,7 +53,8 @@ public class Evaluation extends AuditableEntity {
         joinColumns = @JoinColumn(name = "evaluation_id"),
         inverseJoinColumns = @JoinColumn(name = "promotion_id")
     )
-    private List<Promotion> promotions = new ArrayList<>();
+    // Set et non List : pas de doublon, et ajout/retrait d'une promotion sans réécrire toute la table de liaison
+    private Set<Promotion> promotions = new HashSet<>();
 
     @OneToMany(mappedBy = "evaluation", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("ordre ASC")
@@ -95,8 +98,8 @@ public class Evaluation extends AuditableEntity {
     public Enseignant getEnseignant() { return enseignant; }
     public void setEnseignant(Enseignant enseignant) { this.enseignant = enseignant; }
 
-    public List<Promotion> getPromotions() { return promotions; }
-    public void setPromotions(List<Promotion> promotions) { this.promotions = promotions; }
+    public Set<Promotion> getPromotions() { return promotions; }
+    public void setPromotions(Set<Promotion> promotions) { this.promotions = new HashSet<>(promotions); }
 
     public List<Question> getQuestions() { return questions; }
     public void setQuestions(List<Question> questions) { this.questions = questions; }

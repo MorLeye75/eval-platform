@@ -3,6 +3,8 @@ package sn.ept.eval.exception;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -79,5 +81,45 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getStatus()).isEqualTo(HttpStatus.NOT_FOUND.value());
         assertThat(problem.getTitle()).isEqualTo("Ressource non trouvée");
         assertThat(problem.getType()).isEqualTo(URI.create("https://eval.ept.sn/errors/ressource-non-trouvee"));
+    }
+
+    @Test
+    @DisplayName("RFC 7807 : chaque erreur porte un code, y compris 400, 404 et 500")
+    void codePresentPartout() {
+        request.setRequestURI("/api/x");
+
+        assertThat(exceptionHandler.handleRessourceNonTrouvee(new RessourceNonTrouveeException("absente"), request)
+                .getProperties()).containsEntry("code", "RESSOURCE_NON_TROUVEE");
+        assertThat(exceptionHandler.handleIllegalArgument(new IllegalArgumentException("mauvaise"), request)
+                .getProperties()).containsEntry("code", "REQUETE_INCORRECTE");
+        assertThat(exceptionHandler.handleInattendue(new RuntimeException("panne"), request)
+                .getProperties()).containsEntry("code", "ERREUR_INTERNE");
+    }
+
+    @Test
+    @DisplayName("Contrainte de base violée : 409 CONFLIT_DONNEES, sans nom de contrainte ni SQL dans la réponse")
+    void integriteDonnees_409() {
+        request.setRequestURI("/api/soumissions/100/sauvegarder");
+        DataIntegrityViolationException ex = new DataIntegrityViolationException(
+                "could not execute statement [ERROR: duplicate key value violates unique constraint \"uk_reponses_soumission_question\"]");
+
+        ProblemDetail problem = exceptionHandler.handleIntegriteDonnees(ex, request);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getProperties()).containsEntry("code", "CONFLIT_DONNEES");
+        assertThat(problem.getDetail()).doesNotContain("uk_reponses", "duplicate", "statement");
+    }
+
+    @Test
+    @DisplayName("Verrou indisponible (attente dépassée) : 409 VERROU_INDISPONIBLE à réessayer, et non 500")
+    void verrouIndisponible_409() {
+        request.setRequestURI("/api/soumissions/100/soumettre");
+
+        ProblemDetail problem = exceptionHandler.handleVerrouIndisponible(
+                new PessimisticLockingFailureException("lock timeout"), request);
+
+        assertThat(problem.getStatus()).isEqualTo(HttpStatus.CONFLICT.value());
+        assertThat(problem.getProperties()).containsEntry("code", "VERROU_INDISPONIBLE");
+        assertThat(problem.getDetail()).contains("Réessayez");
     }
 }

@@ -1,13 +1,18 @@
 server:
   port: 8080
+  # Derrière un reverse proxy (nginx, traefik…) : FORWARD_HEADERS_STRATEGY=native pour lire l'IP réelle du client
+  # dans X-Forwarded-For (Tomcat ne fait confiance qu'aux proxys d'adresses internes). Sans proxy, laisser none :
+  # un client pourrait sinon inventer son IP et contourner la limite des tentatives de connexion.
+  forward-headers-strategy: ${FORWARD_HEADERS_STRATEGY:none}
   servlet:
     context-path: /api
 
 spring:
   application:
     name: eval-backend
-  profiles:
-    active: ${SPRING_PROFILES_ACTIVE:dev}
+  # Pas de profil par défaut : un déploiement sans SPRING_PROFILES_ACTIVE ne doit jamais basculer en dev
+  # (comptes de démonstration, secret JWT du dépôt). Spring lit directement la variable d'environnement ;
+  # en local, `mvn spring-boot:run` active dev (propriété spring-boot.run.profiles du pom).
   mvc:
     problemdetails:
       enabled: true
@@ -37,6 +42,27 @@ jwt:
   secret: ${JWT_SECRET}
   expiration-ms: ${JWT_EXPIRATION_MS:86400000} # 24 heures
 
+# Origines du front autorisées par CORS, séparées par des virgules (ex. https://eval.ept.sn).
+# Pas de « * » : les requêtes portent des identifiants (allowCredentials).
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+
+# Correction automatique du code (DS-12) : Judge0 auto-hébergé, jamais exposé publiquement.
+# Limites d'exécution et correspondance des langages : voir Judge0Proprietes (valeurs par défaut).
+correction:
+  judge0:
+    url: ${JUDGE0_URL:http://localhost:2358}
+    token: ${JUDGE0_TOKEN:}
+    concurrence: ${JUDGE0_CONCURRENCE:2}
+
+# Documentation OpenAPI / Swagger UI : désactivée hors développement (elle décrit toute l'API),
+# activable explicitement avec SWAGGER_ENABLED=true
+springdoc:
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:false}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:false}
+
 ---
 # Profil Dev local avec PostgreSQL (valeurs par défaut uniquement pour le poste de développement)
 spring:
@@ -53,6 +79,12 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWV2YWwtcGxhdGZvcm0tbm90LWZvci1wcm9kdWN0aW9uIQ==}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
 
 ---
 # Profil Dev avec H2 (activable si PostgreSQL n'est pas encore installé localement)
@@ -79,3 +111,9 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWV2YWwtcGxhdGZvcm0tbm90LWZvci1wcm9kdWN0aW9uIQ==}
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

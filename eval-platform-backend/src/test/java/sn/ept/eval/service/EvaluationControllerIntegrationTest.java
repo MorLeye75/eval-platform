@@ -52,6 +52,78 @@ class EvaluationControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("Promotions : liste pour l'enseignant (avec effectif), 403 pour un étudiant, 401 sans jeton")
+    void promotions() throws Exception {
+        mockMvc.perform(get("/promotions")).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/promotions").header("Authorization", "Bearer " + jeton(nouvelEtudiantDic2(), "motDePasse")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/promotions").header("Authorization", "Bearer " + jeton("prof@ept.sn", "prof123")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[?(@.nom == 'DIC2 Informatique')].id").isNotEmpty())
+                .andExpect(jsonPath("$[0].nbEtudiants").isNumber())
+                .andExpect(jsonPath("$[0].annee").isString());
+    }
+
+    @Test
+    @DisplayName("Cas de test : entrée facultative acceptée, sortie attendue vide refusée (400)")
+    void casDeTest() throws Exception {
+        String prof = "Bearer " + jeton("prof@ept.sn", "prof123");
+        String code = "{\"type\":\"CODE\",\"enonce\":\"Afficher bonjour\",\"points\":3,\"casTests\":[%s]}";
+        String sansEntree = "{\"sortieAttendue\":\"Bonjour\",\"estMasque\":false}";
+        String sortieVide = "{\"entree\":\"1\",\"sortieAttendue\":\"\",\"estMasque\":false}";
+
+        mockMvc.perform(post("/enseignant/evaluations").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpsAvecQuestion(String.format(code, sansEntree))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.questions[0].casTests[0].entree").doesNotExist());
+
+        mockMvc.perform(post("/enseignant/evaluations").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpsAvecQuestion(String.format(code, sortieVide))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Tiers-temps plus long que la plage : 400 ; publication d'une plage trop courte : 400 puis acceptée une fois élargie")
+    void plageEtTiersTemps() throws Exception {
+        String prof = "Bearer " + jeton("prof@ept.sn", "prof123");
+        LocalDateTime ouverture = LocalDateTime.now().plusDays(1).withNano(0);
+        // Plage de 60 min, durée standard de 60 min : acceptée
+        String corpsCourt = corps(promotionId(), "Plage courte")
+                .replaceAll("\"dateFermeture\":\"[^\"]*\"", "\"dateFermeture\":\"" + ouverture.plusMinutes(60) + "\"")
+                .replaceAll("\"dateOuverture\":\"[^\"]*\"", "\"dateOuverture\":\"" + ouverture + "\"");
+        String reponse = mockMvc.perform(post("/enseignant/evaluations").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content(corpsCourt))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        Integer id = JsonPath.read(reponse, "$.id");
+        Long etudiantId = nouvelEtudiantId();
+
+        // Exemple de la revue : plage de 1 h, épreuve de 1 h, tiers-temps de 1 h 20 → refusé
+        mockMvc.perform(put("/enseignant/evaluations/" + id + "/amenagements/" + etudiantId).header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"dureeMinutes\":80}"))
+                .andExpect(status().isBadRequest());
+
+        // Durée standard portée à 90 min alors que la plage reste de 60 min : la publication est refusée
+        mockMvc.perform(put("/enseignant/evaluations/" + id).header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content(corpsCourt.replace("\"dureeStandard\":60", "\"dureeStandard\":90")))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/enseignant/evaluations/" + id + "/publier").header("Authorization", prof))
+                .andExpect(status().isBadRequest());
+
+        // Plage élargie à 2 h : la publication passe
+        mockMvc.perform(put("/enseignant/evaluations/" + id).header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(corpsCourt.replace("\"dureeStandard\":60", "\"dureeStandard\":90")
+                                .replaceAll("\"dateFermeture\":\"[^\"]*\"", "\"dateFermeture\":\"" + ouverture.plusMinutes(120) + "\"")))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/enseignant/evaluations/" + id + "/publier").header("Authorization", prof))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.statut").value("PUBLIEE"));
+    }
+
+    @Test
     @DisplayName("Création : 201 + Location, brouillon avec ses questions et leurs bonnes réponses (vue enseignant)")
     void creation() throws Exception {
         String prof = "Bearer " + jeton("prof@ept.sn", "prof123");
@@ -214,6 +286,12 @@ class EvaluationControllerIntegrationTest {
                 + "{\"type\":\"QCM\",\"enonce\":\"Protocole fiable ?\",\"points\":2,\"estChoixMultiple\":false,"
                 + "\"choix\":[{\"texte\":\"TCP\",\"estCorrect\":true},{\"texte\":\"UDP\",\"estCorrect\":false}]},"
                 + "{\"type\":\"OUVERTE\",\"enonce\":\"Expliquez le routage\",\"points\":4}]}";
+    }
+
+    /** Corps de création valide, avec la seule question donnée (JSON brut). */
+    private String corpsAvecQuestion(String questionJson) {
+        return corps(promotionId(), "Question unique")
+                .replaceAll("\"questions\":\\[.*\\]\\}$", "\"questions\":[" + java.util.regex.Matcher.quoteReplacement(questionJson) + "]}");
     }
 
     private String nouvelEtudiantDic2() {

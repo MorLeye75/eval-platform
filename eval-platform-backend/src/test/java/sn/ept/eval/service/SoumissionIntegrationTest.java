@@ -24,6 +24,7 @@ import sn.ept.eval.repository.*;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -165,6 +166,36 @@ class SoumissionIntegrationTest {
 
         assertThatThrownBy(() -> soumissionService.getDetail(soumissionId, "etudiant@ept.sn"))
                 .isInstanceOf(AccesRefuseException.class);
+    }
+
+    @Test
+    @DisplayName("Consultation : une fois sa copie remise, l'étudiant ne récupère plus les énoncés ; l'enseignant si")
+    void getDetail_CopieRemise_SansEnoncesPourLEtudiant() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        assertThat(soumissionService.getDetail(soumissionId, emailEtudiant).getQuestions()).isNotEmpty();
+
+        soumissionService.soumettreCopie(soumissionId, emailEtudiant);
+
+        // D'autres étudiants (tiers-temps) peuvent encore composer : le sujet ne doit plus sortir par l'API
+        SoumissionDetailResponse pourEtudiant = soumissionService.getDetail(soumissionId, emailEtudiant);
+        assertThat(pourEtudiant.getId()).isEqualTo(soumissionId);
+        assertThat(pourEtudiant.getStatut()).isNotEqualTo(StatutSoumission.EN_COURS);
+        assertThat(pourEtudiant.getQuestions()).isNullOrEmpty();
+        assertThat(soumissionService.getDetail(soumissionId, "prof@ept.sn").getQuestions()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("Consultation : une copie encore EN_COURS mais expirée ne renvoie plus les énoncés à l'étudiant")
+    void getDetail_CopieExpireeNonCloturee_SansEnoncesPourLEtudiant() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        // Temps écoulé, mais la tâche planifiée n'est pas encore passée : la copie est toujours EN_COURS
+        jdbcTemplate.update("update soumissions set date_debut = ? where id = ?", LocalDateTime.now().minusMinutes(60), soumissionId);
+
+        SoumissionDetailResponse pourEtudiant = soumissionService.getDetail(soumissionId, emailEtudiant);
+
+        assertThat(pourEtudiant.getStatut()).isEqualTo(StatutSoumission.EN_COURS);
+        assertThat(pourEtudiant.getQuestions()).isNullOrEmpty();
+        assertThat(soumissionService.getDetail(soumissionId, "prof@ept.sn").getQuestions()).isNotEmpty();
     }
 
     @Test
@@ -380,7 +411,7 @@ class SoumissionIntegrationTest {
             evaluation.setDateFermeture(LocalDateTime.now().plusHours(2));
             evaluation.setStatut(StatutEvaluation.EN_COURS);
             evaluation.setEnseignant((Enseignant) utilisateurRepository.findByEmail("prof@ept.sn").orElseThrow());
-            evaluation.setPromotions(List.of(promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
+            evaluation.setPromotions(Set.of(promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
 
             QuestionQuiz quiz = new QuestionQuiz("Complexité d'une recherche dichotomique ?", 1, 4.0, false, 30);
             quiz.addChoix(new ChoixReponse("O(n)", false));
@@ -417,5 +448,21 @@ class SoumissionIntegrationTest {
             QuestionQCM q = (QuestionQCM) questionRepository.findByEvaluationIdOrderByOrdreAsc(evalQcmId).get(indexQuestion);
             return q.getChoix().stream().map(ChoixReponse::getId).toList();
         });
+    }
+
+    @Test
+    @DisplayName("Code : le langage choisi est enregistré avec la réponse et restitué à la reprise")
+    void code_LangageEnregistre() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalCodeId, emailEtudiant).getId();
+        Long questionCodeId = questionRepository.findByEvaluationIdOrderByOrdreAsc(evalCodeId).get(0).getId();
+        ReponseItemDto reponse = new ReponseItemDto(questionCodeId, null, "print(42)", null);
+        reponse.setLangage("python");
+
+        soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(List.of(reponse)), emailEtudiant);
+
+        ReponseItemDto restituee = soumissionService.demarrerOuReprendre(evalCodeId, emailEtudiant)
+                .getQuestions().get(0).getReponseActuelle();
+        assertThat(restituee.getCodeSoumis()).isEqualTo("print(42)");
+        assertThat(restituee.getLangage()).isEqualTo("python");
     }
 }

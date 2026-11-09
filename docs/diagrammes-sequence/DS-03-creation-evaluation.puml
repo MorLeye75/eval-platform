@@ -1,12 +1,19 @@
 @startuml DS-03_creation_evaluation
 title DS-03 — Création et modification d'un brouillon d'évaluation
+hide footbox
 autonumber
 actor "Enseignant" as E
 boundary "Frontend React" as F
 control "Backend Spring" as B
 entity "BDD" as D
 
-E -> F : étape 1 (infos), étape 2 (questions), étape 3 (prévisualisation)
+E -> F : ouvre l'assistant (étape 1 : infos, étape 2 : questions, étape 3 : prévisualisation)
+F -> B ++ : GET /api/promotions
+note right of B : @PreAuthorize("hasRole('ENSEIGNANT') or hasRole('ADMIN')")\nun étudiant reçoit 403
+B -> D ++ : SELECT Promotion (+ effectif de chaque promotion)
+D --> B -- : promotions
+B --> F -- : 200 OK [ { id, nom, annee, nbEtudiants } ], année la plus récente d'abord
+F --> E : cases à cocher « Promotions concernées » (au moins une)
 note right of F : **État de l'assistant côté front**\nbrouillon conservé dans sessionStorage ;\nrien n'est écrit en base avant « Enregistrer »
 
 == Création ==
@@ -14,17 +21,17 @@ E -> F : clique « Enregistrer le brouillon »
 F -> B ++ : POST /api/enseignant/evaluations\n{ titre, description, dureeStandard, dateOuverture, dateFermeture,\n  promotionIds, questions[] }
 note right of B : @PreAuthorize("hasRole('ENSEIGNANT')")\nl'enseignant est lu dans le JWT, jamais dans le corps
 
-alt [DTO invalide : champ manquant, durée ≤ 0, aucune promotion]
+alt DTO invalide : champ manquant, durée ≤ 0, aucune promotion
   B --> F : 400 Bad Request (champs en erreur)
-else [dateFermeture ≤ dateOuverture]
+else dateFermeture ≤ dateOuverture
   B --> F : 400 Bad Request
-else [règle d'une question violée (voir tableau ci-dessous)]
+else règle d'une question violée (voir encadré)
   B --> F : 400 Bad Request (« Question 3 : … »), rien n'est enregistré
-else [promotion inconnue]
+else promotion inconnue
   B -> D ++ : SELECT Promotion WHERE id IN (:promotionIds)
   D --> B -- : promotions trouvées
   B --> F : 404 Not Found
-else [données valides]
+else données valides
   B -> D : INSERT Evaluation (statut = BROUILLON, version = 0)
   B -> D : INSERT Question / ChoixReponse / CasDeTest (cascade, ordre = position)
   B --> F : 201 Created + Location /api/enseignant/evaluations/{id}\n{ evaluation, version }
@@ -33,16 +40,22 @@ else [données valides]
 end
 deactivate B
 
+note over F, B
+  **Plage d'ouverture et durée** : la cohérence « ouverture + durée ≤ fermeture » n'est pas exigée
+  d'un brouillon (les dates se règlent souvent en dernier). Elle est vérifiée à la publication (DS-04)
+  et à l'enregistrement d'un tiers-temps (DS-06).
+end note
+
 == Modification (brouillon uniquement) ==
 E -> F : ouvre une évaluation existante
 F -> B ++ : GET /api/enseignant/evaluations/{id}
 B -> D ++ : SELECT Evaluation + questions WHERE id = :id
 D --> B -- : évaluation
-alt [évaluation inconnue]
+alt évaluation inconnue
   B --> F : 404 Not Found
-else [évaluation d'un autre enseignant]
+else évaluation d'un autre enseignant
   B --> F : 403 Forbidden
-else [propriétaire]
+else propriétaire
   B --> F : 200 OK (formulaire pré-rempli, avec les bonnes réponses)
 end
 deactivate B
@@ -51,22 +64,22 @@ E -> F : modifie puis enregistre
 F -> B ++ : PUT /api/enseignant/evaluations/{id}\n(même corps que la création)
 B -> D ++ : SELECT Evaluation WHERE id = :id
 D --> B -- : évaluation (version = n)
-alt [évaluation inconnue]
+alt évaluation inconnue
   B --> F : 404 Not Found
-else [autre enseignant]
+else autre enseignant
   B --> F : 403 Forbidden
-else [statut ≠ BROUILLON]
+else statut ≠ BROUILLON
   B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
-  F --> E : "Dépubliez l'évaluation pour la modifier"
-else [mêmes validations que la création en échec]
+  F --> E : "Repassez l'évaluation en brouillon pour la modifier"
+else mêmes validations que la création en échec
   B --> F : 400 Bad Request / 404 Not Found
-else [données valides]
+else données valides
   B -> D : UPDATE Evaluation, remplace les questions (orphanRemoval)
   note right of B : @Version : si un « publier » a modifié la ligne\nentre la lecture et l'écriture, la mise à jour est rejetée
-  alt [conflit de version]
+  alt conflit de version
     B --> F : 409 Conflict (code CONFLIT_CONCURRENT)
     F --> E : "L'évaluation a changé, rechargez-la"
-  else [version identique]
+  else version identique
     B --> F : 200 OK { evaluation, version = n + 1 }
   end
 end
@@ -75,13 +88,13 @@ deactivate B
 == Suppression (brouillon uniquement) ==
 E -> F : supprime un brouillon
 F -> B ++ : DELETE /api/enseignant/evaluations/{id}
-alt [inconnue]
+alt inconnue
   B --> F : 404 Not Found
-else [autre enseignant]
+else autre enseignant
   B --> F : 403 Forbidden
-else [statut ≠ BROUILLON]
+else statut ≠ BROUILLON
   B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
-else [brouillon]
+else brouillon
   B -> D : DELETE Evaluation (cascade)
   B --> F : 204 No Content
 end
@@ -91,8 +104,14 @@ note over B
   **Règles de validation des questions**
   QCM : ≥ 2 choix, ≥ 1 choix correct ; un seul correct si estChoixMultiple = false
   QUIZ_CHRONOMETREE : règles du QCM + dureeQuestion > 0
-  CODE : ≥ 1 cas de test, chacun avec entrée et sortie attendue
+  CODE : ≥ 1 cas de test. **Entrée facultative** (un programme peut ne rien lire) ;
+         **sortie attendue obligatoire et non vide** (Judge0 traite une sortie vide comme absente :
+         un cas qui attendrait une sortie vide échouerait toujours)
   OUVERTE : énoncé non vide
   Toutes : points > 0
+
+  **Exercice de code** : un programme complet. L'entrée du cas de test arrive sur l'entrée standard,
+  la sortie standard est comparée à la sortie attendue (espaces de fin de ligne ignorés).
+  Le formulaire de l'enseignant le rappelle (DS-12 côté correction).
 end note
 @enduml

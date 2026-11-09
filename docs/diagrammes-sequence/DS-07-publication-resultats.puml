@@ -1,0 +1,63 @@
+@startuml DS-07_publication_resultats
+title DS-07 — Publication des résultats d'une évaluation (Enseignant)
+hide footbox
+autonumber
+actor "Enseignant" as E
+boundary "Frontend React" as F
+control "Backend Spring" as B
+control "NotificationService\n(Mor, DS-15)" as N
+entity "BDD" as D
+
+note over E, D
+  **Deux actions distinctes** : DS-04 publie l'**évaluation** (les étudiants la voient et composent) ;
+  DS-07 publie ses **résultats** (notes et corrigés consultables, DS-13). Sans DS-07, une copie reste
+  « EN_ATTENTE » pour son étudiant, même notée.
+end note
+
+E -> F : clique « Publier les résultats » (évaluation terminée)
+F -> B ++ : POST /api/enseignant/evaluations/{id}/resultats/publier
+note right of B : @PreAuthorize("hasRole('ENSEIGNANT')")
+B -> D ++ : SELECT Evaluation WHERE id = :id
+D --> B -- : évaluation (statut, dateFermeture, resultatsPublies)
+
+alt évaluation inconnue
+  B --> F : 404 Not Found
+else évaluation d'un autre enseignant
+  B --> F : 403 Forbidden
+else resultatsPublies = true
+  B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE, « déjà publiés »)
+else statut ≠ TERMINEE
+  B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
+  F --> E : "Les résultats ne peuvent être publiés qu'une fois l'évaluation terminée"
+else maintenant < dateFermeture + 2 min (Clock)
+  note right of B : marge de tolérance : un étudiant peut encore rendre sa copie.\nMême règle que DS-13 pour dévoiler les corrigés : plus personne ne compose.
+  B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
+else publiable
+  B -> D ++ : UPDATE Evaluation SET resultatsPublies = true\nWHERE id = :id AND resultatsPublies = false
+  note right of D : mise à jour **conditionnelle** et atomique (même principe que DS-05) :\nde deux clics simultanés, un seul reçoit « 1 ligne modifiée »
+  D --> B -- : nombre de lignes modifiées
+  alt 0 ligne : un autre appel vient de publier
+    B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE, « déjà publiés »)
+  else 1 ligne modifiée
+    B -> N ++ : resultatsPublies(evaluation relue)
+    N -> D : SELECT copies EVALUE de l'évaluation (id, étudiant)
+    N -> D : INSERT Notification RESULTAT_PUBLIE (une par copie notée, avec soumissionId)
+    note right of N : dans la **même transaction** que la bascule : si une notification échoue,\nla publication est annulée et peut être retentée (jamais « publié sans notification »)
+    N --> B -- : ok
+    B -> D : SELECT count(*) des copies, dont EVALUE
+    B --> F : 200 OK { evaluationId, resultatsPublies = true, nbCopies, nbCopiesNotees, nbCopiesEnAttente }
+    F --> E : "Résultats publiés : N copies notifiées, M en attente de notation"
+  end
+end
+deactivate B
+
+== Copies pas encore notées au moment de la publication ==
+note over B, D
+  Une copie encore SOUMIS / EN_CORRECTION (code en nouvel essai Judge0, correction manuelle d'une question ouverte)
+  **ne bloque pas** la publication : son étudiant voit « EN_ATTENTE » (DS-13), sans note ni corrigé.
+  Quand la copie passe EVALUE alors que resultatsPublies est déjà vrai, le module qui pose cette dernière note
+  appelle NotificationService.resultatPublie(copie) : une notification RESULTAT_PUBLIE avec son soumissionId.
+  Appelants : CorrectionService (correction automatique tardive, Mor) et la validation de la dernière note par
+  l'enseignant (DS-08, Aminou). Une copie notée avant la publication est notifiée par resultatsPublies(), jamais deux fois.
+end note
+@enduml

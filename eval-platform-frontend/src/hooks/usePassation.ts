@@ -1,16 +1,19 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useExamTimer } from "@/hooks/useExamTimer"
+import { useAntiCheat } from "@/hooks/useAntiCheat"
 import { useAutoSave, lireTampon, viderTampon } from "@/hooks/useAutoSave"
 import {
   demarrerEpreuve,
   sauvegarderReponses,
   soumettreCopie,
+  signalerChangementOnglet,
   estCopieVerrouillee,
   messageErreur,
 } from "@/lib/passation"
-import type { QuestionExamen, ReponseItem } from "@/types"
+import { cleTamponCopie } from "@/lib/session"
+import type { CopieEnCours, QuestionExamen, ReponseItem } from "@/types"
 
 interface UsePassationOptions<T> {
   evaluationId: string | undefined
@@ -37,6 +40,7 @@ export function usePassation<T>({
   compterTraitees,
 }: UsePassationOptions<T>) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const {
     data: copie,
@@ -63,7 +67,7 @@ export function usePassation<T>({
   // Copie dont les réponses ont été chargées dans le formulaire (rechargée après un conflit de version)
   const copieInitialisee = useRef<typeof copie>(undefined)
 
-  const cleTampon = copie ? `passation-copie-${copie.id}` : undefined
+  const cleTampon = copie ? cleTamponCopie(copie.id) : undefined
   const enCours = copie?.statut === "EN_COURS"
 
   const versReponsesRef = useRef(versReponses)
@@ -75,7 +79,7 @@ export function usePassation<T>({
     reponsesRef.current = reponses
   })
 
-  function quitter(fin: Fin) {
+  function quitter(fin: Fin, dateRemise: string | null = null) {
     if (termine.current) return
     termine.current = true
     if (cleTampon) viderTampon(cleTampon)
@@ -83,8 +87,12 @@ export function usePassation<T>({
       replace: true,
       state: {
         titre: copie?.titreEvaluation,
-        traitees: compterTraiteesRef.current(reponsesRef.current),
-        total: copie?.questions.length ?? 0,
+        // Quiz : le navigateur ne connaît que la question en cours, pas les réponses aux questions passées
+        ...(copie?.quiz
+          ? {}
+          : { traitees: compterTraiteesRef.current(reponsesRef.current), total: copie?.questions.length ?? 0 }),
+        // Heure de remise du serveur (affichée à l'étudiant), pas celle du navigateur
+        dateRemise,
       },
     })
   }
@@ -114,7 +122,7 @@ export function usePassation<T>({
   useEffect(() => {
     if (!copie || copieInitialisee.current === copie) return
     copieInitialisee.current = copie
-    const cle = `passation-copie-${copie.id}`
+    const cle = cleTamponCopie(copie.id)
     // Copie remise : plus rien à synchroniser
     if (!enCours) viderTampon(cle)
     const serveur = depuisCopie(copie.questions)
@@ -152,8 +160,8 @@ export function usePassation<T>({
     // Fin du chrono : soumission quoi qu'il arrive, seules les réponses déjà enregistrées sur le serveur sont garanties
 
     try {
-      await soumettreCopie(copie.id)
-      quitter(fin)
+      const dateRemise = await soumettreCopie(copie.id)
+      quitter(fin, dateRemise)
     } catch (err) {
       if (estCopieVerrouillee(err)) {
         // DS-01 cas critique : temps dépassé au-delà de la marge, copie figée par le serveur
@@ -176,6 +184,20 @@ export function usePassation<T>({
     enabled: pret && enCours,
   })
 
+  // Anti-triche : compteur repris du serveur, chaque nouvelle sortie lui est signalée (il fait foi)
+  const { changementsOnglet, setChangementsOnglet } = useAntiCheat({
+    initialCount: copie?.nbChangementsOnglet ?? 0,
+    enabled: pret && enCours && !soumissionEnCours,
+    onTabSwitch: () => {
+      if (!copie) return
+      signalerChangementOnglet(copie.id)
+        .then(setChangementsOnglet)
+        .catch(() => {
+          // réseau absent : la sortie reste affichée localement, le serveur ne l'aura pas comptée
+        })
+    },
+  })
+
   let erreur: string | null = null
   if (!evaluationId) erreur = "Évaluation introuvable."
   else if (error) erreur = messageErreur(error, "Impossible de charger votre copie.")
@@ -196,5 +218,9 @@ export function usePassation<T>({
     soumissionEnCours,
     erreurSoumission,
     avertissement,
+    changementsOnglet,
+    sauvegarderMaintenant,
+    /** Remplace la copie par celle renvoyée par le serveur (quiz : question suivante). */
+    remplacerCopie: (nouvelle: CopieEnCours) => queryClient.setQueryData(["passation", evaluationId], nouvelle),
   }
 }

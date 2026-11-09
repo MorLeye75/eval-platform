@@ -1,0 +1,69 @@
+@startuml DS-11_cloture_automatique
+title DS-11 — Clôture automatique des copies abandonnées
+hide footbox
+autonumber
+control "PassationScheduler\n(toutes les 60 s)" as PS
+control "ClotureCopiesService" as CC
+control "TempsEpreuveService" as T
+database "BDD" as D
+control "CorrectionDeclencheur" as CD
+control "CorrectionService\n(@Async, DS-12)" as CS
+
+note over PS : fixedDelay de 60 s : le passage suivant part 60 s après la fin\ndu précédent (jamais deux passages en parallèle).\nDésactivable : passation.taches-planifiees.actif = false (tests)
+
+PS -> CC ++ : cloturerCopiesExpirees()
+
+== Repérage en lot, sans verrou ==
+CC -> D : SELECT Soumission JOIN FETCH evaluation\nWHERE statut = 'EN_COURS'
+D --> CC : copies en cours (avec durée standard et fermeture)
+CC -> T ++ : dureesEffectivesMinutes(copies)
+T -> D : SELECT AmenagementTemps WHERE evaluation_id IN (…)
+D --> T : aménagements (tiers-temps)
+T --> CC -- : durée effective par copie
+note right of CC : une seule requête d'aménagements pour tout le lot,\nquel que soit le nombre de copies
+loop pour chaque copie en cours
+  CC -> T : estExpiree(copie, durée effective)
+  note right of T : expirée si maintenant > fin + 2 min de marge,\nfin = min(dateDebut + durée effective, dateFermeture)
+  T --> CC : expirée ou non
+end
+note right of CC : copies dans les temps : ni verrou ni écriture
+
+== Clôture, une transaction courte par copie expirée ==
+loop pour chaque copie expirée
+  CC -> D : nouvelle transaction (REQUIRES_NEW)\nSELECT Soumission WHERE id = :id FOR UPDATE NOWAIT
+  note right of D : NOWAIT : sans lui, PostgreSQL attendrait indéfiniment une copie\nverrouillée ailleurs (aucun lock_timeout) et bloquerait toute la tâche.\nLes requêtes des étudiants, elles, attendent (verrou ordinaire)
+  alt copie verrouillée ailleurs (sauvegarde, remise, correction) ou erreur
+    note right of CC : transaction annulée, copie reprise au passage suivant ;\nles autres copies sont clôturées normalement
+  else copie verrouillée
+    D --> CC : copie relue
+    break statut ≠ EN_COURS (remise ou reprise entre le repérage et le verrou)
+      note right of CC : rien n'est modifié (date de la vraie remise conservée)
+    end
+    CC -> T ++ : dureeEffectiveMinutes(copie)
+    T -> D : SELECT AmenagementTemps WHERE etudiant_id, evaluation_id
+    D --> T : aménagement éventuel
+    T --> CC -- : durée relue
+    break plus expirée (aménagement accordé entre le repérage et le verrou)
+      note right of CC : la copie reste ouverte avec sa nouvelle durée
+    end
+    CC -> D : UPDATE Soumission SET statut = 'SOUMIS',\ndateRemise = fin théorique (sans la marge),\nprochaine_tentative_le = :maintenant + 5 min
+    note right of D : copie figée à l'état de sa dernière sauvegarde (DS-02).\nPas d'alerte anti-triche : l'étudiant n'a rien envoyé hors délai
+    CC -> CD : apresCommit(id)
+    CC -> D : COMMIT (verrou relâché)
+    CD ->> CS : corrigerSoumission…Async(id) (exécuteur choisi selon\nla présence de code, voir DS-12)
+  end
+end
+CC --> PS -- : nombre de copies clôturées
+
+PS -> CC ++ : relancerCorrectionsBloquees()
+note right of PS : appel séparé : un échec de la clôture n'empêche pas la relance\n(et inversement). Détail de la relance : DS-12, dernière section
+CC --> PS -- : nombre de corrections relancées
+
+note over PS, CS
+  Cohérence avec DS-01 (soumission) : même fin effective et même marge (TempsEpreuveService),
+  même dateRemise (fin théorique), même verrou avec revérification du statut, correction lancée après le commit.
+  Seule différence voulue : pas d'alerte anti-triche.
+  Même clôture à la reprise (DS-10) : une copie EN_COURS rouverte après la marge est clôturée
+  (cloturerExpiree) au lieu d'être renvoyée avec un temps nul.
+end note
+@enduml

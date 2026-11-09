@@ -23,6 +23,8 @@ public class EvaluationResponse {
     private Long version;
     private List<Long> promotionIds = new ArrayList<>();
     private Integer nbQuestions;
+    private Long nbCopies;
+    private Long nbAttendus;
     private List<QuestionResponseDTO> questions = new ArrayList<>();
     private List<AmenagementResponse> amenagements = new ArrayList<>();
 
@@ -60,6 +62,14 @@ public class EvaluationResponse {
 
     public Integer getNbQuestions() { return nbQuestions; }
     public void setNbQuestions(Integer nbQuestions) { this.nbQuestions = nbQuestions; }
+
+    /** Copies déjà créées par les étudiants (liste et détail). */
+    public Long getNbCopies() { return nbCopies; }
+    public void setNbCopies(Long nbCopies) { this.nbCopies = nbCopies; }
+
+    /** Étudiants des promotions concernées, donc nombre de copies attendues (liste et détail). */
+    public Long getNbAttendus() { return nbAttendus; }
+    public void setNbAttendus(Long nbAttendus) { this.nbAttendus = nbAttendus; }
 
     public List<QuestionResponseDTO> getQuestions() { return questions; }
     public void setQuestions(List<QuestionResponseDTO> questions) { this.questions = questions; }

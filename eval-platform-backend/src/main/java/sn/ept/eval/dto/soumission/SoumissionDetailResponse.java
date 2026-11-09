@@ -20,6 +20,8 @@ public class SoumissionDetailResponse {
     private Long tempsRestantSecondes;
     private Integer nbChangementsOnglet;
     private List<QuestionExamenDto> questions = new ArrayList<>();
+    /** Quiz chronométré seulement : position dans le quiz (les questions ne contiennent que celle en cours). */
+    private EtatQuizDto quiz;
 
     public SoumissionDetailResponse() {}
 
@@ -58,4 +60,7 @@ public class SoumissionDetailResponse {
 
     public List<QuestionExamenDto> getQuestions() { return questions; }
     public void setQuestions(List<QuestionExamenDto> questions) { this.questions = questions; }
+
+    public EtatQuizDto getQuiz() { return quiz; }
+    public void setQuiz(EtatQuizDto quiz) { this.quiz = quiz; }
 }

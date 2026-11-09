@@ -164,38 +164,40 @@ export default function ValidationIA() {
 
             return (
               <Card key={c.id} className="rounded-2xl border-border/60 shadow-sm">
-                {/* En-tête */}
-                <div
-                  className="flex cursor-pointer items-center gap-3 p-4"
+                {/* En-tête : bouton qui ouvre ou ferme le détail */}
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  className="flex w-full cursor-pointer items-center gap-3 p-4 text-left"
                   onClick={() => setExpanded(isOpen ? null : c.id)}
                 >
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                     {initiales}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                  </span>
+                  <span className="block min-w-0 flex-1">
+                    <span className="flex items-center gap-2">
                       <span className="text-[13px] font-semibold">
                         {c.etudiant.prenom} {c.etudiant.nom}
                       </span>
                       <Badge variant="outline" className={`rounded-full text-[11px] font-semibold ${cls}`}>
                         {label}
                       </Badge>
-                    </div>
-                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    </span>
+                    <span className="block mt-0.5 truncate text-[11px] text-muted-foreground">
                       {c.evaluation} · {c.question.slice(0, 60)}…
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 text-sm font-bold">
+                    </span>
+                  </span>
+                  <span className="flex shrink-0 items-center gap-3">
+                    <span className="block text-right">
+                      <span className="flex items-center gap-1 text-sm font-bold">
                         <Bot className="size-3.5 text-primary" />
                         {c.noteProposeeIA} / {c.pointsMax}
-                      </div>
-                      <div className="text-[11px] text-muted-foreground">note IA</div>
-                    </div>
+                      </span>
+                      <span className="block text-[11px] text-muted-foreground">note IA</span>
+                    </span>
                     {isOpen ? <ChevronUp className="size-4 text-muted-foreground" /> : <ChevronDown className="size-4 text-muted-foreground" />}
-                  </div>
-                </div>
+                  </span>
+                </button>
 
                 {/* Détail déplié */}
                 {isOpen && (

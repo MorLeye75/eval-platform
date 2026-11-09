@@ -16,9 +16,13 @@ export function formatTemps(secondesTotal: number) {
  * Hook gérant le chronomètre d'une épreuve avec déclenchement automatique
  * à l'expiration du temps alloué.
  *
- * Le temps restant est calculé à partir d'une heure de fin fixée une seule fois
- * (pas de dérive si l'onglet est en arrière-plan) et `onExpire` est lu via une ref
- * (l'intervalle n'est pas recréé à chaque rendu).
+ * Le temps restant est calculé à partir d'une heure de fin (pas de dérive si l'onglet est en
+ * arrière-plan), fixée au démarrage et recalée si le serveur renvoie un autre temps restant
+ * (copie rechargée). `onExpire` est lu via une ref (l'intervalle n'est pas recréé à chaque rendu).
+ *
+ * L'expiration est détectée dans le tick, à partir du temps calculé, et jamais à partir de l'état
+ * `tempsRestant` : celui-ci vaut encore sa valeur initiale (0 tant que la copie n'est pas chargée)
+ * au rendu où l'heure de fin est fixée, ce qui soumettait la copie vide dès son ouverture.
  */
 export function useExamTimer({
   dureeSecondes,
@@ -26,33 +30,49 @@ export function useExamTimer({
   enabled = true,
 }: UseExamTimerOptions) {
   const [finA, setFinA] = useState<number | null>(null)
-  const [tempsRestant, setTempsRestant] = useState(dureeSecondes)
+  const [tempsRestant, setTempsRestant] = useState(Math.max(0, dureeSecondes))
+
+  // Durée reçue (copie chargée ou rechargée) : le temps affiché suit dans le même rendu. Recalé seulement dans
+  // l'effet, il montrait « 00:00 » en rouge le temps d'un affichage à l'ouverture de l'épreuve.
+  const [dureeSuivie, setDureeSuivie] = useState(dureeSecondes)
+  const dureeChangee = dureeSecondes !== dureeSuivie
+  if (dureeChangee) {
+    setDureeSuivie(dureeSecondes)
+    setTempsRestant(Math.max(0, dureeSecondes))
+  }
+  const tempsAffiche = dureeChangee ? Math.max(0, dureeSecondes) : tempsRestant
+  const expirationDeclenchee = useRef(false)
   const onExpireRef = useRef(onExpire)
   useEffect(() => {
     onExpireRef.current = onExpire
   })
 
-  // Fixe l'heure de fin une seule fois, au démarrage
   useEffect(() => {
-    if (enabled && finA === null) setFinA(Date.now() + dureeSecondes * 1000)
-  }, [enabled, finA, dureeSecondes])
+    if (!enabled) {
+      setFinA(null)
+      return
+    }
+    setFinA(Date.now() + Math.max(0, dureeSecondes) * 1000)
+    expirationDeclenchee.current = false
+  }, [enabled, dureeSecondes])
 
   useEffect(() => {
     if (finA === null) return
-    const tick = () =>
-      setTempsRestant(Math.max(0, Math.round((finA - Date.now()) / 1000)))
+    const tick = () => {
+      const restant = Math.max(0, Math.round((finA - Date.now()) / 1000))
+      setTempsRestant(restant)
+      if (restant === 0 && !expirationDeclenchee.current) {
+        expirationDeclenchee.current = true
+        onExpireRef.current()
+      }
+    }
     tick()
     const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
   }, [finA])
 
-  // Réaction à l'expiration dans un effet séparé (la mise à jour d'état reste pure)
-  useEffect(() => {
-    if (finA !== null && tempsRestant === 0) onExpireRef.current()
-  }, [finA, tempsRestant])
-
   return {
-    tempsRestant,
-    tempsRestantFormate: formatTemps(tempsRestant),
+    tempsRestant: tempsAffiche,
+    tempsRestantFormate: formatTemps(tempsAffiche),
   }
 }

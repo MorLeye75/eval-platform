@@ -29,6 +29,7 @@ import {
   useBrouillon,
   validerInfos,
   erreurQuestion,
+  basculerChoixMultiple,
   nouvelId as newId,
   type ChoixLocal,
   type CasTestLocal,
@@ -233,12 +234,15 @@ export default function BuilderQuestions() {
             return (
               <Card key={q.localId} className="rounded-2xl border-border/60 shadow-sm">
                 {/* En-tête question */}
-                <div
-                  className="flex cursor-pointer items-center gap-3 p-4"
-                  onClick={() => setExpanded(isOpen ? null : q.localId)}
-                >
-                  <GripVertical className="size-4 shrink-0 text-muted-foreground" />
-                  <div className="flex min-w-0 flex-1 items-center gap-3">
+                <div className="flex items-center gap-3 p-4">
+                  <GripVertical className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+                  {/* Titre de la question : bouton qui la déplie (les actions restent à côté, hors du bouton) */}
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => setExpanded(isOpen ? null : q.localId)}
+                    className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 text-left"
+                  >
                     <span className="text-sm font-bold text-muted-foreground">Q{idx + 1}</span>
                     <Badge variant="outline" className={`shrink-0 rounded-full text-[11px] font-semibold ${cfg.cls}`}>
                       {cfg.label}
@@ -249,12 +253,12 @@ export default function BuilderQuestions() {
                     {erreur && (
                       <span className="shrink-0 text-[11px] font-medium text-destructive">{erreur}</span>
                     )}
-                  </div>
+                  </button>
                   <div className="flex shrink-0 items-center gap-2">
                     <span className="text-sm font-bold">{q.points} pts</span>
-                    <button onClick={(e) => { e.stopPropagation(); moveUp(idx) }}   className="p-1 text-muted-foreground hover:text-foreground"><ChevronUp   className="size-4" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); moveDown(idx) }} className="p-1 text-muted-foreground hover:text-foreground"><ChevronDown className="size-4" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); removeQuestion(q.localId) }} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
+                    <button type="button" aria-label={`Monter la question ${idx + 1}`} onClick={() => moveUp(idx)} className="p-1 text-muted-foreground hover:text-foreground"><ChevronUp   className="size-4" /></button>
+                    <button type="button" aria-label={`Descendre la question ${idx + 1}`} onClick={() => moveDown(idx)} className="p-1 text-muted-foreground hover:text-foreground"><ChevronDown className="size-4" /></button>
+                    <button type="button" aria-label={`Supprimer la question ${idx + 1}`} onClick={() => removeQuestion(q.localId)} className="p-1 text-muted-foreground hover:text-destructive"><Trash2 className="size-4" /></button>
                   </div>
                 </div>
 
@@ -293,7 +297,7 @@ export default function BuilderQuestions() {
                           <input
                             type="checkbox"
                             checked={q.estChoixMultiple ?? false}
-                            onChange={(e) => updateQuestion(q.localId, { estChoixMultiple: e.target.checked })}
+                            onChange={(e) => updateQuestion(q.localId, basculerChoixMultiple(q, e.target.checked))}
                             className="size-4 accent-primary"
                           />
                         </div>

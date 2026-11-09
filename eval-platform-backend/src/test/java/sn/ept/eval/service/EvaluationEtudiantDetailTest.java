@@ -26,6 +26,7 @@ import sn.ept.eval.repository.UtilisateurRepository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -116,7 +117,7 @@ class EvaluationEtudiantDetailTest {
         Promotion dic3 = new Promotion("DIC3", "2025/2026");
         dic3.setId(6L);
         Evaluation autre = evaluation(StatutEvaluation.EN_COURS);
-        autre.setPromotions(List.of(dic3));
+        autre.setPromotions(Set.of(dic3));
         when(evaluationRepository.findById(10L)).thenReturn(Optional.of(autre));
 
         assertThatThrownBy(() -> service.detailEvaluation(10L, "etu@ept.sn")).isInstanceOf(AccesRefuseException.class);
@@ -137,7 +138,7 @@ class EvaluationEtudiantDetailTest {
         e.setTitre("Quiz Réseaux");
         e.setDureeStandard(30);
         e.setStatut(statut);
-        e.setPromotions(List.of(dic2));
+        e.setPromotions(Set.of(dic2));
         return e;
     }
 }

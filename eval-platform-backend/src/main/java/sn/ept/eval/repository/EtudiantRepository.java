@@ -15,6 +15,9 @@ public interface EtudiantRepository extends JpaRepository<Etudiant, Long> {
     Optional<Etudiant> findByNumEtudiant(String numEtudiant);
     Optional<Etudiant> findByEmail(String email);
 
+    /** Effectif d'une promotion (liste des promotions de l'assistant de création, DS-03). */
+    long countByPromotionId(Long promotionId);
+
     /** Verrou pessimiste sur l'étudiant : sérialise ses démarrages d'épreuve concurrents. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select e from Etudiant e where e.id = :id")

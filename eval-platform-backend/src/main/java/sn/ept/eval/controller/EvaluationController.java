@@ -18,8 +18,10 @@ import sn.ept.eval.dto.evaluation.AmenagementRequestDTO;
 import sn.ept.eval.dto.evaluation.AmenagementResponse;
 import sn.ept.eval.dto.evaluation.CreateEvaluationRequest;
 import sn.ept.eval.dto.evaluation.EvaluationResponse;
+import sn.ept.eval.dto.evaluation.ResultatsPublicationResponse;
 import sn.ept.eval.service.AmenagementTempsService;
 import sn.ept.eval.service.EvaluationService;
+import sn.ept.eval.service.PublicationResultatsService;
 
 import java.net.URI;
 import java.util.List;
@@ -29,15 +31,19 @@ import java.util.List;
 @RequestMapping("/enseignant/evaluations")
 @PreAuthorize("hasRole('ENSEIGNANT')")
 @Tag(name = "Évaluations (enseignant)",
-        description = "Création, modification, publication et aménagement de temps (DS-03, DS-04, DS-06)")
+        description = "Création, modification, publication, aménagement de temps et publication des résultats (DS-03 à DS-07)")
 public class EvaluationController {
 
     private final EvaluationService evaluationService;
     private final AmenagementTempsService amenagementTempsService;
+    private final PublicationResultatsService publicationResultatsService;
 
-    public EvaluationController(EvaluationService evaluationService, AmenagementTempsService amenagementTempsService) {
+    public EvaluationController(EvaluationService evaluationService,
+                                AmenagementTempsService amenagementTempsService,
+                                PublicationResultatsService publicationResultatsService) {
         this.evaluationService = evaluationService;
         this.amenagementTempsService = amenagementTempsService;
+        this.publicationResultatsService = publicationResultatsService;
     }
 
     @Operation(summary = "Créer un brouillon",
@@ -86,6 +92,15 @@ public class EvaluationController {
     @PostMapping("/{id}/depublier")
     public ResponseEntity<EvaluationResponse> depublier(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok(evaluationService.depublier(id, authentication.getName()));
+    }
+
+    @Operation(summary = "Publier les résultats",
+            description = "Rend les notes et les corrigés consultables par les étudiants (DS-07) et notifie une fois chaque copie déjà notée. "
+                    + "409 tant que l'évaluation n'est pas terminée (marge de tolérance comprise) ou si les résultats sont déjà publiés. "
+                    + "Les copies pas encore notées ne bloquent pas : leur étudiant est notifié quand elles le sont.")
+    @PostMapping("/{id}/resultats/publier")
+    public ResponseEntity<ResultatsPublicationResponse> publierResultats(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(publicationResultatsService.publier(id, authentication.getName()));
     }
 
     @Operation(summary = "Définir un aménagement de temps",

@@ -37,6 +37,21 @@ public class Soumission extends AuditableEntity {
     @Column(nullable = false)
     private Integer versionReponses = 0;
 
+    /** Quiz chronométré : question en cours (null = 0) et son heure de début (null = début de la copie), V5. */
+    private Integer indexQuestionQuiz;
+
+    private LocalDateTime debutQuestionQuiz;
+
+    /** Correction automatique (DS-12, V7) : prise en charge en cours, servant de jeton (null = aucune). */
+    private LocalDateTime correctionDemarreeLe;
+
+    /** Échecs successifs de la correction automatique ; à 5, la copie passe en correction manuelle. */
+    @Column(nullable = false)
+    private Integer tentativesCorrection = 0;
+
+    /** La relance planifiée ne reprend pas la copie avant cette date (null = dès que possible). */
+    private LocalDateTime prochaineTentativeLe;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private StatutSoumission statut = StatutSoumission.EN_COURS;
@@ -78,6 +93,21 @@ public class Soumission extends AuditableEntity {
 
     public Integer getVersionReponses() { return versionReponses; }
     public void setVersionReponses(Integer versionReponses) { this.versionReponses = versionReponses; }
+
+    public Integer getIndexQuestionQuiz() { return indexQuestionQuiz; }
+    public void setIndexQuestionQuiz(Integer indexQuestionQuiz) { this.indexQuestionQuiz = indexQuestionQuiz; }
+
+    public LocalDateTime getDebutQuestionQuiz() { return debutQuestionQuiz; }
+    public void setDebutQuestionQuiz(LocalDateTime debutQuestionQuiz) { this.debutQuestionQuiz = debutQuestionQuiz; }
+
+    public LocalDateTime getCorrectionDemarreeLe() { return correctionDemarreeLe; }
+    public void setCorrectionDemarreeLe(LocalDateTime correctionDemarreeLe) { this.correctionDemarreeLe = correctionDemarreeLe; }
+
+    public Integer getTentativesCorrection() { return tentativesCorrection; }
+    public void setTentativesCorrection(Integer tentativesCorrection) { this.tentativesCorrection = tentativesCorrection; }
+
+    public LocalDateTime getProchaineTentativeLe() { return prochaineTentativeLe; }
+    public void setProchaineTentativeLe(LocalDateTime prochaineTentativeLe) { this.prochaineTentativeLe = prochaineTentativeLe; }
 
     public StatutSoumission getStatut() { return statut; }
     public void setStatut(StatutSoumission statut) { this.statut = statut; }

@@ -34,6 +34,10 @@ public class SecurityConfig {
     private final AuthEntryPointJwt unauthorizedHandler;
     private final JwtUtils jwtUtils;
 
+    /** Origines du front autorisées (cors.allowed-origins, variable CORS_ALLOWED_ORIGINS). */
+    @Value("${cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+    private List<String> originesAutorisees;
+
     /** Vrai uniquement avec le profil h2-dev. */
     @Value("${spring.h2.console.enabled:false}")
     private boolean h2ConsoleEnabled;
@@ -93,7 +97,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
+        configuration.setAllowedOrigins(originesAutorisees.stream().map(String::trim).filter(o -> !o.isEmpty()).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
         configuration.setAllowCredentials(true);

@@ -21,8 +21,10 @@ import sn.ept.eval.repository.AmenagementTempsRepository;
 import sn.ept.eval.repository.EtudiantRepository;
 import sn.ept.eval.repository.SoumissionRepository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -59,15 +61,17 @@ class AmenagementTempsServiceTest {
         evaluation = new Evaluation();
         evaluation.setId(10L);
         evaluation.setDureeStandard(60);
+        evaluation.setDateOuverture(LocalDateTime.of(2026, 11, 10, 8, 0));
+        evaluation.setDateFermeture(LocalDateTime.of(2026, 11, 10, 12, 0)); // plage de 240 min
         evaluation.setStatut(StatutEvaluation.PUBLIEE);
         evaluation.setEnseignant(prof);
-        evaluation.setPromotions(List.of(dic2));
+        evaluation.setPromotions(Set.of(dic2));
 
         etudiant = new Etudiant("Niang", "Aminou", "etu@ept.sn", "x", "ETU-1", dic2);
         etudiant.setId(7L);
 
         lenient().when(evaluationService.enseignantConnecte("prof@ept.sn")).thenReturn(prof);
-        lenient().when(evaluationService.evaluationDeLEnseignant(10L, prof)).thenReturn(evaluation);
+        lenient().when(evaluationService.evaluationVerrouilleeDeLEnseignant(10L, prof)).thenReturn(evaluation);
         lenient().when(etudiantRepository.findById(7L)).thenReturn(Optional.of(etudiant));
     }
 
@@ -155,10 +159,54 @@ class AmenagementTempsServiceTest {
     @Test
     @DisplayName("Évaluation d'un autre enseignant → 403 (contrôle délégué à EvaluationService)")
     void definir_AutreProprietaire() {
-        lenient().when(evaluationService.evaluationDeLEnseignant(11L, prof)).thenThrow(new AccesRefuseException("autre enseignant"));
+        lenient().when(evaluationService.evaluationVerrouilleeDeLEnseignant(11L, prof)).thenThrow(new AccesRefuseException("autre enseignant"));
 
         assertThatThrownBy(() -> service.definir(11L, 7L, 80, "prof@ept.sn")).isInstanceOf(AccesRefuseException.class);
         verify(amenagementTempsRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tiers-temps plus long que la plage d'ouverture → 400 : la fin est plafonnée à la fermeture, il serait sans effet")
+    void definir_PlusLongQueLaPlage() {
+        assertThatThrownBy(() -> service.definir(10L, 7L, 241, "prof@ept.sn"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("plage d'ouverture (240 min)")
+                .hasMessageContaining("241 min");
+        verify(amenagementTempsRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Tiers-temps égal à la plage : accepté (l'étudiant qui commence à l'ouverture finit à la fermeture)")
+    void definir_EgalALaPlage() {
+        when(soumissionRepository.existsByEvaluationIdAndEtudiantId(10L, 7L)).thenReturn(false);
+        when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(7L, 10L)).thenReturn(Optional.empty());
+
+        assertThat(service.definir(10L, 7L, 240, "prof@ept.sn").getDureeMinutes()).isEqualTo(240);
+    }
+
+    @Test
+    @DisplayName("Exemple de Mor : plage de 1 h, épreuve de 1 h, tiers-temps de 1 h 20 → refusé")
+    void definir_ExempleDeLaRevue() {
+        evaluation.setDateFermeture(evaluation.getDateOuverture().plusMinutes(60));
+
+        assertThatThrownBy(() -> service.definir(10L, 7L, 80, "prof@ept.sn"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("plage d'ouverture (60 min)");
+    }
+
+    @Test
+    @DisplayName("L'enregistrement et la suppression verrouillent l'évaluation (FOR UPDATE), jamais une simple lecture")
+    void verrouLEvaluation() {
+        when(soumissionRepository.existsByEvaluationIdAndEtudiantId(10L, 7L)).thenReturn(false);
+        when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(7L, 10L))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(new AmenagementTemps(etudiant, evaluation, 80)));
+
+        service.definir(10L, 7L, 80, "prof@ept.sn");
+        service.supprimer(10L, 7L, "prof@ept.sn");
+
+        verify(evaluationService, org.mockito.Mockito.times(2)).evaluationVerrouilleeDeLEnseignant(10L, prof);
+        verify(evaluationService, never()).evaluationDeLEnseignant(any(), any());
     }
 
     @Test

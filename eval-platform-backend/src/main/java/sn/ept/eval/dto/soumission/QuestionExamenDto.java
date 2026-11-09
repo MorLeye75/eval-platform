@@ -16,6 +16,8 @@ public class QuestionExamenDto {
     private List<ChoixItemDto> choixPossibles = new ArrayList<>();
     private List<CasDeTestVisibleDto> casDeTestsVisibles = new ArrayList<>();
     private ReponseItemDto reponseActuelle;
+    /** Secondes accordées à la question (quiz chronométré seulement). */
+    private Integer dureeQuestion;
 
     public QuestionExamenDto() {}
 
@@ -45,4 +47,7 @@ public class QuestionExamenDto {
 
     public ReponseItemDto getReponseActuelle() { return reponseActuelle; }
     public void setReponseActuelle(ReponseItemDto reponseActuelle) { this.reponseActuelle = reponseActuelle; }
+
+    public Integer getDureeQuestion() { return dureeQuestion; }
+    public void setDureeQuestion(Integer dureeQuestion) { this.dureeQuestion = dureeQuestion; }
 }

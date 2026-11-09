@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import sn.ept.eval.dto.soumission.QuizSuivanteRequest;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.dto.soumission.SauvegardeResponse;
 import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
@@ -71,6 +72,18 @@ public class SoumissionController {
             Authentication authentication) {
         SoumissionDetailResponse response = soumissionService.demarrerOuReprendre(evaluationId, authentication.getName());
         return ResponseEntity.ok(response);
+    }
+
+    /** Quiz chronométré : passage à la question suivante (règles imposées par le serveur, QuizService). */
+    @PostMapping("/{id}/quiz/suivante")
+    @PreAuthorize("hasRole('ETUDIANT')")
+    @Operation(summary = "Quiz chronométré : passer à la question suivante",
+            description = "N'avance que si la copie est encore sur indexActuel. Renvoie la copie sur sa question en cours.")
+    public ResponseEntity<SoumissionDetailResponse> questionSuivante(
+            @PathVariable Long id,
+            @Valid @RequestBody QuizSuivanteRequest request,
+            Authentication authentication) {
+        return ResponseEntity.ok(soumissionService.passerQuestionSuivante(id, request.indexActuel(), authentication.getName()));
     }
 
     /**
@@ -184,11 +197,12 @@ public class SoumissionController {
     })
     @PostMapping("/{id}/changement-onglet")
     @PreAuthorize("hasRole('ETUDIANT')")
-    public ResponseEntity<Map<String, String>> signalerChangementOnglet(
+    public ResponseEntity<Map<String, Object>> signalerChangementOnglet(
             @PathVariable Long id,
             Authentication authentication) {
-        antiTricheService.enregistrerChangementOnglet(id, authentication.getName());
-        return ResponseEntity.ok(Map.of("message", "Événement enregistré."));
+        int nb = antiTricheService.enregistrerChangementOnglet(id, authentication.getName());
+        // Compteur du serveur : le front l'affiche tel quel (il survit à un rechargement de la page)
+        return ResponseEntity.ok(Map.of("message", "Événement enregistré.", "nbChangementsOnglet", nb));
     }
 
     /**

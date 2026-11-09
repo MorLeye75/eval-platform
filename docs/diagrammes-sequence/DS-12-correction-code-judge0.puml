@@ -1,0 +1,135 @@
+@startuml DS-12_correction_code_judge0
+title DS-12 — Correction automatique du code via Judge0
+autonumber
+control "PassationScheduler\n(toutes les 60 s)" as PS
+control "CorrectionDeclencheur" as CD
+control "CorrectionService\n(@Async, exécuteur dédié)" as CS
+database "BDD" as D
+control "Judge0Client" as JC
+boundary "Judge0\n(auto-hébergé, sandbox)" as J
+
+note over CD : déclenché après le commit de la remise (DS-01),\nde la clôture automatique (DS-11)\nou par la relance planifiée (dernière section).\nLa remise et la clôture écrivent prochaine_tentative_le = :maintenant + 5 min :\nla relance ne reprend la copie que si cette correction ne l'a pas prise en charge à temps
+CD ->> CS : corrigerSoumissionAsync(id)
+activate CS
+note right of CD : appel asynchrone : le déclencheur n'attend pas la fin de la correction.\nDeux exécuteurs : évaluation contenant du code -> exécuteur Judge0 ; sans code (QCM, quiz)\n-> exécuteur de correction actuel : les QCM n'attendent pas derrière Judge0.\nPas de sémaphore autour de la phase 2 (l'attente consommerait les 10 min).\nL'exécuteur Judge0 lance au plus correction.judge0.concurrence corrections à la fois\n(= nombre de workers Judge0) : les autres attendent dans sa file, AVANT la phase 1,\ndonc hors prise en charge et hors des 10 min. Un Judge0 chargé n'est pas pris pour une panne.\nLes identifiants en file sont gardés en mémoire : une copie déjà en file n'y est pas remise\n(retirée dans le finally de corrigerSoumissionAsync, ou aussitôt si l'exécuteur\nrefuse la tâche, file pleine : la relance planifiée la reprendra)
+
+== Phase 1 — prise en charge sous verrou (transaction courte) ==
+CS -> D : SELECT Soumission WHERE id = :id FOR UPDATE
+D --> CS : copie
+break statut ≠ SOUMIS (déjà corrigée, rouverte)
+  note right of CS : sans effet (idempotence : la note de l'enseignant est conservée)
+end
+break correction_demarree_le > :maintenant − 15 min
+  note right of CS : correction déjà en cours ailleurs : sans effet\n(pas de double exécution sur Judge0)
+end
+CS -> D : UPDATE Soumission SET correction_demarree_le = :maintenant
+note right of CS : :maintenant vient de l'horloge de l'application (Clock),\njamais du now() de la base ; cette valeur est le **jeton**\nde prise en charge, revérifié en phase 3 et en cas d'erreur\n(jeton NULL si une erreur survient avant cette ligne)
+CS -> D : SELECT questions de code de l'évaluation, réponses\n(code, langage) et cas de test (visibles ET masqués)
+D --> CS : données à exécuter
+note right of CS : copiées dans des records puis commit : la phase 2 ne touche\naucune entité (pas de chargement LAZY hors transaction)\net aucun verrou n'est gardé pendant les appels à Judge0
+
+== Phase 2 — exécutions, hors transaction (10 min au plus) ==
+note right of CS : durée maximale de toute la phase : 10 min, nettement sous les\n15 min de prise en charge ; au-delà, elle s'arrête et compte\ncomme « Judge0 indisponible ». Délais HTTP du Judge0Client\n(connexion 5 s, lecture 15 s) : aucun appel ne bloque sans fin.\nCopie sans question de code : phase vide, Judge0 n'intervient pas\n(même correction qu'aujourd'hui pour les QCM)
+loop pour chaque question de code de l'évaluation
+  alt aucune réponse enregistrée, ou code vide
+    CS -> CS : note 0 (écrite explicitement en phase 3), aucun appel
+  else question sans aucun cas de test
+    CS -> CS : pas de note automatique : question à corriger à la main
+  else code soumis
+    CS -> JC : executer(code, langage, cas de test)
+    activate JC
+    JC -> J : POST /submissions?base64_encoded=true (premier cas seul)
+    activate J
+    J --> JC : jeton
+    deactivate J
+    note right of J : chaque soumission porte : language_id, source_code, stdin,\nexpected_output (fins de ligne normalisées : \\r\\n -> \\n), cpu_time_limit,\n**wall_time_limit**, memory_limit, max_processes_and_or_threads,\nmax_file_size, enable_network = false\n(en-tête X-Auth-Token ; base64 : accents et caractères spéciaux)
+    loop tant que statut 1 « In Queue » ou 2 « Processing »
+      JC -> J : GET /submissions/{jeton}?base64_encoded=true
+      J --> JC : statut, stdout, stderr, compile_output, time
+    end
+    note right of JC : interrogation après 0,5 s puis à intervalle\ncroissant (Judge0 n'est pas submergé)
+    alt statut 6 « Compilation Error » sur le premier cas
+      JC -> JC : tous les cas échoués avec le message du compilateur\n(le même code échouerait partout : pas d'autre exécution)
+    else premier cas exécuté
+      JC -> J : POST /submissions/batch?base64_encoded=true (cas restants, 20 par lot)
+      activate J
+      J --> JC : jetons
+      deactivate J
+      loop tant qu'un résultat est en statut 1 ou 2 (intervalle croissant)
+        JC -> J : GET /submissions/batch?tokens=…&base64_encoded=true
+        J --> JC : statuts et sorties
+      end
+    end
+    alt statut 13 « Internal Error » ou 14 « Exec Format Error », délai dépassé, erreur 5xx ou réseau
+      JC --> CS : Judge0 indisponible
+      note right of CS : panne de Judge0 (pas une erreur de l'étudiant) :\non quitte **toute la boucle des questions**,\npuis phase 3 « tentative échouée »
+    else exécutions abouties
+      JC --> CS : résultat par cas
+      note right of CS : 3 « Accepted » : cas réussi ; 4 Wrong Answer, 5 Time Limit Exceeded,\n6 Compilation Error, 7 à 12 Runtime Error : cas échoué.\nSorties et messages tronqués à 10 Ko (contenu étudiant, toujours échappé à l'affichage)
+    end
+    deactivate JC
+  end
+end
+
+== Phase 3 — écriture sous verrou (transaction courte) ==
+CS -> D : SELECT Soumission WHERE id = :id FOR UPDATE
+D --> CS : copie
+break statut ≠ SOUMIS (modifiée pendant les exécutions)
+  note right of CS : résultats abandonnés, rien n'est écrit
+end
+break correction_demarree_le ≠ valeur posée en phase 1
+  note right of CS : prise en charge reprise par une autre correction :\nrien n'est écrit (elle seule conclura)
+end
+alt Judge0 indisponible (ou phase 2 trop longue)
+  alt tentatives_correction + 1 < 5
+    CS -> D : UPDATE Soumission SET tentatives_correction = tentatives_correction + 1,\ncorrection_demarree_le = NULL,\nprochaine_tentative_le = :maintenant + délai (1, 2, 4 puis 8 min)
+    note right of D : la copie reste SOUMIS :\nreprise par la relance planifiée
+  else 5e tentative échouée (tentatives_correction + 1 = 5)
+    CS -> D : UPDATE notes QCM (bonne réponse exacte ou 0, DS-01) ; code sans note
+    CS -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
+    note right of D : correction manuelle par l'enseignant\n(repli prévu par le cahier des charges)
+  end
+else exécutions abouties
+  CS -> D : UPDATE notes QCM (bonne réponse exacte ou 0, DS-01)
+  CS -> D : DELETE anciens ResultatCasTest des réponses de code (correction précédente)
+  CS -> D : INSERT ResultatCasTest (estValide, verdict, sortieObtenue, tempsExecution, messageErreur) par cas
+  note right of D : verdict (V8) : REUSSI, MAUVAISE_REPONSE, TEMPS_DEPASSE,\nERREUR_COMPILATION, ERREUR_EXECUTION ; seule information\nmontrée à l'étudiant pour un cas masqué (DS-13)
+  CS -> D : UPDATE ReponseCode SET noteObtenue =\narrondi(points × cas réussis / nombre de cas, 2 décimales) ; code vide : 0
+  alt que des QCM et du code, tout noté automatiquement
+    CS -> D : UPDATE Soumission SET noteFinale = somme des notes, statut = 'EVALUE'
+  else questions ouvertes, ou question de code sans cas de test
+    CS -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
+    note right of D : le reste est corrigé par l'enseignant\n(questions ouvertes : correction assistée IA, puis validation)
+  end
+end
+
+group Erreur imprévue (à tout moment : donnée corrompue, contrainte violée…)
+  note right of CS : la transaction en cours est annulée (rien d'écrit)
+  CS -> D : nouvelle transaction (REQUIRES_NEW) :\nUPDATE soumissions SET tentatives_correction = tentatives_correction + 1,\ncorrection_demarree_le = NULL, prochaine_tentative_le = :maintenant + délai\n(5e tentative : statut = 'EN_CORRECTION')\nWHERE id = :id AND statut = 'SOUMIS'\nAND (correction_demarree_le IS NOT DISTINCT FROM :jeton\n     OR correction_demarree_le < :maintenant − 15 min)
+  note right of D : conditionnel : une copie déjà corrigée n'est jamais touchée, ni une copie\nreprise par une autre correction ; une erreur avant la prise en charge\n(jeton NULL) compte aussi, même si une prise en charge périmée est restée\n(serveur redémarré) : pas de reprise sans fin.\n5e erreur : copie EN_CORRECTION avec les QCM non notés (transaction annulée)\net journal en ERROR : 5 échecs révèlent un bug, pas une panne
+end
+deactivate CS
+
+== Relance planifiée ==
+PS -> D : SELECT Soumission WHERE statut = 'SOUMIS'\nAND (correction_demarree_le IS NULL OR correction_demarree_le < :maintenant − 15 min)\nAND (prochaine_tentative_le IS NULL OR prochaine_tentative_le <= :maintenant)\nLIMIT 50
+D --> PS : copies à reprendre
+loop pour chaque copie
+  PS -> D : UPDATE Soumission SET prochaine_tentative_le = :maintenant + 5 min
+  note right of PS : comme à la remise : tant que la tâche attend dans la file,\nla copie n'est pas remise en file à la minute suivante
+  PS -> CD : relancer(id)
+  note right of CD : ignoré si la copie est déjà dans la file\nde l'exécuteur (identifiants en mémoire)
+  CD ->> CS : corrigerSoumissionAsync(id) (même déroulement)
+end
+note right of PS : remplace la règle actuelle des 5 min sans\nmodification (DELAI_CORRECTION_BLOQUEE_MINUTES)
+
+note over CS, J
+  **Configuration** : JUDGE0_URL, JUDGE0_TOKEN, limites (temps CPU, temps réel, mémoire, processus,
+  taille de fichier), correspondance langage -> language_id (c, cpp, java, python, javascript, V6),
+  durée maximale de la phase 2 (10 min), prise en charge (15 min), tentatives (5) et délais,
+  correction.judge0.concurrence = nombre de workers Judge0 (ex. 2 à 4).
+  **Migration V7** : soumissions.correction_demarree_le, soumissions.tentatives_correction,
+  soumissions.prochaine_tentative_le, index partiel idx_soumissions_relance (prochaine_tentative_le)
+  WHERE statut = 'SOUMIS'. Délais HTTP : connexion 5 s, lecture 15 s.
+  Judge0 n'est jamais exposé publiquement (réseau interne).
+end note
+@enduml

@@ -31,6 +31,25 @@ export type StatutProposition = "EN_ATTENTE" | "VALIDEE" | "REJETEE"
 
 export type TypeQuestion = "QCM" | "CODE" | "OUVERTE" | "QUIZ_CHRONOMETREE"
 
+/** GET /etudiant/evaluations : évaluation vue par l'étudiant, avec l'état de sa copie. */
+export interface EvaluationEtudiant {
+  id: number
+  titre: string
+  description: string | null
+  statut: StatutEvaluation
+  dateOuverture: string
+  dateFermeture: string
+  dureeMinutes: number // tiers-temps de l'étudiant s'il existe
+  dureeQuestion: number | null // secondes par question (quiz chronométré)
+  nbQuestions: number
+  totalPoints: number
+  typesQuestions: TypeQuestion[]
+  resultatsPublies: boolean
+  soumissionId: number | null
+  statutSoumission: StatutSoumission | null
+  noteFinale: number | null // seulement si les résultats sont publiés
+}
+
 // ---------- Évaluation ----------
 export interface Evaluation {
   id: number
@@ -119,6 +138,7 @@ export interface ReponseItem {
   questionId: number
   texteSoumis?: string
   codeSoumis?: string
+  langage?: string | null // réponse de code : c, cpp, java, python, javascript
   choixIds?: number[]
 }
 
@@ -132,6 +152,15 @@ export interface QuestionExamen {
   choixPossibles: { id: number; texte: string }[]
   casDeTestsVisibles: { id: number; entree: string; sortieAttendue: string }[]
   reponseActuelle: ReponseItem | null
+  dureeQuestion?: number | null // secondes (quiz chronométré)
+}
+
+/** Quiz chronométré : position de la copie (le serveur n'envoie que la question en cours). */
+export interface EtatQuiz {
+  indexQuestion: number // = nbQuestions quand le quiz est terminé
+  nbQuestions: number
+  dureeQuestion: number | null
+  tempsRestantQuestionSecondes: number
 }
 
 export interface CopieEnCours {
@@ -147,6 +176,7 @@ export interface CopieEnCours {
   tempsRestantSecondes: number
   nbChangementsOnglet: number
   questions: QuestionExamen[]
+  quiz?: EtatQuiz | null
 }
 
 export interface SauvegardeResponse {
@@ -170,6 +200,85 @@ export interface ResultatCasTest {
   tempsExecution: number
   estValide: boolean
   messageErreur: string | null
+}
+
+// ---------- Résultats de l'étudiant (DS-13) ----------
+export type EtatResultats = "NON_REMISE" | "EN_ATTENTE" | "PUBLIES"
+
+export type VerdictCas =
+  | "REUSSI"
+  | "MAUVAISE_REPONSE"
+  | "TEMPS_DEPASSE"
+  | "ERREUR_COMPILATION"
+  | "ERREUR_EXECUTION"
+
+/** estCorrect : null tant que le corrigé n'est pas visible (avant la fermeture de l'évaluation). */
+export interface ChoixResultat {
+  id: number
+  texte: string
+  coche: boolean
+  estCorrect: boolean | null
+}
+
+/** Cas masqué : verdict et temps seulement, les autres champs sont null. */
+export interface CasTestResultat {
+  masque: boolean
+  reussi: boolean
+  verdict: VerdictCas | null
+  tempsExecution: number | null
+  entree: string | null
+  sortieAttendue: string | null
+  sortieObtenue: string | null
+  message: string | null
+}
+
+export interface ResultatQuestion {
+  questionId: number
+  ordre: number
+  type: TypeQuestion
+  enonce: string
+  points: number
+  noteObtenue: number | null
+  commentaire: string | null
+  choix: ChoixResultat[]
+  texteSoumis: string | null
+  codeSoumis: string | null
+  langage: string | null
+  casTests: CasTestResultat[]
+}
+
+/** Hors état PUBLIES : aucune note, questions vides. Moyenne null sous 5 copies notées. */
+export interface ResultatsCopie {
+  etat: EtatResultats
+  soumissionId: number
+  evaluationId: number
+  titre: string
+  dateRemise: string | null
+  noteFinale: number | null
+  totalPoints: number | null
+  feedbackGeneral: string | null
+  moyennePromotion: number | null
+  ecartMoyenne: number | null
+  corrigeVisible: boolean
+  questions: ResultatQuestion[]
+}
+
+export interface PointPerformance {
+  soumissionId: number
+  evaluationId: number
+  titre: string
+  date: string | null
+  noteSur20: number
+  moyennePromotionSur20: number | null
+}
+
+/** ecartMoyenne : calculé seulement sur les évaluations dont la moyenne de la promotion est connue. */
+export interface Performances {
+  historique: PointPerformance[]
+  moyenneGenerale: number | null
+  moyennePromotionGenerale: number | null
+  ecartMoyenne: number | null
+  nbEvaluations: number
 }
 
 // ---------- Analytique (vues) ----------

@@ -7,47 +7,60 @@ control "Backend Spring" as B
 entity "BDD" as D
 
 E -> F : saisit / modifie sa réponse
-note right of F : **Boucle de 30 secondes**\nenvoi seulement si les réponses ont changé ;\nenvoi immédiat aussi avant la soumission (DS-01)\net à la reconnexion réseau
+note right of E : saisie bornée aux limites du serveur\n(20 000 caractères en texte, 50 000 en code)
+F -> F : écrit aussitôt les réponses dans le tampon local\n(localStorage, avec la versionReponses sur laquelle elles sont saisies)
+note right of F : modification annulée (retour aux réponses du serveur) :\ntampon vidé, un rechargement ne la ressuscite pas
+note right of F : **Boucle de 30 secondes**\nenvoi seulement si les réponses ont changé ;\nenvoi immédiat aussi avant la soumission (DS-01)\net à la reconnexion réseau ; jamais deux envois simultanés
 F -> B ++ : PUT /api/soumissions/{id}/sauvegarder\n{ reponses, versionAttendue }
 B -> D ++ : SELECT Soumission WHERE id = :id FOR UPDATE
 D --> B -- : copie (statut, dateDebut, versionReponses)
 note right of B : verrou : sauvegarde, soumission et clôture automatique\nd'une même copie sont sérialisées
 
-alt [copie inconnue]
-  B --> F : 404 Not Found
-else [copie d'un autre étudiant]
-  B --> F : 403 Forbidden
-else [statut ≠ EN_COURS]
+alt copie inconnue
+  B --> F : 404 Not Found (code RESSOURCE_NON_TROUVEE)
+else copie d'un autre étudiant
+  B --> F : 403 Forbidden (code ACCES_REFUSE)
+else statut ≠ EN_COURS
   B --> F : 409 Conflict (code SOUMISSION_VERROUILLEE)
   F --> E : bloque l'édition, écran d'expiration / verrouillage
-else [now() > fin + marge (2 min)]
+else now() > fin + marge (2 min)
   B --> F : 409 Conflict (code TEMPS_EXPIRE)
   F --> E : bloque l'édition, écran d'expiration / verrouillage
-else [versionAttendue ≠ versionReponses]
+else versionAttendue ≠ versionReponses
   note right of B : réponses enregistrées entre-temps\ndepuis un autre onglet ou appareil
   B --> F : 409 Conflict (code VERSION_OBSOLETE, versionActuelle)
-  F -> F : réponses locales mises de côté (non perdues)
+  F -> F : réponses locales les plus récentes mises de côté (non perdues)
   F -> B : POST /api/soumissions/evaluations/{evalId}/demarrer (reprise)
   B --> F : 200 OK (réponses et versionReponses du serveur)
   F --> E : "Votre copie a été modifiée depuis un autre onglet ou appareil :\nla version enregistrée a été rechargée"
-else [réponse invalide : question ou choix hors de l'évaluation, taille dépassée]
-  B --> F : 400 Bad Request (rien n'est enregistré)
+else verrou non obtenu à temps, conflit en base
+  B --> F : 409 Conflict (code VERROU_INDISPONIBLE ou CONFLIT_DONNEES)
+  F -> F : échec passager : réponses gardées dans le tampon,\nnouvelle tentative au prochain envoi (l'étudiant reste dans l'épreuve)
+else réponse invalide : question hors de l'évaluation, même question en double, choix invalide, taille dépassée
+  B --> F : 400 Bad Request (code REQUETE_INCORRECTE ou VALIDATION, rien n'est enregistré)
   F -> F : réponses gardées dans le tampon local
-else [vérifications valides]
-  B -> D : INSERT / UPDATE ReponseEtudiant (contenu par question)
+else vérifications valides
+  B -> D : INSERT / UPDATE ReponseEtudiant (une seule réponse par question et par copie)
   B -> D : UPDATE Soumission SET versionReponses = versionReponses + 1
   B --> F : 200 OK { dateSauvegarde, nbReponses, versionReponses }
-  F -> F : retient la nouvelle version, vide le tampon local
+  F -> F : retient la nouvelle version ; vide le tampon local,\nsauf si l'étudiant a modifié ses réponses pendant l'envoi\n(tampon réécrit sur la nouvelle version)
   F --> E : affiche "Sauvegardé à HH:MM"
 end
 deactivate B
 
-== Cas d'erreur réseau (coupure de connexion) ==
+== Cas d'erreur réseau (coupure de connexion, serveur muet) ==
 note over F #FFEEEE
-  **Si la requête PUT n'atteint pas le serveur :**
+  **Si la requête PUT n'aboutit pas (pas de réponse, ou aucune réponse au bout de 15 s) :**
   -> les réponses restent dans le localStorage, avec la version serveur sur laquelle elles ont été saisies
   -> "Hors ligne : réponses conservées sur cet appareil"
   -> nouvelle tentative automatique dès que la reconnexion est détectée (événement online)
   -> au rechargement de la page, le tampon n'est restauré que si sa version = versionReponses (DS-10)
+end note
+
+== Fermeture de la page, session expirée ==
+note over F #FFF8E1
+  -> fermer ou recharger la page avec des réponses non envoyées : le navigateur demande confirmation
+  -> jeton refusé (401) : session vidée et retour au login, mais le tampon est gardé
+     pour le même étudiant (effacé si un autre compte se connecte sur le poste)
 end note
 @enduml

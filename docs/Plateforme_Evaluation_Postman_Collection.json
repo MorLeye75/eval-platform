@@ -2,7 +2,7 @@
   "info": {
     "name": "Plateforme d'Évaluation EPT — API Collection",
     "_postman_id": "c1f7b889-8d54-4362-9e90-eval-ept-2026",
-    "description": "Collection complète pour tester les endpoints de la Plateforme d'Évaluation EPT (DIC1-GIT).\nInclut l'authentification JWT automatique et les deux diagrammes de séquence (DS-01 et DS-02).",
+    "description": "Collection des endpoints de la Plateforme d'Évaluation EPT (DIC1-GIT), avec authentification JWT automatique.\nDiagrammes de séquence couverts : DS-01 et DS-02 (passation et remise), DS-10 (liste et démarrage), DS-12 (épreuve de code corrigée par Judge0), DS-13 (résultats), DS-14 (connexion, /auth/me).\nLes logins 1.2 et 1.3 remplacent le jeton : pour le parcours étudiant, lancer 1.1 puis les dossiers 02 à 04.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -32,12 +32,37 @@
       "type": "string"
     },
     {
+      "key": "codeEvaluationId",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "soumissionCodeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "questionCodeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "versionCode",
+      "value": "0",
+      "type": "string"
+    },
+    {
       "key": "evaluationEnseignantId",
       "value": "1",
       "type": "string"
     },
     {
       "key": "etudiantId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "promotionId",
       "value": "1",
       "type": "string"
     }
@@ -169,6 +194,51 @@
               ]
             }
           }
+        },
+        {
+          "name": "1.4 Profil de l'utilisateur connecté (/auth/me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : profil de l\\'utilisateur du jeton', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const u = pm.response.json();",
+                  "    pm.expect(u.email).to.be.a('string');",
+                  "    pm.expect(['ETUDIANT', 'ENSEIGNANT', 'ADMIN']).to.include(u.role);",
+                  "    pm.expect(u.token).to.equal(null); // le jeton n'est jamais renvoyé ici",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Revalide la session au démarrage du front (DS-14) : l'utilisateur gardé dans le navigateur n'est qu'un cache. 401 NON_AUTHENTIFIE si le jeton est absent, invalide ou expiré, ou si le compte a été désactivé.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
         }
       ]
     },
@@ -184,11 +254,14 @@
               "script": {
                 "exec": [
                   "var liste = pm.response.json();",
-                  "var ouverte = liste.find(function (e) { return e.statut === 'EN_COURS' || e.statut === 'PUBLIEE'; });",
-                  "if (ouverte) {",
-                  "    pm.collectionVariables.set('evaluationId', ouverte.id);",
-                  "    console.log('Évaluation ID enregistrée: ' + ouverte.id);",
-                  "}"
+                  "pm.test('200 : liste des évaluations', function () { pm.response.to.have.status(200); });",
+                  "var ouverte = function (e) { return e.statut === 'EN_COURS' || e.statut === 'PUBLIEE'; };",
+                  "// Le dossier 02 envoie des réponses QCM : il lui faut une évaluation 100 % QCM (la liste est triée",
+                  "// par date d'ouverture, la première n'est pas forcément un QCM). Le dossier 03 prend l'évaluation de code.",
+                  "var qcm = liste.find(function (e) { return ouverte(e) && e.typesQuestions.length === 1 && e.typesQuestions[0] === 'QCM'; });",
+                  "var code = liste.find(function (e) { return ouverte(e) && e.typesQuestions.indexOf('CODE') !== -1; });",
+                  "if (qcm) { pm.collectionVariables.set('evaluationId', qcm.id); console.log('Évaluation QCM : ' + qcm.id); }",
+                  "if (code) { pm.collectionVariables.set('codeEvaluationId', code.id); console.log('Évaluation de code : ' + code.id); }"
                 ],
                 "type": "text/javascript"
               }
@@ -217,7 +290,7 @@
                 "evaluations"
               ]
             },
-            "description": "Évaluations publiées, en cours ou terminées de la promotion de l'étudiant, avec durée effective (tiers-temps), types de questions et état de sa copie."
+            "description": "Évaluations publiées, en cours ou terminées de la promotion de l'étudiant, avec durée effective (tiers-temps), types de questions et état de sa copie. Retient l'évaluation QCM (evaluationId, dossier 02) et l'évaluation de code (codeEvaluationId, dossier 03)."
           }
         },
         {
@@ -406,14 +479,377 @@
               ]
             }
           }
+        },
+        {
+          "name": "2.6 Quiz : passer à la question suivante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('200 : copie sur sa question en cours', () => {",
+                  "        pm.expect(pm.response.json().quiz).to.be.an('object');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Refus au format RFC 7807 avec un code', () => {",
+                  "        pm.expect(pm.response.code).to.be.oneOf([400, 409]);",
+                  "        pm.expect(pm.response.json().code).to.be.a('string');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/quiz/suivante",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "quiz",
+                "suivante"
+              ]
+            },
+            "description": "Quiz chronométré (V5) : l'ordre et le temps des questions sont imposés par le serveur. N'avance que si la copie est encore sur `indexActuel` (un double clic n'avance pas deux fois) et renvoie la copie sur sa question en cours, avec `quiz` (indexQuestion, nbQuestions, dureeQuestion, tempsRestantQuestionSecondes). Les données de démonstration ne contiennent pas de quiz : sur la copie QCM, la requête est refusée.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"indexActuel\": 0\n}"
+            }
+          }
         }
       ]
     },
     {
-      "name": "03 - Évaluations enseignant (DS-03, DS-04, DS-05, DS-06)",
+      "name": "03 - Épreuve de code (DS-12)",
+      "description": "Copie de l'évaluation de code de démonstration (codeEvaluationId = 2). Le langage est enregistré avec la réponse (V6) ; la remise déclenche la correction automatique par Judge0 (DS-12). Sans Judge0 joignable, la copie reste SOUMIS et la correction est retentée 1, 2, 4 puis 8 min plus tard, puis passe en correction manuelle. Un exercice de code est un programme complet : entrée du cas de test sur l'entrée standard, sortie standard comparée à la sortie attendue. À lancer après 2.0 (qui retient codeEvaluationId) et sur une base neuve, comme le dossier 02 : une copie remise ne peut plus être modifiée.",
       "item": [
         {
-          "name": "3.1 DS-03: Créer un brouillon",
+          "name": "3.1 Démarrer l'épreuve de code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie et question de code', () => pm.response.to.have.status(200));",
+                  "const copie = pm.response.json();",
+                  "pm.collectionVariables.set('soumissionCodeId', copie.id);",
+                  "if (copie.versionReponses !== undefined) pm.collectionVariables.set('versionCode', copie.versionReponses);",
+                  "if (copie.questions && copie.questions.length) pm.collectionVariables.set('questionCodeId', copie.questions[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/evaluations/{{codeEvaluationId}}/demarrer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "evaluations",
+                "{{codeEvaluationId}}",
+                "demarrer"
+              ]
+            },
+            "description": "Retient la copie (soumissionCodeId), la question (questionCodeId) et la version des réponses (versionCode).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.2 Sauvegarder le code (avec son langage)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : sauvegarde acceptée', () => pm.response.to.have.status(200));",
+                  "if (pm.response.json().versionReponses !== undefined) {",
+                  "    pm.collectionVariables.set('versionCode', pm.response.json().versionReponses);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionCodeId}}/sauvegarder",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionCodeId}}",
+                "sauvegarder"
+              ]
+            },
+            "description": "`langage` : c, cpp, java, python ou javascript (identifiants de l'éditeur). Un langage absent ou inconnu laisse la question à corriger à la main.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reponses\": [\n    {\n      \"questionId\": {{questionCodeId}},\n      \"codeSoumis\": \"s = input()\\nprint('true' if s == s[::-1] else 'false')\",\n      \"langage\": \"python\"\n    }\n  ],\n  \"versionAttendue\": {{versionCode}}\n}"
+            }
+          }
+        },
+        {
+          "name": "3.3 Remettre la copie de code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie remise', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().statut).to.equal('SOUMIS');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionCodeId}}/soumettre",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionCodeId}}",
+                "soumettre"
+              ]
+            },
+            "description": "Statut SOUMIS ; la correction Judge0 part après le commit, sur l'exécuteur limité au nombre de workers Judge0.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Résultats de l'étudiant (DS-13)",
+      "description": "Lecture seule. Aucune note avant la publication par l'enseignant ; bonnes réponses des QCM après la fermeture + 2 min ; cas de test masqués réduits à leur verdict ; moyenne de la promotion à partir de 5 copies notées.",
+      "item": [
+        {
+          "name": "4.1 Résultats d'une copie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 avec un état connu', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(['NON_REMISE', 'EN_ATTENTE', 'PUBLIES']).to.include(pm.response.json().etat);",
+                  "});",
+                  "pm.test('Aucune note tant que les résultats ne sont pas publiés', () => {",
+                  "    const r = pm.response.json();",
+                  "    if (r.etat !== 'PUBLIES') {",
+                  "        pm.expect(r.noteFinale).to.equal(null);",
+                  "        pm.expect(r.questions).to.be.empty;",
+                  "    }",
+                  "});",
+                  "pm.test('Moyenne seulement avec l\\'écart, jamais de rang', () => {",
+                  "    const r = pm.response.json();",
+                  "    pm.expect(r).to.not.have.property('rang');",
+                  "    if (r.moyennePromotion === null) pm.expect(r.ecartMoyenne).to.equal(null);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/resultats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "resultats"
+              ]
+            },
+            "description": "etat : NON_REMISE (copie en cours, renvoi vers l'épreuve), EN_ATTENTE (remise, résultats non publiés : aucune note) ou PUBLIES (note, moyenne, ecartMoyenne, corrigeVisible, détail par question). 403 pour la copie d'un autre étudiant, ou pour un autre rôle qu'étudiant.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.2 Mon tableau de bord (performances)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : historique cohérent', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.historique).to.be.an('array');",
+                  "    pm.expect(p.nbEvaluations).to.equal(p.historique.length);",
+                  "    if (p.nbEvaluations === 0) pm.expect(p.moyenneGenerale).to.equal(null);",
+                  "    p.historique.forEach(h => pm.expect(h.noteSur20).to.be.within(0, 20));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/etudiant/performances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "etudiant",
+                "performances"
+              ]
+            },
+            "description": "Évaluations notées et publiées, de la plus ancienne à la plus récente, notes sur 20. moyennePromotionSur20 est null sous 5 copies notées ; moyennePromotionGenerale et ecartMoyenne sont calculés sur les seules évaluations où la moyenne est connue.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Évaluations enseignant (DS-03 à DS-07)",
+      "description": "Se connecter d'abord avec 1.2 (enseignant). Parcours : promotions → création → détail → modification → publication → dépublication → tiers-temps → publication des résultats (évaluation terminée uniquement). Les refus attendus sont des requêtes à part (409, 400). Dates de 2030 : ajuster pour tester la publication.",
+      "item": [
+        {
+          "name": "5.1 DS-03: Promotions (assistant de création)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.1 DS-03: Promotions (assistant de création)', function () { pm.response.to.have.status(200); });",
+                  "var l = pm.response.json();",
+                  "pm.test('au moins une promotion avec effectif', function () { pm.expect(l.length).to.be.above(0); pm.expect(l[0]).to.have.property('nbEtudiants'); });",
+                  "pm.collectionVariables.set('promotionId', l[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/promotions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "promotions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.2 DS-03: Créer un brouillon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 : 5.2 DS-03: Créer un brouillon', function () { pm.response.to.have.status(201); });",
+                  "var e = pm.response.json();",
+                  "pm.test('brouillon avec ses 5 questions', function () { pm.expect(e.statut).to.eql('BROUILLON'); pm.expect(e.nbQuestions).to.eql(5); });",
+                  "pm.test('entrée facultative conservée comme absente', function () { pm.expect(e.questions[3].casTests[0].entree).to.eql(null); });",
+                  "pm.collectionVariables.set('evaluationEnseignantId', e.id);"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -434,24 +870,61 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"titre\": \"Réseaux — QCM\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2026-11-10T08:00:00\",\n  \"dateFermeture\": \"2026-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Écrire fib(n)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"5\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10\",\n          \"sortieAttendue\": \"55\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
             }
-          },
+          }
+        },
+        {
+          "name": "5.3 DS-03: Création refusée (cas de test sans sortie attendue)",
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "var j = pm.response.json();",
-                  "if (j.id) { pm.collectionVariables.set('evaluationEnseignantId', j.id); }"
+                  "pm.test('400 : 5.3 DS-03: Création refusée (cas de test sans sortie attendue)', function () { pm.response.to.have.status(400); });"
                 ]
               }
             }
-          ]
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Refusée\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Q\",\n      \"points\": 1,\n      \"casTests\": [\n        {\n          \"entree\": \"1\",\n          \"sortieAttendue\": \"\",\n          \"estMasque\": false\n        }\n      ]\n    }\n  ]\n}"
+            }
+          }
         },
         {
-          "name": "3.2 Mes évaluations",
+          "name": "5.4 Mes évaluations (avec effectifs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.4 Mes évaluations (avec effectifs)', function () { pm.response.to.have.status(200); });",
+                  "pm.test('nbCopies et nbAttendus présents', function () { var e = pm.response.json()[0]; pm.expect(e).to.have.property('nbCopies'); pm.expect(e).to.have.property('nbAttendus'); });"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -473,7 +946,18 @@
           }
         },
         {
-          "name": "3.3 Détail (avec bonnes réponses)",
+          "name": "5.5 Détail (questions et bonnes réponses)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.5 Détail (questions et bonnes réponses)', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
             "header": [
@@ -496,7 +980,18 @@
           }
         },
         {
-          "name": "3.4 DS-03: Modifier un brouillon",
+          "name": "5.6 DS-03: Modifier le brouillon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.6 DS-03: Modifier le brouillon', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "PUT",
             "header": [
@@ -518,14 +1013,25 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"titre\": \"Réseaux — QCM\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2026-11-10T08:00:00\",\n  \"dateFermeture\": \"2026-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Écrire fib(n)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"5\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10\",\n          \"sortieAttendue\": \"55\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle (modifié)\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
             }
           }
         },
         {
-          "name": "3.5 DS-04: Publier",
+          "name": "5.7 DS-06: Tiers-temps plus long que la plage → refusé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 : 5.7 DS-06: Tiers-temps plus long que la plage → refusé', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
           "request": {
-            "method": "POST",
+            "method": "PUT",
             "header": [
               {
                 "key": "Content-Type",
@@ -533,7 +1039,7 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/publier",
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements/{{etudiantId}}",
               "host": [
                 "{{baseUrl}}"
               ],
@@ -541,37 +1047,30 @@
                 "enseignant",
                 "evaluations",
                 "{{evaluationEnseignantId}}",
-                "publier"
+                "amenagements",
+                "{{etudiantId}}"
               ]
+            },
+            "description": "La plage fait 240 min : un tiers-temps de 300 min serait sans effet (fin plafonnée à la fermeture).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dureeMinutes\": 300\n}"
             }
           }
         },
         {
-          "name": "3.6 DS-04: Repasser en brouillon (dépublier)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
+          "name": "5.8 DS-06: Définir un tiers-temps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.8 DS-06: Définir un tiers-temps', function () { pm.response.to.have.status(200); });"
+                ]
               }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/depublier",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "enseignant",
-                "evaluations",
-                "{{evaluationEnseignantId}}",
-                "depublier"
-              ]
             }
-          }
-        },
-        {
-          "name": "3.7 DS-06: Définir un tiers-temps",
+          ],
           "request": {
             "method": "PUT",
             "header": [
@@ -600,7 +1099,200 @@
           }
         },
         {
-          "name": "3.8 DS-06: Supprimer un tiers-temps",
+          "name": "5.9 DS-04: Publier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.9 DS-04: Publier', function () { pm.response.to.have.status(200); });",
+                  "pm.test('publiée', function () { pm.expect(pm.response.json().statut).to.eql('PUBLIEE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/publier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "publier"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.10 DS-03: Modifier une évaluation publiée → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 : 5.10 DS-03: Modifier une évaluation publiée → 409', function () { pm.response.to.have.status(409); });",
+                  "pm.test('code EVALUATION_NON_MODIFIABLE', function () { pm.expect(pm.response.json().code).to.eql('EVALUATION_NON_MODIFIABLE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "5.11 Étudiant: détail de l'évaluation publiée",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.11 Étudiant: détail de l\\'évaluation publiée', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/etudiant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "etudiant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            },
+            "description": "À lancer avec le jeton d'un étudiant (1.1). 404 tant que l'évaluation est un brouillon."
+          }
+        },
+        {
+          "name": "5.12 DS-04: Repasser en brouillon (dépublier)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.12 DS-04: Repasser en brouillon (dépublier)', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/depublier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "depublier"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.13 DS-07: Publier les résultats (évaluation non terminée → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 : 5.13 DS-07: Publier les résultats (évaluation non terminée → 409)', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/resultats/publier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "resultats",
+                "publier"
+              ]
+            },
+            "description": "Les résultats ne se publient qu'une fois l'évaluation TERMINEE et la marge de 2 min écoulée. Sur une évaluation terminée : 200 avec { nbCopies, nbCopiesNotees, nbCopiesEnAttente } ; un second appel renvoie 409."
+          }
+        },
+        {
+          "name": "5.14 DS-06: Supprimer le tiers-temps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 : 5.14 DS-06: Supprimer le tiers-temps', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "DELETE",
             "header": [
@@ -625,7 +1317,18 @@
           }
         },
         {
-          "name": "3.9 Supprimer un brouillon",
+          "name": "5.15 Supprimer le brouillon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 : 5.15 Supprimer le brouillon', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "DELETE",
             "header": [
@@ -643,29 +1346,6 @@
                 "enseignant",
                 "evaluations",
                 "{{evaluationEnseignantId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "3.10 Étudiant: détail d'une évaluation",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/etudiant/evaluations/{{evaluationId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "etudiant",
-                "evaluations",
-                "{{evaluationId}}"
               ]
             }
           }

@@ -10,27 +10,28 @@ control "CorrectionService\n(@Async)" as C
 
 E -> F : clique sur "Soumettre"
 activate F
-note over F : Affiche modale\nde confirmation
+note over F : Affiche modale de confirmation\n(questions sans réponse listées par numéro)
 E -> F : confirme la soumission
+note right of F : pendant l'envoi, la modale reste ouverte\net « Continuer » est désactivé
 note right of F : même parcours, sans modale, quand le chrono\natteint 0 (soumission automatique en fin de temps)
 
 == Dernière sauvegarde (DS-02) ==
-opt [réponses modifiées depuis la dernière sauvegarde]
+opt réponses modifiées depuis la dernière sauvegarde
   F -> B ++ : PUT /api/soumissions/{id}/sauvegarder { reponses, versionAttendue }
   B --> F -- : résultat de la sauvegarde
   note right of F : la soumission ne part qu'une fois\ncette requête terminée (file d'envoi)
-  alt [409 SOUMISSION_VERROUILLEE ou TEMPS_EXPIRE]
+  alt 409 SOUMISSION_VERROUILLEE ou TEMPS_EXPIRE
     F --> E : écran d'expiration / verrouillage
     note right of F : fin du traitement
-  else [409 VERSION_OBSOLETE, soumission manuelle]
+  else 409 VERSION_OBSOLETE, soumission manuelle
     F -> F : réponses locales mises de côté, copie rechargée
     F --> E : "Votre copie a été modifiée ailleurs et vient d'être rechargée.\nVérifiez vos réponses puis soumettez à nouveau."
     note right of F : fin du traitement : soumission suspendue
-  else [échec réseau, soumission manuelle]
+  else échec réseau, soumission manuelle
     F -> F : réponses conservées dans le tampon localStorage
     F --> E : "Vos dernières réponses ne sont pas encore enregistrées.\nVérifiez votre connexion puis réessayez."
     note right of F : fin du traitement : pas de soumission sans\nles dernières réponses
-  else [200 OK, ou échec en soumission automatique (fin du chrono)]
+  else 200 OK, ou échec en soumission automatique (fin du chrono)
     note right of F : on poursuit la soumission ; en fin de chrono,\nseules les réponses enregistrées sur le serveur sont garanties
   end
 end
@@ -41,25 +42,25 @@ B -> D ++ : SELECT Soumission WHERE id = :id FOR UPDATE
 D --> B -- : statut, dateDebut, évaluation
 note right of B : verrou pris AVANT de lire le statut : sauvegarde, soumission\net clôture automatique d'une même copie sont sérialisées
 
-alt [copie inconnue]
+alt copie inconnue
   B --> F : 404 Not Found
-else [copie d'un autre étudiant]
+else copie d'un autre étudiant
   B --> F : 403 Forbidden
-else [copie déjà remise (statut ≠ EN_COURS)]
+else copie déjà remise (statut ≠ EN_COURS)
   B --> F : 200 OK { statut, message = "Cette copie a déjà été transmise." }
   note right of B : double clic, deux onglets, nouvel essai après une réponse\nperdue : ni seconde correction ni seconde alerte
-else [copie EN_COURS]
+else copie EN_COURS
   B -> D ++ : SELECT AmenagementTemps (etudiant, evaluation)
   D --> B -- : durée personnalisée ou rien
   note over B : **Calcule :**\nfin = min(dateDebut + durée effective, dateFermeture)\ndurée effective = tiers-temps, sinon dureeStandard
 
-  alt [Cas normal : now() ≤ fin + marge (2 min)]
-    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = now()
+  alt Cas normal : now() ≤ fin + marge (2 min)
+    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = now(),\nprochaine_tentative_le = now() + 5 min
     B ->> C : corrigerSoumissionAsync(id), après le commit
     B --> F : 200 OK { statut = SOUMIS, message = "Copie soumise avec succès." }
-  else [Cas critique : temps dépassé au-delà de la marge de tolérance]
+  else Cas critique : temps dépassé au-delà de la marge de tolérance
     note over B : **Mécanisme anti-triche :**\nle serveur fige la copie à l'état\nde la dernière sauvegarde (DS-02)
-    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = fin
+    B -> D : UPDATE Soumission\nSET statut = 'SOUMIS', dateRemise = fin,\nprochaine_tentative_le = now() + 5 min
     B -> D : INSERT AlerteAntiTriche (niveau = 'ELEVE', soumission tardive)
     B ->> C : corrigerSoumissionAsync(id), après le commit
     B --> F : 409 Conflict (code TEMPS_EXPIRE)
@@ -68,30 +69,30 @@ else [copie EN_COURS]
 end
 deactivate B
 
-alt [HTTP 200 (copie soumise ou déjà transmise)]
+alt HTTP 200 (copie soumise ou déjà transmise)
   F -> F : supprime les tampons localStorage de la copie
-  F --> E : affiche page de confirmation
-else [HTTP 409 TEMPS_EXPIRE]
+  F --> E : affiche page de confirmation\n(heure de remise renvoyée par le serveur)
+else HTTP 409 TEMPS_EXPIRE
   F --> E : affiche écran d'expiration / verrouillage
-else [échec réseau ou autre erreur, soumission manuelle]
+else échec réseau ou autre erreur, soumission manuelle
   F --> E : message d'erreur dans la modale, nouvel essai possible
-else [échec réseau, soumission automatique en fin de chrono]
+else échec réseau, soumission automatique en fin de chrono
   F --> E : écran d'expiration
   note right of F : la clôture automatique (DS-11) remettra la copie\nà l'état de la dernière sauvegarde ; elle ne clôture\nque les copies encore EN_COURS (sans effet si le POST\na bien été reçu et la réponse perdue)
 end
 deactivate F
 
-== Correction asynchrone ==
+== Correction asynchrone (détail : DS-12) ==
 activate C
 C -> D ++ : SELECT Soumission WHERE id = :id FOR UPDATE
 D --> C -- : copie
-alt [statut ≠ SOUMIS (déjà corrigée)]
+alt statut ≠ SOUMIS (déjà corrigée)
   note right of C : sans effet : la note de l'enseignant est conservée
-else [statut = SOUMIS]
-  C -> C : corrige les réponses QCM et quiz
-  alt [toutes les questions sont des QCM / quiz]
+else statut = SOUMIS
+  C -> C : corrige les réponses QCM et quiz ;\ncode exécuté par Judge0, noté au prorata des cas réussis (DS-12)
+  alt QCM, quiz et code, tout noté automatiquement
     C -> D : UPDATE Soumission SET noteFinale, statut = 'EVALUE'
-  else [questions ouvertes ou de code présentes]
+  else questions ouvertes, ou code sans cas de test
     C -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
     note right of C : correction par l'enseignant (module d'Aminou)
   end
@@ -102,6 +103,7 @@ note over B, C
   Cohérence avec DS-11 (clôture automatique) : même fin effective et même marge (TempsEpreuveService),
   même dateRemise = fin, même verrou avec revérification du statut, correction après le commit.
   Seule différence voulue : pas d'alerte anti-triche, l'étudiant n'a rien envoyé hors délai.
-  Copie restée SOUMIS (correction perdue, redémarrage) : relancée par la tâche planifiée après 5 min.
+  Copie restée SOUMIS (correction perdue, redémarrage, Judge0 indisponible) : relancée par la tâche
+  planifiée une fois prochaine_tentative_le passée, 5 tentatives au plus (DS-12).
 end note
 @enduml

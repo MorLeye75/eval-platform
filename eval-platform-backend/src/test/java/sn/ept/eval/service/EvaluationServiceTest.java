@@ -34,6 +34,7 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -54,6 +55,7 @@ class EvaluationServiceTest {
     @Mock private UtilisateurRepository utilisateurRepository;
     @Mock private SoumissionRepository soumissionRepository;
     @Mock private AmenagementTempsRepository amenagementTempsRepository;
+    @Mock private sn.ept.eval.repository.EtudiantRepository etudiantRepository;
 
     private EvaluationService service;
     private Enseignant prof;
@@ -64,7 +66,7 @@ class EvaluationServiceTest {
     void setUp() {
         Clock clock = Clock.fixed(MAINTENANT.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
         service = new EvaluationService(evaluationRepository, promotionRepository, utilisateurRepository,
-                soumissionRepository, amenagementTempsRepository, clock);
+                soumissionRepository, amenagementTempsRepository, etudiantRepository, clock);
 
         prof = new Enseignant("Sow", "Mamadou", "prof@ept.sn", "x", "ENS-1");
         prof.setId(1L);
@@ -187,6 +189,41 @@ class EvaluationServiceTest {
         assertThat(service.creer(requete, "prof@ept.sn").getNbQuestions()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("Cas de test : entrée facultative (absente ou vide), enregistrée comme absente")
+    void creer_CodeEntreeFacultative() {
+        when(promotionRepository.findAllById(any())).thenReturn(List.of(dic2));
+        when(evaluationRepository.save(any(Evaluation.class))).thenAnswer(i -> i.getArgument(0));
+        QuestionRequestDTO code = new QuestionRequestDTO();
+        code.setType(TypeQuestion.CODE);
+        code.setEnonce("Afficher bonjour");
+        code.setPoints(3.0);
+        code.setCasTests(List.of(new CasDeTestDTO(null, "Bonjour", false), new CasDeTestDTO("", "Bonjour", true),
+                new CasDeTestDTO("Awa", "Bonjour Awa", false)));
+        CreateEvaluationRequest requete = requeteValide();
+        requete.setQuestions(List.of(code));
+
+        EvaluationResponse r = service.creer(requete, "prof@ept.sn");
+
+        assertThat(r.getQuestions().get(0).getCasTests()).extracting(c -> c.getEntree())
+                .containsExactly(null, null, "Awa");
+    }
+
+    @Test
+    @DisplayName("Cas de test : sortie attendue vide ou blanche → 400 (Judge0 la prendrait pour absente)")
+    void creer_CodeSortieVide() {
+        QuestionRequestDTO code = new QuestionRequestDTO();
+        code.setType(TypeQuestion.CODE);
+        code.setEnonce("Ne rien afficher");
+        code.setPoints(3.0);
+
+        code.setCasTests(List.of(new CasDeTestDTO("1", "", false)));
+        assertQuestionRejetee(code, "sortie attendue non vide");
+
+        code.setCasTests(List.of(new CasDeTestDTO("1", "ok", false), new CasDeTestDTO("2", "  ", false)));
+        assertQuestionRejetee(code, "sortie attendue non vide");
+    }
+
     // ---------------------------------------------------------------- DS-03 modification, suppression
 
     @Test
@@ -248,13 +285,21 @@ class EvaluationServiceTest {
     void mesEvaluations() {
         Evaluation e = evaluation(StatutEvaluation.BROUILLON, prof);
         e.addQuestion(new QuestionOuverte("Q", 1, 2.0));
+        e.setPromotions(Set.of(dic2));
         when(evaluationRepository.findByEnseignantIdOrderByDateOuvertureDesc(1L)).thenReturn(List.of(e));
+        SoumissionRepository.NbCopies copies = org.mockito.Mockito.mock(SoumissionRepository.NbCopies.class);
+        when(copies.getEvaluationId()).thenReturn(10L);
+        when(copies.getNbCopies()).thenReturn(32L);
+        when(soumissionRepository.compterCopiesParEvaluation(1L)).thenReturn(List.of(copies));
+        when(etudiantRepository.countByPromotionId(5L)).thenReturn(45L);
 
         List<EvaluationResponse> liste = service.mesEvaluations("prof@ept.sn");
 
         assertThat(liste).hasSize(1);
         assertThat(liste.get(0).getNbQuestions()).isEqualTo(1);
         assertThat(liste.get(0).getQuestions()).isEmpty();
+        assertThat(liste.get(0).getNbCopies()).isEqualTo(32);   // soumissions 32 / 45 attendus
+        assertThat(liste.get(0).getNbAttendus()).isEqualTo(45);
     }
 
     // ---------------------------------------------------------------- DS-04 publication
@@ -296,6 +341,54 @@ class EvaluationServiceTest {
         when(evaluationRepository.findById(10L)).thenReturn(Optional.of(evaluation(StatutEvaluation.BROUILLON, autreProf)));
 
         assertThatThrownBy(() -> service.publier(10L, "prof@ept.sn")).isInstanceOf(AccesRefuseException.class);
+    }
+
+    @Test
+    @DisplayName("Publication : durée standard plus longue que la plage d'ouverture → 400, reste en brouillon")
+    void publier_DureeStandardPlusLongueQueLaPlage() {
+        Evaluation brouillon = evaluation(StatutEvaluation.BROUILLON, prof);
+        brouillon.addQuestion(new QuestionOuverte("Q", 1, 2.0));
+        brouillon.setDureeStandard(120);
+        brouillon.setDateFermeture(brouillon.getDateOuverture().plusMinutes(90));
+        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(brouillon));
+
+        assertThatThrownBy(() -> service.publier(10L, "prof@ept.sn"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("plage d'ouverture (90 min)")
+                .hasMessageContaining("120 min");
+        assertThat(brouillon.getStatut()).isEqualTo(StatutEvaluation.BROUILLON);
+        verify(evaluationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Publication : un tiers-temps trop long pour la plage (dates raccourcies après coup) → 400")
+    void publier_TiersTempsHorsPlage() {
+        Evaluation brouillon = evaluation(StatutEvaluation.BROUILLON, prof);
+        brouillon.addQuestion(new QuestionOuverte("Q", 1, 2.0));
+        brouillon.setDateFermeture(brouillon.getDateOuverture().plusMinutes(70)); // plage 70 min, durée standard 60
+        sn.ept.eval.model.Etudiant etudiant = new sn.ept.eval.model.Etudiant("N", "A", "e@ept.sn", "x", "ETU-1", dic2);
+        etudiant.setId(7L);
+        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(brouillon));
+        when(amenagementTempsRepository.findByEvaluationId(10L))
+                .thenReturn(List.of(new sn.ept.eval.model.AmenagementTemps(etudiant, brouillon, 80)));
+
+        assertThatThrownBy(() -> service.publier(10L, "prof@ept.sn"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("plage d'ouverture (70 min)")
+                .hasMessageContaining("80 min, tiers-temps compris");
+        verify(evaluationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Publication : durée maximale exactement égale à la plage → acceptée")
+    void publier_DureeEgaleALaPlage() {
+        Evaluation brouillon = evaluation(StatutEvaluation.BROUILLON, prof);
+        brouillon.addQuestion(new QuestionOuverte("Q", 1, 2.0));
+        brouillon.setDateFermeture(brouillon.getDateOuverture().plusMinutes(60));
+        when(evaluationRepository.findById(10L)).thenReturn(Optional.of(brouillon));
+        when(evaluationRepository.saveAndFlush(any(Evaluation.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThat(service.publier(10L, "prof@ept.sn").getStatut()).isEqualTo(StatutEvaluation.PUBLIEE);
     }
 
     // ---------------------------------------------------------------- DS-04 dépublication

@@ -1,37 +1,52 @@
 @startuml DS-05_statuts_automatiques
 title DS-05 — Passage automatique des statuts d'une évaluation
+hide footbox
 autonumber
 participant "PassationScheduler\n(toutes les 60 s)" as S
 control "EvaluationStatutService" as B
+control "NotificationService\n(Mor, DS-15)" as N
 entity "BDD" as D
 
 S -> B ++ : mettreAJourStatuts()
 note right of S : appel dans son propre try/catch : un échec ici\nn'empêche ni la clôture des copies ni la relance des corrections
 note right of B : « maintenant » vient de la Clock injectée\n(même horloge que TempsEpreuveService, figeable dans les tests)
 
-B -> D ++ : SELECT Evaluation WHERE statut = PUBLIEE\nAND dateFermeture <= maintenant
+== 1. Fermeture des évaluations publiées jamais ouvertes ==
+B -> D ++ : SELECT id FROM Evaluation WHERE statut = PUBLIEE\nAND dateFermeture <= maintenant
 D --> B -- : évaluations déjà fermées
-loop [chaque évaluation fermée]
-  B -> D : UPDATE statut = TERMINEE (saut direct, sans passer par EN_COURS)
+loop chaque évaluation fermée
+  B -> D : UPDATE Evaluation SET statut = TERMINEE\nWHERE id = :id AND statut = PUBLIEE
+  note right of B : saut direct, sans passer par EN_COURS,\net sans notification « ouverte »
 end
 
-B -> D ++ : SELECT Evaluation WHERE statut = PUBLIEE\nAND dateOuverture <= maintenant
+== 2. Ouverture ==
+B -> D ++ : SELECT id FROM Evaluation WHERE statut = PUBLIEE\nAND dateOuverture <= maintenant
 D --> B -- : évaluations à ouvrir
-loop [chaque évaluation à ouvrir]
-  B -> D : UPDATE statut = EN_COURS
-  note right of B : la notification EVALUATION_OUVERTE sera ajoutée ici\nquand NotificationService existera (signature à fixer avec Mor)
+loop chaque évaluation à ouvrir
+  B -> D ++ : UPDATE Evaluation SET statut = EN_COURS\nWHERE id = :id AND statut = PUBLIEE
+  note right of D : mise à jour **conditionnelle** et atomique :\nsi deux passages (deux instances, relance) se croisent,\nun seul voit « 1 ligne modifiée »
+  D --> B -- : nombre de lignes modifiées
+  alt 1 ligne modifiée : la transition vient d'avoir lieu
+    B -> N : evaluationOuverte(evaluation relue)
+    note right of N : notifications créées dans la même transaction (DS-15) :\nsi la transaction échoue, ni le statut ni les notifications ne sont validés
+  else 0 ligne : déjà traitée ailleurs, ou dépubliée entre-temps
+    note right of B : aucune notification, donc pas de doublon
+  end
 end
 
-B -> D ++ : SELECT Evaluation WHERE statut = EN_COURS\nAND dateFermeture <= maintenant
+== 3. Clôture des évaluations en cours ==
+B -> D ++ : SELECT id FROM Evaluation WHERE statut = EN_COURS\nAND dateFermeture <= maintenant
 D --> B -- : évaluations à clôturer
-loop [chaque évaluation à clôturer]
-  B -> D : UPDATE statut = TERMINEE
+loop chaque évaluation à clôturer
+  B -> D : UPDATE Evaluation SET statut = TERMINEE\nWHERE id = :id AND statut = EN_COURS
 end
 B --> S -- : nombre d'évaluations modifiées
+
 note over S, D
   **Ce que cette tâche ne fait pas**
   Elle ne soumet aucune copie. À la fin du chrono, c'est le front qui soumet (DS-01) ;
-  les copies abandonnées sont clôturées par ClotureCopiesService, appelé par le même scheduler.
+  les copies abandonnées sont clôturées par ClotureCopiesService, appelé par le même scheduler (DS-11).
   Le statut TERMINEE n'empêche donc pas une sauvegarde ou une soumission dans la marge de tolérance (2 min).
+  Elle ne publie pas non plus les résultats : c'est une action de l'enseignant (DS-07).
 end note
 @enduml

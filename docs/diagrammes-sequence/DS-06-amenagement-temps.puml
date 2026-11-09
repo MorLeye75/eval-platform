@@ -1,5 +1,6 @@
 @startuml DS-06_amenagement_temps
 title DS-06 — Aménagement de temps (tiers-temps) d'un étudiant
+hide footbox
 autonumber
 actor "Enseignant" as E
 boundary "Frontend React" as F
@@ -8,29 +9,34 @@ entity "BDD" as D
 
 E -> F : définit une durée personnalisée pour un étudiant
 F -> B ++ : PUT /api/enseignant/evaluations/{id}/amenagements/{etudiantId}\n{ dureeMinutes }
-B -> D ++ : SELECT Evaluation WHERE id = :id
+B -> D ++ : SELECT Evaluation WHERE id = :id FOR UPDATE
 D --> B -- : évaluation
+note right of B : **verrou sur l'évaluation**, comme la dépublication (DS-04) :\nle démarrage d'une copie (DS-10) prend le verrou partagé (FOR SHARE).\nUn étudiant qui démarre pendant l'enregistrement attend,\npuis voit la durée définitive : elle ne change plus sous ses pieds.
 
-alt [DTO invalide : dureeMinutes manquante ou ≤ 0]
+alt DTO invalide : dureeMinutes manquante ou ≤ 0
   B --> F : 400 Bad Request
-else [évaluation inconnue ou étudiant inconnu]
+else évaluation inconnue ou étudiant inconnu
   B --> F : 404 Not Found
-else [évaluation d'un autre enseignant]
+else évaluation d'un autre enseignant
   B --> F : 403 Forbidden
-else [statut = TERMINEE]
+else statut = TERMINEE
   B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
-else [étudiant hors des promotions de l'évaluation]
+else étudiant hors des promotions de l'évaluation
   B --> F : 400 Bad Request
-else [dureeMinutes < dureeStandard]
+else dureeMinutes < dureeStandard
   note right of B : un aménagement ne peut qu'augmenter la durée
   B --> F : 400 Bad Request
-else [l'étudiant a déjà une copie pour cette évaluation]
-  B -> D ++ : SELECT Soumission WHERE evaluationId = :id AND etudiantId = :etudiantId
+else dateOuverture + dureeMinutes > dateFermeture
+  note right of B : la fin d'une épreuve est plafonnée à la fermeture (TempsEpreuveService) :\nle tiers-temps serait **sans effet** pour un étudiant qui commence à l'ouverture.\nExemple : plage de 1 h, épreuve de 1 h, tiers-temps de 1 h 20 → refusé.
+  B --> F : 400 Bad Request ("la plage d'ouverture (X min) est plus courte que la durée\naménagée (Y min) : allongez la fermeture ou réduisez le tiers-temps")
+  F --> E : message affiché
+else l'étudiant a déjà une copie pour cette évaluation
+  B -> D ++ : SELECT EXISTS Soumission WHERE evaluationId = :id AND etudiantId = :etudiantId
   D --> B -- : copie trouvée
   note right of B : TempsEpreuveService relit l'aménagement à chaque calcul :\nle modifier en cours d'épreuve changerait (voire réduirait) le temps\nd'une copie déjà commencée
   B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
   F --> E : "L'étudiant a déjà commencé : aménagement verrouillé"
-else [valide]
+else valide
   B -> D : INSERT ou UPDATE AmenagementTemps (étudiant, évaluation)
   B --> F : 200 OK { etudiantId, dureeMinutes }
 end
@@ -38,9 +44,12 @@ deactivate B
 
 == Suppression d'un aménagement ==
 F -> B ++ : DELETE /api/enseignant/evaluations/{id}/amenagements/{etudiantId}
-alt [mêmes contrôles de propriété, de statut et de copie existante]
+B -> D : SELECT Evaluation WHERE id = :id FOR UPDATE
+alt mêmes contrôles de propriété, de statut et de copie existante
   B --> F : 403 / 404 / 409
-else [valide]
+else aucun aménagement pour cet étudiant
+  B --> F : 404 Not Found
+else valide
   B -> D : DELETE AmenagementTemps
   B --> F : 204 No Content
 end
@@ -49,5 +58,7 @@ deactivate B
 note over B, D
   Au démarrage et à chaque calcul du temps restant, DS-10 / DS-01 utilisent
   la durée aménagée de l'étudiant si elle existe, sinon dureeStandard.
+  La publication (DS-04) revérifie la plage pour tous les aménagements existants :
+  les dates d'un brouillon ont pu être raccourcies après l'enregistrement d'un tiers-temps.
 end note
 @enduml

@@ -20,12 +20,20 @@ public class EvaluationEtudiantResponse {
     private Integer dureeMinutes; // durée effective : tiers-temps de l'étudiant s'il existe, sinon durée standard
     private Integer dureeQuestion; // secondes par question, uniquement pour un quiz chronométré
     private Integer nbQuestions;
+    private Double totalPoints; // barème : somme des points des questions
+    private Double noteFinale; // seulement si les résultats sont publiés et la copie corrigée
     private List<TypeQuestion> typesQuestions = new ArrayList<>();
     private Boolean resultatsPublies;
     private Long soumissionId; // null tant que l'étudiant n'a pas démarré
     private StatutSoumission statutSoumission;
 
     public EvaluationEtudiantResponse() {}
+
+    public Double getTotalPoints() { return totalPoints; }
+    public void setTotalPoints(Double totalPoints) { this.totalPoints = totalPoints; }
+
+    public Double getNoteFinale() { return noteFinale; }
+    public void setNoteFinale(Double noteFinale) { this.noteFinale = noteFinale; }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

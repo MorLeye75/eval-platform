@@ -36,6 +36,7 @@ public class EnregistrementReponsesService {
         if (items == null || items.isEmpty()) {
             return 0;
         }
+        refuserQuestionsEnDouble(items);
 
         // Questions de l'évaluation et réponses existantes chargées en une requête chacune (pas de N+1)
         Map<Long, Question> questionsEvaluation = questionRepository
@@ -50,11 +51,9 @@ public class EnregistrementReponsesService {
 
             Question question = questionsEvaluation.get(item.getQuestionId());
             if (question == null) {
-                // La question doit appartenir à l'évaluation de cette copie ; un id inexistant est ignoré
-                if (questionRepository.existsById(item.getQuestionId())) {
-                    throw new IllegalArgumentException("La question " + item.getQuestionId() + " n'appartient pas à cette évaluation.");
-                }
-                continue;
+                // La question doit appartenir à l'évaluation de cette copie. Même refus qu'elle existe ailleurs ou
+                // non : une réponse différente révélerait quels identifiants de question existent.
+                throw new IllegalArgumentException("La question " + item.getQuestionId() + " n'appartient pas à cette évaluation.");
             }
 
             ReponseEtudiant reponse = reponsesExistantes.get(question.getId());
@@ -72,17 +71,19 @@ public class EnregistrementReponsesService {
                 ReponseQCM rq = (reponse instanceof ReponseQCM) ? (ReponseQCM) reponse : new ReponseQCM();
                 rq.setSoumission(soumission);
                 rq.setQuestion(question);
-                if (item.getChoixIds() != null && !item.getChoixIds().isEmpty()) {
-                    rq.setChoixCoches(getChoixValides(questionQcm, item.getChoixIds()));
-                } else {
-                    rq.setChoixCoches(new ArrayList<>());
-                }
+                Set<ChoixReponse> coches = (item.getChoixIds() != null && !item.getChoixIds().isEmpty())
+                        ? getChoixValides(questionQcm, item.getChoixIds())
+                        : Set.of();
+                // Mise à jour sur place : Hibernate ne supprime et n'insère que les choix qui changent
+                rq.getChoixCoches().retainAll(coches);
+                rq.getChoixCoches().addAll(coches);
                 reponseEtudiantRepository.save(rq);
             } else if (question instanceof QuestionCode) {
                 ReponseCode rc = (reponse instanceof ReponseCode) ? (ReponseCode) reponse : new ReponseCode();
                 rc.setSoumission(soumission);
                 rc.setQuestion(question);
                 rc.setCodeSoumis(item.getCodeSoumis());
+                rc.setLangage(item.getLangage());
                 reponseEtudiantRepository.save(rc);
             } else {
                 ReponseOuverte ro = (reponse instanceof ReponseOuverte) ? (ReponseOuverte) reponse : new ReponseOuverte();
@@ -96,7 +97,21 @@ public class EnregistrementReponsesService {
         return nbSauvegardees;
     }
 
-    private List<ChoixReponse> getChoixValides(QuestionQCM question, List<Long> choixIds) {
+    /**
+     * Une question ne peut apparaître qu'une fois par sauvegarde : sinon chaque occurrence créerait sa propre
+     * réponse, toutes notées puis additionnées dans la note finale (HTTP 400).
+     */
+    private void refuserQuestionsEnDouble(List<ReponseItemDto> items) {
+        Set<Long> vues = new HashSet<>();
+        for (ReponseItemDto item : items) {
+            if (item.getQuestionId() != null && !vues.add(item.getQuestionId())) {
+                throw new IllegalArgumentException("La question " + item.getQuestionId()
+                        + " apparaît plusieurs fois dans la sauvegarde.");
+            }
+        }
+    }
+
+    private Set<ChoixReponse> getChoixValides(QuestionQCM question, List<Long> choixIds) {
         Set<Long> idsDemandes = new HashSet<>(choixIds);
         List<ChoixReponse> choix = choixReponseRepository.findAllById(idsDemandes);
         boolean tousValides = choix.size() == idsDemandes.size()
@@ -107,7 +122,7 @@ public class EnregistrementReponsesService {
         if (!Boolean.TRUE.equals(question.getEstChoixMultiple()) && choix.size() > 1) {
             throw new IllegalArgumentException("La question " + question.getId() + " n'accepte qu'un seul choix.");
         }
-        return choix;
+        return new HashSet<>(choix);
     }
 
     private boolean estDuBonType(ReponseEtudiant reponse, Question question) {

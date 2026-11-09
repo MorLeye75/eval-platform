@@ -1,5 +1,6 @@
 @startuml DS-04_publication_evaluation
 title DS-04 — Publication et dépublication d'une évaluation
+hide footbox
 autonumber
 actor "Enseignant" as E
 boundary "Frontend React" as F
@@ -10,19 +11,25 @@ entity "BDD" as D
 E -> F : clique « Publier »
 F -> B ++ : POST /api/enseignant/evaluations/{id}/publier
 B -> D ++ : SELECT Evaluation WHERE id = :id
-D --> B -- : évaluation (statut, version, nb de questions)
+D --> B -- : évaluation (statut, version, questions, dates)
+B -> D ++ : SELECT AmenagementTemps WHERE evaluationId = :id
+D --> B -- : aménagements (tiers-temps)
 
-alt [évaluation inconnue]
+alt évaluation inconnue
   B --> F : 404 Not Found
-else [évaluation d'un autre enseignant]
+else évaluation d'un autre enseignant
   B --> F : 403 Forbidden
-else [statut ≠ BROUILLON]
+else statut ≠ BROUILLON
   B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
-else [aucune question]
+else aucune question
   B --> F : 400 Bad Request
-else [dateFermeture déjà passée (Clock)]
+else dateFermeture déjà passée (Clock)
   B --> F : 400 Bad Request
-else [publiable]
+else dateOuverture + durée maximale > dateFermeture
+  note right of B : durée maximale = max(dureeStandard, tiers-temps de chaque étudiant).\nLa fin d'une épreuve est plafonnée à la fermeture (TempsEpreuveService) :\nun étudiant qui commence à l'ouverture perdrait une partie de son temps.
+  B --> F : 400 Bad Request ("la plage d'ouverture (X min) est plus courte que la durée\nmaximale de l'épreuve (Y min, tiers-temps compris)")
+  F --> E : message affiché, l'évaluation reste en brouillon
+else publiable
   B -> D : UPDATE Evaluation SET statut = PUBLIEE
   note right of B : @Version : un « modifier » concurrent est rejeté\n(409 CONFLIT_CONCURRENT) au lieu d'écraser la publication
   B --> F : 200 OK { statut = PUBLIEE }
@@ -36,26 +43,27 @@ E -> F : clique « Repasser en brouillon »
 F -> B ++ : POST /api/enseignant/evaluations/{id}/depublier
 B -> D ++ : SELECT Evaluation WHERE id = :id FOR UPDATE
 D --> B -- : évaluation
-alt [inconnue]
+alt inconnue
   B --> F : 404 Not Found
-else [autre enseignant]
+else autre enseignant
   B --> F : 403 Forbidden
-else [statut ≠ PUBLIEE (déjà en cours, terminée ou brouillon)]
+else statut ≠ PUBLIEE (déjà en cours, terminée ou brouillon)
   B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
-else [au moins une copie existe pour cette évaluation]
+else au moins une copie existe pour cette évaluation
   B -> D : SELECT EXISTS Soumission WHERE evaluationId = :id
   B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
   F --> E : "Des étudiants ont déjà commencé : dépublication impossible"
-else [aucune copie]
+else aucune copie
   B -> D : UPDATE Evaluation SET statut = BROUILLON
   B --> F : 200 OK { statut = BROUILLON }
 end
 deactivate B
 
-note over B
-  **Point ouvert avec Mor** : la dépublication verrouille l'évaluation (FOR UPDATE), mais le démarrage
-  d'une copie (DS-10) ne verrouille que l'étudiant. Un étudiant qui démarre exactement pendant la
-  dépublication pourrait créer une copie sur un brouillon. Correctif proposé : DS-10 prend un verrou
-  partagé (FOR SHARE) sur l'évaluation avant de créer la copie.
+note over B, D
+  **Course avec le démarrage d'une copie (DS-10) : résolue.** La dépublication verrouille l'évaluation
+  (FOR UPDATE) ; le démarrage d'une copie la verrouille en lecture (FOR SHARE, findByIdForShare) avant de
+  créer la copie. Un étudiant qui démarre pendant une dépublication attend, puis relit l'évaluation
+  telle qu'elle a été validée : brouillon (refusé) ou toujours publiée avec sa copie (dépublication refusée).
+  Le même verrou protège l'enregistrement d'un tiers-temps (DS-06).
 end note
 @enduml

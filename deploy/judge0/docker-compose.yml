@@ -1,0 +1,54 @@
+# Judge0 CE 1.13.1 auto-hébergé pour la correction automatique du code (DS-12).
+# D'après le docker-compose.yml officiel de Judge0 v1.13.1, avec une version figée et un port local seulement.
+#
+# Prérequis : hôte Linux en cgroups v1 (voir README.md). Ne fonctionne pas sous Docker Desktop / WSL 2.5.1+.
+# Démarrage : cp judge0.conf.example judge0.conf (puis renseigner les mots de passe), docker compose up -d
+
+x-logging:
+  &journal
+  logging:
+    driver: json-file
+    options:
+      max-size: 100M
+
+services:
+  server:
+    image: judge0/judge0:1.13.1
+    volumes:
+      - ./judge0.conf:/judge0.conf:ro
+    ports:
+      # Jamais exposé publiquement : seul le backend (même machine ou réseau interne) l'appelle
+      - "127.0.0.1:2358:2358"
+    privileged: true # exigé par isolate, le bac à sable de Judge0
+    <<: *journal
+    restart: always
+
+  workers:
+    image: judge0/judge0:1.13.1
+    command: ["./scripts/workers"]
+    volumes:
+      - ./judge0.conf:/judge0.conf:ro
+    privileged: true
+    <<: *journal
+    restart: always
+
+  db:
+    image: postgres:16.2
+    env_file: judge0.conf
+    volumes:
+      - donnees:/var/lib/postgresql/data/
+    <<: *journal
+    restart: always
+
+  redis:
+    image: redis:7.2.4
+    command: [
+      "bash", "-c",
+      'docker-entrypoint.sh --appendonly no --requirepass "$$REDIS_PASSWORD"'
+    ]
+    env_file: judge0.conf
+    <<: *journal
+    restart: always
+
+volumes:
+  donnees:

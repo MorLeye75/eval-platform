@@ -5,7 +5,7 @@ authentification JWT, passation sécurisée des épreuves (sauvegarde automatiqu
 correction automatique des QCM.
 
 - **Stack** : Java 21, Spring Boot 3, Spring Security 6 (JWT), Spring Data JPA / Hibernate, PostgreSQL, Flyway
-- **Documentation interactive** : Swagger UI sur `http://localhost:8080/api/swagger-ui/index.html`
+- **Documentation interactive** : Swagger UI sur `http://localhost:8080/api/swagger-ui/index.html` (profils `dev` et `h2-dev`, ou `SWAGGER_ENABLED=true`)
 - **Collection Postman** : [`docs/Plateforme_Evaluation_Postman_Collection.json`](../docs/Plateforme_Evaluation_Postman_Collection.json)
 
 ## Démarrage rapide
@@ -21,7 +21,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=h2-dev
 La base est recréée à chaque démarrage. Console H2 : `http://localhost:8080/api/h2-console`
 (JDBC URL `jdbc:h2:mem:evaldb`, utilisateur `sa`, mot de passe vide).
 
-### Avec PostgreSQL local (profil `dev`, par défaut)
+### Avec PostgreSQL local (profil `dev`)
 
 1. Créer une base vide : `CREATE DATABASE eval_platform_db;`
 2. Lancer :
@@ -30,6 +30,8 @@ La base est recréée à chaque démarrage. Console H2 : `http://localhost:8080/
 mvn spring-boot:run
 ```
 
+`mvn spring-boot:run` active le profil `dev` (propriété `spring-boot.run.profiles` du `pom.xml`) ;
+un lancement depuis l'IDE ou le jar doit le demander : `SPRING_PROFILES_ACTIVE=dev`.
 Le profil `dev` suppose l'utilisateur `postgres` / `postgrespassword` sur `localhost:5432`
 (surchargeable par `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`). Flyway crée le schéma au premier démarrage.
 
@@ -51,7 +53,7 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 
 | Profil | Base | Schéma | Données de démo | Usage |
 |---|---|---|---|---|
-| `dev` (défaut) | PostgreSQL local | Flyway | oui | développement |
+| `dev` (défaut de `mvn spring-boot:run`) | PostgreSQL local | Flyway | oui | développement |
 | `h2-dev` | H2 en mémoire | recréé par Hibernate | oui | démarrage sans installation |
 | `test` | H2 en mémoire | recréé par Hibernate | oui | tests automatisés |
 | tout autre (ex. `prod`) | PostgreSQL | Flyway | non | déploiement |
@@ -60,14 +62,25 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 
 | Variable | Obligatoire hors `dev` | Défaut | Rôle |
 |---|---|---|---|
-| `SPRING_PROFILES_ACTIVE` | oui | `dev` | profil actif (ex. `prod`) |
+| `SPRING_PROFILES_ACTIVE` | oui | aucun (`dev` avec `mvn spring-boot:run`) | profil actif (ex. `prod`) |
 | `JWT_SECRET` | **oui** | secret de dev | clé de signature des jetons, en Base64, 256 bits minimum (`openssl rand -base64 64`) |
 | `DB_PASSWORD` | **oui** | `postgrespassword` en `dev` | mot de passe PostgreSQL |
 | `DB_URL` | non | `jdbc:postgresql://localhost:5432/eval_platform_db` | URL JDBC |
 | `DB_USERNAME` | non | `postgres` | utilisateur PostgreSQL |
 | `JWT_EXPIRATION_MS` | non | `86400000` (24 h) | durée de validité des jetons |
+| `CORS_ALLOWED_ORIGINS` | **oui** | `http://localhost:5173,http://127.0.0.1:5173` | origines du front autorisées, séparées par des virgules (ex. `https://eval.ept.sn`) ; pas de `*` |
+| `SWAGGER_ENABLED` | non | `false` (`true` en `dev` et `h2-dev`) | sert la documentation OpenAPI et Swagger UI |
+| `JUDGE0_URL` | oui, pour corriger le code | `http://localhost:2358` | Judge0 auto-hébergé, sur le réseau interne uniquement (DS-12) |
+| `JUDGE0_TOKEN` | si Judge0 en exige un | vide | jeton envoyé dans l'en-tête `X-Auth-Token` (`AUTHN_TOKEN` de Judge0) |
+| `JUDGE0_CONCURRENCE` | non | `2` | corrections avec du code simultanées : le nombre de workers Judge0 |
+| `FORWARD_HEADERS_STRATEGY` | derrière un proxy | `none` | `native` derrière un reverse proxy (nginx, traefik…) pour lire l'IP réelle du client dans `X-Forwarded-For` ; laisser `none` sans proxy (sinon un client pourrait inventer son IP) |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.
+L'absence de `DB_PASSWORD` est détectée avant toute connexion à la base (`ControleConfigurationObligatoire`) :
+sans ce contrôle, Spring enverrait la chaîne `${DB_PASSWORD}` comme mot de passe.
+Un `JWT_SECRET` qui n'est pas en Base64 ou fait moins de 256 bits bloque aussi le démarrage.
+Oublier `SPRING_PROFILES_ACTIVE` au déploiement ne bascule jamais en `dev` (pas de comptes de démonstration
+ni de secret par défaut) : l'application démarre sans profil et exige ces variables.
 
 ### Paramètres métier
 
@@ -75,7 +88,13 @@ Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profi
 |---|---|---|
 | `passation.taches-planifiees.actif` | `true` | clôture automatique des copies et relance des corrections |
 | `passation.taches-planifiees.intervalle-ms` | `60000` | fréquence de ces tâches |
-| `securite.login.max-echecs` | `5` | échecs de connexion avant blocage |
+| `correction.judge0.cpu-time-limit` / `wall-time-limit` | `2` / `5` s | limites d'exécution d'un cas de test |
+| `correction.judge0.memory-limit-ko` | `256000` | mémoire d'un cas de test (Java en a besoin) |
+| `correction.judge0.duree-max-execution` | `10m` | durée maximale de toutes les exécutions d'une copie |
+| `correction.judge0.langages.*` | c 50, cpp 54, java 62, python 71, javascript 63 | `language_id` de Judge0 CE 1.13 |
+| `securite.login.max-echecs` | `5` | échecs de connexion avant blocage d'un couple (email, IP) |
+| `securite.login.max-echecs-par-ip` | `100` | échecs depuis une même IP, tous comptes confondus, avant blocage de l'IP (password spraying). À ajuster : les étudiants d'un campus partagent souvent une IP |
+| `securite.login.max-compteurs` | `10000` | entrées en mémoire par type de compteur (couples, IP) ; au-delà, les plus anciennes sont évincées |
 | `securite.login.fenetre-minutes` | `15` | fenêtre de comptage des échecs |
 | `securite.login.duree-blocage-minutes` | `15` | durée du blocage |
 
@@ -96,7 +115,13 @@ Si le schéma et les entités divergent, l'application ne démarre pas et Hibern
 |---|---|
 | `V1__schema_initial.sql` | schéma complet issu du diagramme de classes, index sur les clés étrangères |
 | `V2__version_reponses.sql` | `soumissions.version_reponses` : version des réponses, incrémentée à chaque sauvegarde réussie |
-| `V3__evaluation_version.sql` | `evaluations.version` : verrou optimiste (`@Version`), pour qu'un « modifier » et un « publier » simultanés ne s'écrasent pas |
+| `V3__reponse_unique_par_question.sql` | une seule réponse par question et par copie : suppression des doublons existants, contrainte `uk_reponses_soumission_question` |
+| `V4__cles_tables_de_liaison.sql` | clés primaires composites et index inverses sur `evaluation_promotions` et `reponse_qcm_choix` (après dédoublonnage) |
+| `V5__quiz_question_en_cours.sql` | quiz chronométré : question en cours et heure de son début |
+| `V6__langage_reponse_code.sql` | langage choisi pour une réponse de code |
+| `V7__suivi_correction_automatique.sql` | suivi de la correction : jeton, tentatives, prochaine tentative, index partiel de relance |
+| `V8__verdict_cas_de_test.sql` | verdict de chaque cas de test (réussi, mauvaise réponse, temps dépassé, erreur) |
+| `V9__evaluation_version.sql` | `evaluations.version` : verrou optimiste (`@Version`), pour qu'un « modifier » et un « publier » simultanés ne s'écrasent pas |
 
 ## API
 
@@ -109,15 +134,17 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | GET | `/auth/me` | connecté | profil de l'utilisateur connecté |
 | GET | `/etudiant/evaluations` | étudiant | évaluations de sa promotion et état de sa copie |
 | GET | `/etudiant/evaluations/{id}` | étudiant | détail d'une évaluation (durée effective, durée par question du quiz, dates, état de la copie) ; 404 pour un brouillon, 403 hors de sa promotion |
+| GET | `/promotions` | enseignant, admin | promotions et effectifs, année la plus récente d'abord (assistant de création, DS-03) |
 | POST | `/enseignant/evaluations` | enseignant | crée un brouillon avec ses questions (DS-03) |
-| GET | `/enseignant/evaluations` | enseignant | ses évaluations, sans les questions |
-| GET | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | détail avec questions et bonnes réponses |
+| GET | `/enseignant/evaluations` | enseignant | ses évaluations, sans les questions, avec `nbCopies` et `nbAttendus` |
+| GET | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | détail avec questions, bonnes réponses, aménagements, `nbCopies` et `nbAttendus` |
 | PUT | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | modifie un brouillon (questions remplacées en bloc) |
 | DELETE | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | supprime un brouillon |
 | POST | `/enseignant/evaluations/{id}/publier` | enseignant (propriétaire) | BROUILLON → PUBLIEE (DS-04) |
 | POST | `/enseignant/evaluations/{id}/depublier` | enseignant (propriétaire) | PUBLIEE → BROUILLON tant qu'aucune copie n'existe (DS-04) |
 | PUT | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | tiers-temps ; corps `{ dureeMinutes }` (DS-06) |
 | DELETE | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | supprime un tiers-temps |
+| POST | `/enseignant/evaluations/{id}/resultats/publier` | enseignant (propriétaire) | rend notes et corrigés consultables et notifie les étudiants (DS-07) |
 | POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve (copie expirée clôturée, copie remise sans questions) |
 | PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) ; corps `{ reponses, versionAttendue }` |
 | POST | `/soumissions/{id}/soumettre` | étudiant | soumission finale et correction asynchrone |
@@ -163,33 +190,45 @@ Les diagrammes de séquence correspondants sont dans [`docs/diagrammes-sequence`
 
 ## Règles de création d'évaluation
 
-Diagrammes : DS-03 (création et modification), DS-04 (publication), DS-05 (statuts automatiques), DS-06 (tiers-temps).
+Diagrammes : DS-03 (création et modification), DS-04 (publication), DS-05 (statuts automatiques), DS-06 (tiers-temps)
+et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs/diagrammes-sequence).
 
 - **Brouillon d'abord** : toute évaluation créée est en `BROUILLON`. L'enseignant vient du jeton, jamais du corps de la
   requête, et ne voit que ses évaluations (403 sur celle d'un autre).
+- **Promotions** : au moins une, choisie dans `GET /promotions` ; une promotion inconnue renvoie 404.
 - **Modification et suppression** : uniquement en `BROUILLON` (sinon 409 `EVALUATION_NON_MODIFIABLE`). Pour corriger une
   évaluation publiée, il faut d'abord la dépublier, ce qui n'est possible que tant qu'aucune copie n'existe.
 - **Règles des questions** : QCM = au moins 2 choix et au moins 1 correct (un seul si `estChoixMultiple = false`) ;
   quiz = règles du QCM + `dureeQuestion` > 0 ; code = au moins 1 cas de test ; points > 0. L'ordre est la position
   dans la liste. Une règle violée renvoie 400 (« Question 3 : … ») et rien n'est enregistré.
-- **Publication** : exige au moins une question et une `dateFermeture` future. Le passage à `EN_COURS` puis `TERMINEE`
-  est fait par `EvaluationStatutService` toutes les 60 s (une évaluation publiée déjà fermée va directement à
-  `TERMINEE`). Cette tâche ne soumet aucune copie : voir DS-01 et la clôture automatique.
-- **Tiers-temps** : la durée doit être au moins égale à la durée standard, l'étudiant doit être dans une promotion de
-  l'évaluation, et l'aménagement est **verrouillé dès que l'étudiant a commencé sa copie** (409), car
-  `TempsEpreuveService` le relit à chaque calcul.
+- **Cas de test** : l'**entrée est facultative** (un programme peut ne rien lire ; vide = absente) ; la **sortie attendue
+  est obligatoire et non vide**, car Judge0 considère une sortie vide comme absente et un cas qui l'attendrait
+  échouerait toujours. Un exercice de code est un **programme complet** : l'entrée arrive sur l'entrée standard, la
+  sortie standard est comparée à la sortie attendue (espaces de fin de ligne ignorés).
+- **Publication** : exige au moins une question, une `dateFermeture` future et une **plage d'ouverture assez longue** :
+  la fin d'une épreuve est plafonnée à la fermeture, donc `max(durée standard, tiers-temps) ≤ fermeture − ouverture`
+  (sinon 400). Le passage à `EN_COURS` puis `TERMINEE` est fait par `EvaluationStatutService` toutes les 60 s (une
+  évaluation publiée déjà fermée va directement à `TERMINEE`). Cette tâche ne soumet aucune copie (DS-01, DS-11) et ne
+  publie pas les résultats.
+- **Tiers-temps** : la durée est au moins égale à la durée standard **et tient dans la plage d'ouverture** (sinon il
+  serait sans effet : 400), l'étudiant est dans une promotion de l'évaluation, et l'aménagement est **verrouillé dès que
+  l'étudiant a commencé sa copie** (409), car `TempsEpreuveService` le relit à chaque calcul. L'enregistrement
+  **verrouille l'évaluation** (`FOR UPDATE`), comme la dépublication : le démarrage d'une copie prend le verrou partagé
+  (`FOR SHARE`) et attend, un étudiant ne voit donc jamais sa durée changer pendant qu'il démarre.
 - **Concurrence** : `Evaluation` porte un `@Version`. Deux écritures simultanées (modifier / publier) : la seconde reçoit
   409 `CONFLIT_CONCURRENT`.
+- **Passage de statut atomique** : `UPDATE … WHERE statut = ancien` (`versioned`) ; seule la tâche qui change réellement
+  la ligne déclenche `NotificationService.evaluationOuverte`, donc jamais de notification en double. Chaque évaluation est
+  traitée dans sa propre transaction : un échec n'empêche pas les autres et annule statut et notifications ensemble.
+- **Publication des résultats (DS-07)** : exige une évaluation `TERMINEE` dont la marge de tolérance (2 min après la
+  fermeture) est écoulée, sinon 409 ; déjà publiés, 409. La bascule `resultatsPublies` est conditionnelle et atomique
+  (deux clics ne notifient pas deux fois). Les copies pas encore notées ne bloquent pas : elles sont comptées « en
+  attente » et leur étudiant est notifié à la validation de leur dernière note (`NotificationService.resultatPublie`).
+- **Notifications** : les services appellent l'interface `NotificationService` (3 événements). Tant que le module de
+  notifications n'est pas branché, `NotificationParDefautConfig` fournit une implémentation sans effet, qui s'efface
+  dès qu'un autre bean `NotificationService` est déclaré.
 - **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
   étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
-
-## Tests
-
-`mvn test` lance les tests unitaires (Mockito, horloge figée) et les tests d'intégration HTTP sur H2.
-`MigrationPostgresIntegrationTest` exige Docker (Testcontainers).
-
-Si Mockito échoue avec « Could not self-attach to current VM using external process » (observé sous Windows),
-lancer avec `JAVA_TOOL_OPTIONS=-Djdk.attach.allowAttachSelf=true`.
 
 ## Architecture
 
@@ -220,6 +259,17 @@ La passation est répartie en services à responsabilité unique :
 | `CorrectionDeclencheur` | lancement de la correction après validation de la transaction |
 | `ClotureCopiesService` + `PassationScheduler` | clôture des copies abandonnées, relance des corrections bloquées |
 
+Côté enseignant (DS-03 à DS-07) :
+
+| Service | Responsabilité |
+|---|---|
+| `EvaluationService` | création, modification, suppression, publication et dépublication d'une évaluation ; règles des questions |
+| `AmenagementTempsService` | tiers-temps d'un étudiant (plage, verrou de l'évaluation, copie déjà commencée) |
+| `EvaluationStatutService` | passage automatique `PUBLIEE → EN_COURS → TERMINEE`, appelé par `PassationScheduler` |
+| `PublicationResultatsService` | publication des résultats d'une évaluation terminée |
+| `PromotionService` | liste des promotions pour l'assistant de création |
+| `NotificationService` (interface) | événements de notification ; implémentation par défaut sans effet |
+
 Concurrence : sauvegarde, soumission, clôture automatique, reprise et correction verrouillent la copie
 (`SELECT ... FOR UPDATE`) ; une réponse ne peut pas être écrite après le passage à `SOUMIS` et une copie
 n'est corrigée qu'une fois.
@@ -235,8 +285,17 @@ mvn test
 - **Tests d'intégration** (H2) : parcours complets de passation et de correction, sécurité HTTP des endpoints, et
   scénarios concurrents (démarrages simultanés, soumissions simultanées, correction relancée, sauvegarde depuis un
   onglet resté sur une ancienne version).
+- **Module enseignant** : `EvaluationServiceTest`, `AmenagementTempsServiceTest`, `EvaluationStatutServiceTest`,
+  `PublicationResultatsServiceTest` et `PromotionServiceTest` (unitaires, horloge figée) ; `EvaluationControllerIntegrationTest`
+  (parcours HTTP complet, sécurité par rôle, plage et tiers-temps, cas de test) ; `EvaluationStatutIntegrationTest` (transitions
+  réelles, deux passages simultanés, une seule notification) ; `PublicationResultatsIntegrationTest` (de « en attente » à
+  « publiés » côté étudiant, double publication).
 - **Test PostgreSQL** (`MigrationPostgresIntegrationTest`, Testcontainers) : applique la migration Flyway sur un vrai
   PostgreSQL et rejoue une passation. Il nécessite Docker ; sans Docker, il est ignoré localement mais s'exécute en CI.
+
+Utiliser `mvn clean test` plutôt qu'une compilation incrémentale (un fichier de migration renommé resterait dans
+`target/classes`). Si Mockito échoue avec « Could not self-attach to current VM using external process » (observé sous
+Windows), lancer avec `JAVA_TOOL_OPTIONS=-Djdk.attach.allowAttachSelf=true`.
 
 La CI GitHub Actions (`.github/workflows/ci.yml`) compile et lance les tests du backend et du frontend à chaque push
 sur `main`, `feature/**`, `feat/**`, `fix/**`, `refactor/**` et `docs/**`, ainsi qu'à chaque pull request vers `main`.

@@ -14,16 +14,16 @@ F --> E : affiche la liste
 
 E -> F : clique sur "Commencer"
 F -> B ++ : POST /api/soumissions/evaluations/{id}/demarrer
-B -> D : évaluation, inscription, copie existante (sous verrou)
+B -> D : évaluation (verrou partagé), inscription, copie existante (sous verrou)
 
-alt [refus : inconnue, non inscrit, non ouverte]
+alt refus : inconnue, non inscrit, non ouverte
   B --> F : 404 / 403 / 400
   F --> E : message d'erreur
-else [copie expirée ou déjà remise]
+else copie expirée ou déjà remise
   B -> D : clôture si expirée
   B --> F : 200 OK { statut remis }
   F --> E : "Votre copie a déjà été remise"
-else [nouvelle copie ou reprise dans les délais]
+else nouvelle copie ou reprise dans les délais
   B -> D : création ou reprise, questions, réponses, temps restant
   B --> F -- : 200 OK { questions, réponses, temps restant }
   F --> E : affiche l'épreuve et le chrono

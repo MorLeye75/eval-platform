@@ -4,7 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "reponses_etudiant")
+// Une seule réponse par question et par copie (migration V3)
+@Table(name = "reponses_etudiant", uniqueConstraints = @UniqueConstraint(
+        name = "uk_reponses_soumission_question", columnNames = {"soumission_id", "question_id"}))
 @Inheritance(strategy = InheritanceType.JOINED)
 public abstract class ReponseEtudiant extends AuditableEntity {
 
