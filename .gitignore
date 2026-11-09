@@ -32,3 +32,8 @@ Thumbs.db
 
 # Judge0 : configuration réelle (secrets), seul le modèle est versionné
 deploy/judge0/judge0.conf
+
+# Tests de bout en bout (Playwright)
+**/dist-e2e/
+**/test-results/
+**/playwright-report/

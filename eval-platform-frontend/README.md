@@ -23,6 +23,23 @@ Comptes de démonstration : `etudiant@ept.sn` / `etudiant123`, `prof@ept.sn` / `
 | `npm run build` | vérification TypeScript puis build de production |
 | `npm run lint` | analyse statique (oxlint) |
 | `npm test` | tests unitaires (Vitest) |
+| `npm run test:e2e` | tests de bout en bout (Playwright), sans aucune simulation |
+
+### Tests de bout en bout
+
+`e2e/parcours-etudiant.e2e.ts` fait passer le parcours étudiant dans un vrai navigateur, contre le vrai backend et
+une vraie base (H2 neuve à chaque exécution, données de démonstration) : connexion, QCM sauvegardé puis retrouvé après
+rechargement et remis, résultats non publiés, quiz imposé par le serveur, code saisi avec son langage puis remis,
+cloisonnement des rôles. Playwright démarre lui-même le backend (port 18082) et la version de production du front
+(port 5174) : l'environnement de développement (8080, 5173) peut rester lancé.
+
+```bash
+cd ../eval-platform-backend && mvn package -DskipTests   # le jar du backend
+cd ../eval-platform-frontend && npx playwright install chromium   # une seule fois
+npm run test:e2e
+```
+
+L'éditeur de code (Monaco) est chargé depuis un CDN : le scénario du code a besoin d'Internet.
 
 ## État du branchement sur l'API
 
