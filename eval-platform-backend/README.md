@@ -289,7 +289,9 @@ mvn test
   `PublicationResultatsServiceTest` et `PromotionServiceTest` (unitaires, horloge figée) ; `EvaluationControllerIntegrationTest`
   (parcours HTTP complet, sécurité par rôle, plage et tiers-temps, cas de test) ; `EvaluationStatutIntegrationTest` (transitions
   réelles, deux passages simultanés, une seule notification) ; `PublicationResultatsIntegrationTest` (de « en attente » à
-  « publiés » côté étudiant, double publication).
+  « publiés » côté étudiant, double publication) ; `EnseignantPostgresIntegrationTest` (sur PostgreSQL : mises à jour
+  conditionnelles, deux passages simultanés, publication atomique, et un tiers-temps qui **attend** le verrou partagé d'un
+  démarrage de copie).
 - **Test PostgreSQL** (`MigrationPostgresIntegrationTest`, Testcontainers) : applique la migration Flyway sur un vrai
   PostgreSQL et rejoue une passation. Il nécessite Docker ; sans Docker, il est ignoré localement mais s'exécute en CI.
 
