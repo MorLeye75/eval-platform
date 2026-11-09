@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react"
-import { estCopieVerrouillee, estVersionObsolete, formatHeure } from "@/lib/passation"
+import { estCopieVerrouillee, estErreurReseau, estVersionObsolete, formatHeure } from "@/lib/passation"
 
 export type ResultatSauvegarde = "ok" | "verrouillee" | "conflit" | "echec"
 
@@ -26,8 +26,17 @@ interface UseAutoSaveOptions<T> {
   onVerrouillage?: () => void
   /** Le serveur refuse la sauvegarde : copie enregistrée entre-temps ailleurs (409 VERSION_OBSOLETE). */
   onConflit?: () => void
+  /**
+   * Après un 409 VERSION_OBSOLETE qui suit des envois restés sans réponse (délai dépassé, coupure) : le serveur
+   * contient-il l'un de ces envois ? Résout avec sa version et l'indice de l'envoi trouvé, sinon null.
+   * Une sauvegarde enregistrée dont la réponse s'est perdue n'est alors pas prise pour un conflit.
+   */
+  verifierEnvoiPerdu?: (envois: T[]) => Promise<{ version: number; index: number } | null>
   enabled?: boolean
 }
+
+/** Envois sans réponse retenus au plus : chacun a pu être enregistré par le serveur. */
+const ENVOIS_INCERTAINS_MAX = 3
 
 interface Tampon<T> {
   version: number | null
@@ -108,6 +117,7 @@ export function useAutoSave<T>({
   cleTampon,
   onVerrouillage,
   onConflit,
+  verifierEnvoiPerdu,
   enabled = true,
 }: UseAutoSaveOptions<T>) {
   const [derniereSauvegarde, setDerniereSauvegarde] = useState<string | null>(null)
@@ -116,6 +126,9 @@ export function useAutoSave<T>({
   const onSaveRef = useRef(onSave)
   const onVerrouillageRef = useRef(onVerrouillage)
   const onConflitRef = useRef(onConflit)
+  const verifierEnvoiPerduRef = useRef(verifierEnvoiPerdu)
+  // Envois restés sans réponse depuis la dernière sauvegarde confirmée (le serveur a pu les enregistrer)
+  const envoisIncertains = useRef<{ donnees: T; serialise: string }[]>([])
   const cleTamponRef = useRef(cleTampon)
   const dernierSerialise = useRef<string | null>(null)
   // Version serveur des réponses : celle de la dernière sauvegarde confirmée
@@ -126,10 +139,11 @@ export function useAutoSave<T>({
     onSaveRef.current = onSave
     onVerrouillageRef.current = onVerrouillage
     onConflitRef.current = onConflit
+    verifierEnvoiPerduRef.current = verifierEnvoiPerdu
     cleTamponRef.current = cleTampon
   })
 
-  const tenter = useCallback(async (): Promise<ResultatSauvegarde> => {
+  const tenter = useCallback(async function envoyer(): Promise<ResultatSauvegarde> {
     const donnees = dataRef.current
     const serialise = JSON.stringify(donnees)
     if (serialise === dernierSerialise.current) return "ok"
@@ -137,6 +151,7 @@ export function useAutoSave<T>({
     try {
       const confirmation = await onSaveRef.current?.(donnees, versionServeur.current)
       dernierSerialise.current = serialise
+      envoisIncertains.current = []
       if (confirmation?.version !== undefined) versionServeur.current = confirmation.version
       const cle = cleTamponRef.current
       if (cle) {
@@ -156,11 +171,31 @@ export function useAutoSave<T>({
       }
       // Les réponses les plus récentes (celles tapées pendant l'envoi comprises) sont gardées, pas celles envoyées
       if (estVersionObsolete(err)) {
+        // Notre propre sauvegarde, enregistrée mais dont la réponse s'est perdue ? Alors pas de conflit :
+        // on adopte la version du serveur et les réponses actuelles repartent aussitôt
+        const incertains = envoisIncertains.current
+        envoisIncertains.current = []
+        if (incertains.length > 0 && verifierEnvoiPerduRef.current) {
+          try {
+            const trouve = await verifierEnvoiPerduRef.current(incertains.map((e) => e.donnees))
+            if (trouve) {
+              versionServeur.current = trouve.version
+              dernierSerialise.current = incertains[trouve.index].serialise
+              return envoyer()
+            }
+          } catch {
+            // Vérification impossible : traité comme un vrai conflit
+          }
+        }
         if (cleTamponRef.current) {
           mettreDeCote(cleTamponRef.current, { version: versionServeur.current, donnees: dataRef.current })
         }
         onConflitRef.current?.()
         return "conflit"
+      }
+      // Sans réponse (délai dépassé, coupure) : le serveur a peut-être enregistré cet envoi
+      if (estErreurReseau(err)) {
+        envoisIncertains.current = [...envoisIncertains.current, { donnees, serialise }].slice(-ENVOIS_INCERTAINS_MAX)
       }
       if (cleTamponRef.current) {
         ecrireTampon(cleTamponRef.current, { version: versionServeur.current, donnees: dataRef.current })

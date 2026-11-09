@@ -10,6 +10,7 @@ import {
   soumettreCopie,
   signalerChangementOnglet,
   estCopieVerrouillee,
+  memesReponses,
   messageErreur,
 } from "@/lib/passation"
 import { cleTamponCopie } from "@/lib/session"
@@ -113,6 +114,16 @@ export function usePassation<T>({
           "Votre copie a été modifiée depuis un autre onglet ou appareil : la version enregistrée a été rechargée."
         )
         refetch()
+      },
+      // Sauvegarde enregistrée dont la réponse s'est perdue (délai dépassé, coupure) : le 409 qui suit n'est pas
+      // un conflit si le serveur contient l'un de ces envois. Relue par la reprise, qui ne modifie pas la copie.
+      verifierEnvoiPerdu: async (envois) => {
+        const serveur = await demarrerEpreuve(evaluationId!)
+        if (serveur.statut !== "EN_COURS") return null
+        const ids = new Set(serveur.questions.map((q) => q.id))
+        const reponsesServeur = versReponsesRef.current(depuisCopie(serveur.questions))
+        const index = envois.findIndex((e) => memesReponses(versReponsesRef.current(e), reponsesServeur, ids))
+        return index < 0 ? null : { version: serveur.versionReponses, index }
       },
       enabled: pret && enCours,
     })

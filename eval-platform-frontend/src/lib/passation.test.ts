@@ -5,6 +5,7 @@ import {
   estErreurReseau,
   estVersionObsolete,
   formatHeure,
+  memesReponses,
   messageErreur,
 } from "@/lib/passation"
 
@@ -78,3 +79,34 @@ describe("formatHeure", () => {
     expect(formatHeure()).toMatch(/^\d{2}:\d{2}$/)
   })
 })
+
+describe("memesReponses : le serveur contient-il l'envoi resté sans réponse ?", () => {
+  const ids = new Set([1, 2])
+
+  it("mêmes réponses, choix cochés dans un autre ordre : identiques", () => {
+    expect(memesReponses(
+      [{ questionId: 2, choixIds: [7, 5] }, { questionId: 1, texteSoumis: "Pile" }],
+      [{ questionId: 1, texteSoumis: "Pile" }, { questionId: 2, choixIds: [5, 7] }],
+      ids
+    )).toBe(true)
+  })
+
+  it("un texte, un choix ou un langage différent : pas identiques", () => {
+    expect(memesReponses([{ questionId: 1, texteSoumis: "Pile" }], [{ questionId: 1, texteSoumis: "File" }], ids)).toBe(false)
+    expect(memesReponses([{ questionId: 2, choixIds: [5] }], [{ questionId: 2, choixIds: [5, 7] }], ids)).toBe(false)
+    expect(memesReponses(
+      [{ questionId: 1, codeSoumis: "x", langage: "c" }],
+      [{ questionId: 1, codeSoumis: "x", langage: "python" }],
+      ids
+    )).toBe(false)
+  })
+
+  it("seules les questions renvoyées par le serveur comptent (quiz : la question en cours)", () => {
+    expect(memesReponses(
+      [{ questionId: 1, choixIds: [3] }, { questionId: 9, choixIds: [4] }],
+      [{ questionId: 1, choixIds: [3] }],
+      ids
+    )).toBe(true)
+  })
+})
+
