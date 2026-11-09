@@ -17,7 +17,7 @@ Les fichiers `.md` contiennent des diagrammes Mermaid, affichés directement par
 | DS-12 Correction automatique du code via Judge0 | `DS-12-correction-code-judge0.puml` | Mor | aligné sur le code (Judge0 réel non encore testé) |
 | DS-13 Consultation des résultats (détail d'une copie, tableau de bord) | `DS-13-consultation-resultats.puml` | Mor | aligné sur le code |
 | DS-14 Connexion, requêtes authentifiées et déconnexion (JWT) | `DS-14-connexion.puml` | Mor | aligné sur le code |
-| DS-15 Notifications | à écrire | Mor | à concevoir avec Aminou (événements, contenu) |
+| DS-15 Notifications | `DS-15-notifications.puml` | Mor | brouillon, à valider avec Aminou |
 
 Numérotation : DS-03 à DS-09 pour les modules d'Aminou (DS-07 à DS-09 réservés : correction IA, statistiques,
 administration), DS-10 et suivants pour ceux de Mor. Les diagrammes d'Aminou sont sur sa branche jusqu'à la fusion.

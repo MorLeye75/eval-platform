@@ -1,0 +1,86 @@
+@startuml DS-15_notifications
+title DS-15 — Notifications (BROUILLON à valider avec Aminou)
+hide footbox
+autonumber
+actor "Étudiant\nou enseignant" as U
+boundary "Frontend React" as F
+control "EvaluationStatutService (DS-05)\npublication des résultats (à définir)\nmodules d'Aminou" as A
+control "NotificationService\n(Mor)" as N
+control "NotificationController\n(Mor)" as C
+database "BDD" as D
+
+note over A, N
+  **Principe** : notifications internes à l'application (pas d'email). Elles sont créées par
+  NotificationService **dans la transaction de l'événement** : si l'événement est annulé, ses
+  notifications le sont aussi, et un événement validé a toujours les siennes.
+  Le destinataire vient toujours du serveur, jamais de la requête.
+end note
+
+== Production : évaluation ouverte (DS-05) ==
+A -> D : UPDATE Evaluation SET statut = 'EN_COURS'\nWHERE id = :id AND statut = 'PUBLIEE'
+alt 1 ligne modifiée (la transition vient d'avoir lieu)
+  A -> N : evaluationOuverte(evaluation)
+  activate N
+  N -> D : SELECT étudiants des promotions de l'évaluation
+  D --> N : destinataires
+  N -> D : INSERT notifications (une par étudiant, + l'enseignant)\ntype = EVALUATION_OUVERTE, evaluation_id, date_envoi = :maintenant (Clock)
+  note right of N : insertion par lots (une promotion ≈ 45 étudiants) ;\nmessage sans donnée qui pourrait changer :\n« "<titre>" est ouverte jusqu'au <dateFermeture> »
+  deactivate N
+else 0 ligne (déjà ouverte par un autre passage)
+  note right of A : aucune notification : pas de doublon\nsi la tâche planifiée repasse
+end
+
+== Production : résultats publiés (route enseignant à définir, Aminou) ==
+A -> D : UPDATE Evaluation SET resultats_publies = true\nWHERE id = :id AND resultats_publies = false
+alt 1 ligne modifiée
+  A -> N : resultatsPublies(evaluation)
+  activate N
+  N -> D : SELECT copies EVALUE de l'évaluation (id, étudiant)
+  D --> N : copies notées
+  N -> D : INSERT notifications (une par copie notée)\ntype = RESULTAT_PUBLIE, evaluation_id, soumission_id
+  note right of N : soumission_id : le front ouvre directement\n/etudiant/resultats/{soumissionId} (DS-13).\nPas de note dans le message : elle peut encore\nchanger (correction de l'enseignant), la page la lit à jour
+  deactivate N
+end
+note right of A : **À trancher** : une copie encore EN_CORRECTION au moment de la\npublication passe EVALUE plus tard. Proposition : la notifier à ce moment-là\n(appel resultatPublie(copie) quand l'enseignant valide la dernière note)
+
+== Consultation ==
+U -> F : ouvre l'application (en-tête : cloche)
+activate F
+loop toutes les 60 s tant que la page est ouverte (pas de WebSocket)
+  F -> C ++ : GET /api/notifications/non-lues/nombre
+  C -> D : SELECT count(*) FROM notifications\nWHERE utilisateur_id = :moi AND lue = false
+  C --> F -- : { nombre }
+end
+U -> F : ouvre « Notifications »
+F -> C ++ : GET /api/notifications?page=0&taille=20
+C -> D : SELECT … WHERE utilisateur_id = :moi\nORDER BY date_envoi DESC LIMIT 20
+C --> F -- : notifications { id, type, message, lue, dateEnvoi,\nevaluationId, soumissionId }
+F --> U : liste ; un clic ouvre l'évaluation ou les résultats de la copie
+deactivate F
+
+== Marquer comme lue ==
+U -> F : clique sur une notification
+activate F
+F -> C ++ : PUT /api/notifications/{id}/lire
+C -> D : UPDATE notifications SET lue = true\nWHERE id = :id AND utilisateur_id = :moi
+alt 0 ligne (inexistante ou notification d'un autre utilisateur)
+  C --> F : 404 (on ne révèle pas qu'elle existe)
+else
+  C --> F : 204
+end
+deactivate C
+F -> C ++ : PUT /api/notifications/lire-tout (bouton « Tout marquer comme lu »)
+C -> D : UPDATE notifications SET lue = true\nWHERE utilisateur_id = :moi AND lue = false
+C --> F -- : 204
+deactivate F
+
+note over F, D
+  **Migration** (numéro fixé à la fusion : V10 si la V3 d'Aminou devient V9) : notifications.evaluation_id et
+  notifications.soumission_id (nullables, clés étrangères), index (utilisateur_id, lue) pour le compteur et
+  (utilisateur_id, date_envoi) pour la liste. date_envoi : Clock de l'application, plus LocalDateTime.now().
+  **Signature proposée à Aminou** : evaluationOuverte(Evaluation), resultatsPublies(Evaluation),
+  resultatPublie(Soumission). **CORRECTION_VALIDEE** (type déjà prévu) : à ne pas envoyer à l'étudiant avant
+  la publication des résultats (DS-13 : aucune note avant) ; le garder pour l'enseignant, ou le supprimer ?
+  Conservation : purge des notifications lues de plus de 6 mois (tâche planifiée), à confirmer.
+end note
+@enduml
