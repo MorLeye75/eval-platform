@@ -72,3 +72,53 @@ jobs:
 
       - name: Build Frontend Application
         run: npm run build
+
+  e2e-tests:
+    name: End-to-End Tests (Playwright, sans simulation)
+    runs-on: ubuntu-24.04
+    # Seulement si les tests unitaires passent : inutile de lancer le parcours complet sur une base cassée
+    needs: [backend-tests, frontend-build]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # Le jar que Playwright démarre (profil h2-dev, base neuve, port 18082)
+      - name: Build Backend Jar
+        working-directory: ./eval-platform-backend
+        run: mvn package -DskipTests --batch-mode
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: eval-platform-frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: ./eval-platform-frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: ./eval-platform-frontend
+        run: npx playwright install --with-deps chromium
+
+      # Démarre le vrai backend et la version de production du front, puis joue le parcours étudiant
+      - name: Run End-to-End Tests
+        working-directory: ./eval-platform-frontend
+        run: npm run test:e2e
+
+      - name: Upload Playwright Traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: eval-platform-frontend/test-results/
+          retention-days: 7
