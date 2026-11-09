@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { Navigate, useNavigate } from "react-router-dom"
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,12 +12,21 @@ import {
   Send,
 } from "lucide-react"
 import { CreationStepper } from "./InfosGenerales"
-import { useBrouillon, validerInfos, erreurQuestion, effacerBrouillon } from "./brouillon"
+import { useBrouillon, validerInfos, erreurQuestion } from "./brouillon"
 import type { StatutEvaluation, TypeQuestion } from "@/types"
+import {
+  CLE_EVALUATIONS_ENSEIGNANT,
+  creerEvaluation,
+  modifierEvaluation,
+  publierEvaluation,
+} from "@/lib/evaluationsEnseignant"
+import { messageErreur } from "@/lib/passation"
+import { versRequete } from "./apiBrouillon"
 
 // ============================================================
 // Étape 3 / 3 — Prévisualisation & publication
-// TODO : onPublier → POST /api/enseignant/evaluations { infos, questions }
+// Enregistrement : POST /api/enseignant/evaluations (création) ou PUT .../{id} (édition d'un brouillon), puis
+// POST .../{id}/publier si l'enseignant a choisi « Publier immédiatement » (DS-03, DS-04).
 // ============================================================
 
 const TYPE_LABEL: Record<TypeQuestion, string> = {
@@ -41,28 +51,47 @@ function formatDT(iso: string) {
   })
 }
 
-/**
- * API de création / modification d'une évaluation pas encore branchée (DS-03, module d'Aminou). En attendant,
- * l'enregistrement est désactivé : il effaçait le brouillon sans rien envoyer au serveur.
- */
-const ENREGISTREMENT_DISPONIBLE = false
-
 export default function Previsualisation() {
   const navigate   = useNavigate()
-  const { brouillon, estEdition, chemin } = useBrouillon()
+  const { brouillon, setBrouillon, terminer, estEdition, chemin } = useBrouillon()
+  const queryClient = useQueryClient()
   const { infos, questions } = brouillon
   const [saving, setSaving] = useState(false)
+  const [erreur, setErreur] = useState<string | null>(null)
 
   const totalPoints = questions.reduce((s, q) => s + q.points, 0)
 
   async function handlePublier() {
     setSaving(true)
+    setErreur(null)
     try {
-      // TODO : création → await api.post("/enseignant/evaluations", { infos, questions })
-      //        édition  → await api.put(`/enseignant/evaluations/${brouillon.evaluationId}`, { infos, questions })
-      // N'effacer le brouillon qu'après la confirmation (2xx) de l'API, jamais avant
-      effacerBrouillon()
+      const requete = versRequete(brouillon)
+      let id = brouillon.evaluationId
+      if (id === null) {
+        id = (await creerEvaluation(requete)).id
+        // Mémorisé tout de suite : si la publication est refusée, un nouvel essai modifie ce brouillon au lieu d'en créer un second
+        const idCree = id
+        setBrouillon((b) => ({ ...b, evaluationId: idCree }))
+      } else {
+        await modifierEvaluation(id, requete)
+      }
+      if (infos.statut === "PUBLIEE") {
+        try {
+          await publierEvaluation(id)
+        } catch (e) {
+          setErreur(
+            "Le brouillon est enregistré, mais la publication a été refusée : "
+              + messageErreur(e, "erreur inconnue") + " Corrigez puis réessayez."
+          )
+          return
+        }
+      }
+      // Le brouillon local n'est effacé qu'après la confirmation du serveur, jamais avant
+      terminer()
+      await queryClient.invalidateQueries({ queryKey: CLE_EVALUATIONS_ENSEIGNANT })
       navigate("/enseignant/evaluations", { replace: true })
+    } catch (e) {
+      setErreur(messageErreur(e, "L'enregistrement a échoué. Votre brouillon est conservé sur cet onglet."))
     } finally {
       setSaving(false)
     }
@@ -171,16 +200,16 @@ export default function Previsualisation() {
       </Card>
 
       {/* Navigation */}
-      {!ENREGISTREMENT_DISPONIBLE && (
-        <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-sm text-amber-700 dark:text-amber-400">
-          L'enregistrement des évaluations n'est pas encore disponible : votre brouillon est conservé sur cet onglet.
+      {erreur && (
+        <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {erreur}
         </p>
       )}
       <div className="flex justify-between gap-3">
         <Button variant="outline" className="rounded-xl" onClick={() => navigate(chemin("questions"))}>
           ← Modifier les questions
         </Button>
-        <Button className="rounded-xl" onClick={handlePublier} disabled={saving || !ENREGISTREMENT_DISPONIBLE}>
+        <Button className="rounded-xl" onClick={handlePublier} disabled={saving}>
           {saving ? "Enregistrement..." : (
             <>
               <Send className="size-4" />

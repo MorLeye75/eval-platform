@@ -1,9 +1,11 @@
 import { useState } from "react"
 import { Link, useNavigate } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Select,
   SelectContent,
@@ -13,6 +15,7 @@ import {
 } from "@/components/ui/select"
 import { ChevronRight, FileText } from "lucide-react"
 import type { StatutEvaluation } from "@/types"
+import { CLE_PROMOTIONS, listerPromotions } from "@/lib/evaluationsEnseignant"
 import {
   useBrouillon,
   validerInfos,
@@ -75,13 +78,19 @@ export function CreationStepper({ step }: { step: 1 | 2 | 3 }) {
 
 export default function InfosGenerales() {
   const navigate = useNavigate()
-  const { brouillon, setBrouillon, estEdition, evaluationIntrouvable, chemin } = useBrouillon()
+  const { brouillon, setBrouillon, estEdition, chargement, evaluationIntrouvable, erreurChargement, nonModifiable, chemin } = useBrouillon()
   const form = brouillon.infos
+  const promotions = useQuery({ queryKey: CLE_PROMOTIONS, queryFn: listerPromotions, staleTime: 5 * 60_000 })
   const [errors, setErrors] = useState<Partial<Record<keyof InfosGeneralesForm, string>>>({})
 
   function set<K extends keyof InfosGeneralesForm>(key: K, val: InfosGeneralesForm[K]) {
     setBrouillon((b) => ({ ...b, infos: { ...b.infos, [key]: val } }))
     setErrors((e) => ({ ...e, [key]: undefined }))
+  }
+
+  function basculerPromotion(id: number, cochee: boolean) {
+    const ids = cochee ? [...form.promotionIds, id] : form.promotionIds.filter((p) => p !== id)
+    set("promotionIds", ids)
   }
 
   function handleNext() {
@@ -94,6 +103,47 @@ export default function InfosGenerales() {
   function handleAnnuler() {
     effacerBrouillon()
     navigate("/enseignant/evaluations")
+  }
+
+  if (chargement) {
+    return (
+      <div role="status" className="mx-auto max-w-2xl py-10 text-center text-sm text-muted-foreground">
+        Chargement de l'évaluation…
+      </div>
+    )
+  }
+
+  if (erreurChargement) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-10 text-center">
+        <Card className="w-full rounded-2xl border-border/60 shadow-sm">
+          <CardContent role="alert" className="py-10 text-sm text-destructive">
+            Impossible de charger l'évaluation. Vérifiez votre connexion puis réessayez.
+          </CardContent>
+        </Card>
+        <Button
+          variant="outline"
+          render={<Link to="/enseignant/evaluations">Retour aux évaluations</Link>}
+        />
+      </div>
+    )
+  }
+
+  if (nonModifiable) {
+    return (
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 py-10 text-center">
+        <Card className="w-full rounded-2xl border-border/60 shadow-sm">
+          <CardContent className="py-10 text-sm text-muted-foreground">
+            Seul un brouillon peut être modifié. Repassez l'évaluation en brouillon depuis la liste (possible tant
+            qu'aucun étudiant n'a commencé).
+          </CardContent>
+        </Card>
+        <Button
+          variant="outline"
+          render={<Link to="/enseignant/evaluations">Retour aux évaluations</Link>}
+        />
+      </div>
+    )
   }
 
   if (evaluationIntrouvable) {
@@ -188,6 +238,40 @@ export default function InfosGenerales() {
               </Select>
             </div>
           </div>
+
+          {/* Promotions concernées */}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1.5 text-sm font-medium">
+              Promotions concernées <span className="text-destructive">*</span>
+            </legend>
+            {promotions.isPending && <p className="text-xs text-muted-foreground">Chargement des promotions…</p>}
+            {promotions.isError && (
+              <p role="alert" className="text-xs text-destructive">
+                Impossible de charger les promotions.{" "}
+                <button type="button" onClick={() => promotions.refetch()} className="underline">Réessayer</button>
+              </p>
+            )}
+            <div className="grid gap-2 md:grid-cols-2">
+              {promotions.data?.map((p) => (
+                <label
+                  key={p.id}
+                  className="flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 p-3 text-sm transition-colors hover:bg-muted/50"
+                >
+                  <Checkbox
+                    checked={form.promotionIds.includes(p.id)}
+                    onCheckedChange={(cochee) => basculerPromotion(p.id, cochee === true)}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="font-semibold">{p.nom}</span>
+                    <span className="block text-xs text-muted-foreground">
+                      {p.annee} · {p.nbEtudiants} étudiant{p.nbEtudiants > 1 ? "s" : ""}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {errors.promotionIds && <p className="text-xs text-destructive">{errors.promotionIds}</p>}
+          </fieldset>
 
           {/* Dates */}
           <div className="grid gap-4 md:grid-cols-2">

@@ -47,10 +47,19 @@ L'éditeur de code (Monaco) est chargé depuis un CDN : le scénario du code a b
 |---|---|
 | Connexion | API (`POST /auth/login`) |
 | Passation QCM, question ouverte, code | API : démarrage, sauvegarde automatique, soumission |
-| Quiz chronométré | mocks (`src/mocks`) |
-| Listes, tableaux de bord, résultats, espaces enseignant et admin | mocks (`src/mocks`) |
+| Quiz chronométré | API : ordre et temps de chaque question imposés par le serveur |
+| Accueil, liste, résultats et performances de l'étudiant | API (`GET /etudiant/evaluations`, `GET /etudiant/performances`, `GET /soumissions/{id}/resultats`) |
+| Enseignant : assistant de création et de modification d'une évaluation, choix des promotions | API (`GET /promotions`, `POST` / `PUT /enseignant/evaluations`, `GET /enseignant/evaluations/{id}`) |
+| Enseignant : « Mes évaluations » (publier, repasser en brouillon, supprimer) | API (`GET /enseignant/evaluations`, `POST …/publier`, `POST …/depublier`, `DELETE`) |
+| Enseignant : publication des résultats | API (`POST /enseignant/evaluations/{id}/resultats/publier`) |
+| Enseignant : tableau de bord, supervision, statistiques, validation IA, export ; espace admin ; notifications et profil | mocks (`src/mocks`) |
 
-L'endpoint `GET /etudiant/evaluations` est disponible côté backend pour remplacer les mocks de la liste des évaluations.
+Les dates et durées d'une évaluation sont vérifiées par le serveur à la publication : la plage d'ouverture doit être au
+moins aussi longue que la durée de l'épreuve, tiers-temps compris. L'assistant le signale dès l'étape 1 quand on choisit
+« Publier immédiatement ».
+
+Un exercice de code est un **programme complet** : l'entrée de chaque cas de test (facultative) arrive sur l'entrée standard,
+la sortie standard est comparée à la sortie attendue (obligatoire, non vide). Le formulaire de l'enseignant le rappelle.
 
 ## Passation d'une épreuve
 

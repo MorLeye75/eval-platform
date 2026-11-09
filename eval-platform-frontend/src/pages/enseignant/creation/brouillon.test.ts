@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
-import { basculerChoixMultiple, erreurQuestion, type QuestionLocal } from "./brouillon"
+import {
+  basculerChoixMultiple,
+  erreurQuestion,
+  validerInfos,
+  type InfosGeneralesForm,
+  type QuestionLocal,
+} from "./brouillon"
 
 function questionCode(casTests: { entree: string; sortieAttendue: string }[]): QuestionLocal {
   return {
@@ -54,5 +60,40 @@ describe("QCM : choix unique ou multiple", () => {
   it("un choix unique avec plusieurs bonnes réponses est refusé (personne ne pourrait le réussir)", () => {
     expect(erreurQuestion(questionQcm(false, [true, true]))).toBe("Un choix unique ne peut avoir qu'une bonne réponse.")
     expect(erreurQuestion(questionQcm(true, [true, true]))).toBeNull()
+  })
+})
+
+function infos(extra: Partial<InfosGeneralesForm> = {}): InfosGeneralesForm {
+  return {
+    titre: "Réseaux", description: "Contrôle", duree: 60, dateOuverture: "2030-01-10T08:00", dateFermeture: "2030-01-10T12:00",
+    statut: "BROUILLON", promotionIds: [1], ...extra,
+  }
+}
+
+describe("validerInfos : promotions et plage d'ouverture (DS-03, DS-04)", () => {
+  it("des informations complètes sont acceptées", () => {
+    expect(validerInfos(infos())).toEqual({})
+  })
+
+  it("au moins une promotion est obligatoire (le serveur la refuse sinon)", () => {
+    expect(validerInfos(infos({ promotionIds: [] })).promotionIds).toBe("Choisissez au moins une promotion.")
+  })
+
+  it("à publier : une plage plus courte que la durée est signalée avant l'envoi (le serveur refuserait la publication)", () => {
+    const erreurs = validerInfos(infos({ statut: "PUBLIEE", duree: 90, dateFermeture: "2030-01-10T09:00" }))
+    expect(erreurs.dateFermeture).toContain("La plage d'ouverture (60 min) est plus courte que la durée (90 min)")
+  })
+
+  it("à publier : une durée égale à la plage est acceptée", () => {
+    expect(validerInfos(infos({ statut: "PUBLIEE", duree: 240 }))).toEqual({})
+  })
+
+  it("en brouillon : la plage n'est pas exigée, les dates se règlent souvent en dernier", () => {
+    expect(validerInfos(infos({ statut: "BROUILLON", duree: 90, dateFermeture: "2030-01-10T09:00" }))).toEqual({})
+  })
+
+  it("une fermeture avant l'ouverture reste refusée, sans message de plage en plus", () => {
+    const erreurs = validerInfos(infos({ statut: "PUBLIEE", dateFermeture: "2030-01-10T07:00" }))
+    expect(erreurs.dateFermeture).toBe("La fermeture doit être après l'ouverture.")
   })
 })

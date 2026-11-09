@@ -1,84 +1,60 @@
 import { useState } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Send, Users, FileText, CheckCircle2 } from "lucide-react"
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table"
-import { Send, Users, Award, CheckCircle2 } from "lucide-react"
-import type { Evaluation, StatutEvaluation } from "@/types"
+  CLE_EVALUATIONS_ENSEIGNANT,
+  libelleNbQuestions,
+  mesEvaluationsEnseignant,
+  publierResultats,
+  type ResultatsPublicationApi,
+} from "@/lib/evaluationsEnseignant"
+import { messageErreur } from "@/lib/passation"
 
 // ============================================================
-// Données mockées — à remplacer par :
-// const { data: evals } = useQuery({ queryKey: ["enseignant-evaluations-terminees"],
-//   queryFn: () => api.get("/enseignant/evaluations?statut=TERMINEE,CORRIGEE") })
-// Publication : POST /api/enseignant/evaluations/{id}/publier-resultats
+// Publication des résultats (DS-07). Les évaluations terminées viennent de l'API ; la publication appelle
+// POST /api/enseignant/evaluations/{id}/resultats/publier. Le détail des notes par étudiant viendra avec
+// les statistiques (DS-09) : aucune note n'est inventée ici.
 // ============================================================
 
-interface EvalAvecResultats extends Pick<Evaluation, "id" | "titre" | "statut"> {
-  nbParticipants: number
-  moyenne: number
-  resultatsPublies: boolean
-  dateCorrection: string
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
 }
 
-const EVALS: EvalAvecResultats[] = [
-  { id: 1, titre: "Structures de données — QCM",        statut: "TERMINEE", nbParticipants: 42, moyenne: 13.4, resultatsPublies: false, dateCorrection: "2026-07-13" },
-  { id: 2, titre: "Génie logiciel — questions ouvertes", statut: "TERMINEE", nbParticipants: 38, moyenne: 11.8, resultatsPublies: false, dateCorrection: "2026-07-14" },
-  { id: 3, titre: "Réseaux — questions ouvertes",        statut: "PUBLIEE",  nbParticipants: 38, moyenne: 13.5, resultatsPublies: true,  dateCorrection: "2026-07-05" },
-  { id: 4, titre: "Bases de données — quiz",             statut: "PUBLIEE",  nbParticipants: 40, moyenne: 14.1, resultatsPublies: true,  dateCorrection: "2026-07-10" },
-]
-
-interface ResultatEtudiant {
-  id: number
-  nom: string
-  prenom: string
-  note: number
-  noteMax: number
-  statut: "VALIDE" | "ECHEC"
-}
-
-const RESULTATS_MOCK: ResultatEtudiant[] = [
-  { id: 1, nom: "Diop",   prenom: "Moussa",   note: 15.0, noteMax: 20, statut: "VALIDE" },
-  { id: 2, nom: "Ndiaye", prenom: "Awa",       note: 17.5, noteMax: 20, statut: "VALIDE" },
-  { id: 3, nom: "Ba",     prenom: "Cheikh",    note: 8.0,  noteMax: 20, statut: "ECHEC"  },
-  { id: 4, nom: "Sy",     prenom: "Mariama",   note: 14.0, noteMax: 20, statut: "VALIDE" },
-  { id: 5, nom: "Fall",   prenom: "Ibrahima",  note: 11.5, noteMax: 20, statut: "VALIDE" },
-  { id: 6, nom: "Mbaye",  prenom: "Sokhna",    note: 19.0, noteMax: 20, statut: "VALIDE" },
-]
-
-const STATUT_CFG: Record<StatutEvaluation, { label: string; cls: string }> = {
-  BROUILLON: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-transparent"                          },
-  PUBLIEE:   { label: "Publiée",   cls: "bg-primary/10 text-primary border-primary/20"                              },
-  EN_COURS:  { label: "En cours",  cls: "bg-blue-500/10 text-blue-700 border-blue-500/20 dark:text-blue-400"        },
-  TERMINEE:  { label: "Terminée",  cls: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20 dark:text-yellow-400"},
+function bilan(r: ResultatsPublicationApi) {
+  const notifiees = `${r.nbCopiesNotees} copie${r.nbCopiesNotees > 1 ? "s" : ""} notifiée${r.nbCopiesNotees > 1 ? "s" : ""}`
+  return r.nbCopiesEnAttente > 0
+    ? `Résultats publiés : ${notifiees}, ${r.nbCopiesEnAttente} en attente de notation (leur étudiant sera notifié à la notation).`
+    : `Résultats publiés : ${notifiees}.`
 }
 
 export default function PublicationResultats() {
-  const [evals, setEvals]         = useState(EVALS)
-  const [selected, setSelected]   = useState<number | null>(null)
-  const [tab, setTab]             = useState("a_publier")
-  const [publishing, setPublishing] = useState<number | null>(null)
+  const [selected, setSelected] = useState<number | null>(null)
+  const [tab, setTab]           = useState("a_publier")
+  const [erreur, setErreur]     = useState<string | null>(null)
+  const [info, setInfo]         = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
-  const filtered = evals.filter(e =>
-    tab === "a_publier" ? !e.resultatsPublies : e.resultatsPublies
-  )
+  const evaluations = useQuery({ queryKey: CLE_EVALUATIONS_ENSEIGNANT, queryFn: mesEvaluationsEnseignant })
 
-  const evalSelected = evals.find(e => e.id === selected)
+  const publication = useMutation({
+    mutationFn: publierResultats,
+    onSuccess: (r) => { setErreur(null); setInfo(bilan(r)); setSelected(null) },
+    onError: (e) => { setInfo(null); setErreur(messageErreur(e, "La publication des résultats a échoué.")) },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: CLE_EVALUATIONS_ENSEIGNANT }),
+  })
 
-  async function handlePublier(id: number) {
-    setPublishing(id)
-    try {
-      // TODO : await api.post(`/enseignant/evaluations/${id}/publier-resultats`)
-      await new Promise(r => setTimeout(r, 800)) // simule l'appel API
-      setEvals(es => es.map(e => e.id === id
-        ? { ...e, resultatsPublies: true, statut: "PUBLIEE" as StatutEvaluation }
-        : e
-      ))
-      if (selected === id) setSelected(null)
-    } finally {
-      setPublishing(null)
+  // Seules les évaluations terminées ont des résultats à publier
+  const terminees = (evaluations.data ?? []).filter((e) => e.statut === "TERMINEE")
+  const filtered = terminees.filter((e) => (tab === "a_publier" ? !e.resultatsPublies : e.resultatsPublies))
+  const evalSelected = terminees.find((e) => e.id === selected)
+
+  function publier(id: number, titre: string) {
+    if (window.confirm(`Publier les résultats de « ${titre} » ? Les étudiants verront leurs notes et les corrigés.`)) {
+      publication.mutate(id)
     }
   }
 
@@ -88,32 +64,49 @@ export default function PublicationResultats() {
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Publication des résultats</h1>
         <p className="mt-1 text-muted-foreground">
-          Publiez les résultats pour notifier les étudiants de la promotion.
+          Publiez les résultats d'une évaluation terminée : les étudiants voient leur note et les corrigés, et reçoivent une notification.
         </p>
       </div>
 
+      {erreur && (
+        <p role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {erreur}
+        </p>
+      )}
+      {info && (
+        <p role="status" className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-2.5 text-sm text-foreground">
+          {info}
+        </p>
+      )}
+
       <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
 
-        {/* Liste des évaluations */}
+        {/* Liste des évaluations terminées */}
         <div className="flex flex-col gap-3">
-          <Tabs value={tab} onValueChange={setTab}>
+          <Tabs value={tab} onValueChange={(v) => { setTab(v); setSelected(null) }}>
             <TabsList className="w-full rounded-xl">
               <TabsTrigger value="a_publier" className="flex-1">À publier</TabsTrigger>
               <TabsTrigger value="publiees"  className="flex-1">Publiées</TabsTrigger>
             </TabsList>
           </Tabs>
 
-          {filtered.length === 0 ? (
+          {evaluations.isPending ? (
+            <p role="status" className="py-12 text-center text-sm text-muted-foreground">Chargement des évaluations…</p>
+          ) : evaluations.isError ? (
+            <p role="alert" className="py-12 text-center text-sm text-destructive">
+              Impossible de charger vos évaluations.{" "}
+              <button type="button" onClick={() => evaluations.refetch()} className="underline">Réessayer</button>
+            </p>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-border py-12 text-center text-muted-foreground">
               <CheckCircle2 className="size-6 text-primary" />
               <p className="text-sm font-medium">
-                {tab === "a_publier" ? "Aucune évaluation en attente." : "Aucun résultat publié."}
+                {tab === "a_publier" ? "Aucune évaluation terminée en attente de publication." : "Aucun résultat publié."}
               </p>
             </div>
           ) : (
             <div className="flex flex-col gap-2">
-              {filtered.map(e => {
-                const { label, cls } = STATUT_CFG[e.statut]
+              {filtered.map((e) => {
                 const isSelected = selected === e.id
                 return (
                   <button
@@ -130,13 +123,20 @@ export default function PublicationResultats() {
                   >
                     <span className="flex items-start justify-between gap-2">
                       <span className="block text-[13px] font-semibold leading-snug">{e.titre}</span>
-                      <Badge variant="outline" className={`shrink-0 rounded-full text-[11px] font-semibold ${cls}`}>
-                        {label}
+                      <Badge
+                        variant="outline"
+                        className={`shrink-0 rounded-full text-[11px] font-semibold ${
+                          e.resultatsPublies
+                            ? "bg-primary/10 text-primary border-primary/20"
+                            : "bg-yellow-500/10 text-yellow-700 border-yellow-500/20 dark:text-yellow-400"
+                        }`}
+                      >
+                        {e.resultatsPublies ? "Publiés" : "À publier"}
                       </Badge>
                     </span>
-                    <span className="block mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-1"><Users className="size-3" />{e.nbParticipants} étudiants</span>
-                      <span className="flex items-center gap-1"><Award className="size-3" />Moy. {e.moyenne} / 20</span>
+                    <span className="mt-2 flex items-center gap-4 text-[11px] text-muted-foreground">
+                      <span className="flex items-center gap-1"><Users className="size-3" />{e.nbCopies ?? 0} / {e.nbAttendus ?? 0} copies</span>
+                      <span className="flex items-center gap-1"><FileText className="size-3" />{libelleNbQuestions(e.nbQuestions)}</span>
                     </span>
                   </button>
                 )
@@ -150,80 +150,46 @@ export default function PublicationResultats() {
           {!evalSelected ? (
             <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-border py-16 text-center text-muted-foreground">
               <p className="font-medium">Sélectionnez une évaluation</p>
-              <p className="mt-1 text-sm">pour voir les résultats avant publication.</p>
+              <p className="mt-1 text-sm">pour la publier ou consulter son état.</p>
             </div>
           ) : (
             <Card className="rounded-2xl border-border/60 shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base font-bold">{evalSelected.titre}</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  {evalSelected.nbParticipants} étudiants · Moy. {evalSelected.moyenne} / 20
+                  Fermée le {formatDate(evalSelected.dateFermeture)} · {evalSelected.nbCopies ?? 0} copie{(evalSelected.nbCopies ?? 0) > 1 ? "s" : ""} sur {evalSelected.nbAttendus ?? 0} attendue{(evalSelected.nbAttendus ?? 0) > 1 ? "s" : ""}
                 </p>
               </CardHeader>
-              <CardContent className="flex flex-col gap-4 p-0">
+              <CardContent className="flex flex-col gap-4">
 
-                {/* Table résultats */}
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Étudiant</TableHead>
-                      <TableHead>Note</TableHead>
-                      <TableHead>Résultat</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {RESULTATS_MOCK.map(r => (
-                      <TableRow key={r.id}>
-                        <TableCell>
-                          <span className="font-semibold">{r.prenom} {r.nom}</span>
-                        </TableCell>
-                        <TableCell className="font-bold">
-                          {r.note} / {r.noteMax}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={`rounded-full text-[11px] font-semibold ${
-                              r.statut === "VALIDE"
-                                ? "bg-primary/10 text-primary border-primary/20"
-                                : "bg-destructive/10 text-destructive border-destructive/20"
-                            }`}
-                          >
-                            {r.statut === "VALIDE" ? "Validé" : "Échec"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-
-                {/* Bouton publication */}
                 {!evalSelected.resultatsPublies && (
-                  <div className="border-t border-border px-6 pb-5 pt-4">
-                    <div className="mb-3 rounded-xl bg-primary/5 border border-primary/20 px-4 py-3 text-sm text-muted-foreground">
-                      <span className="font-semibold text-foreground">
-                        {evalSelected.nbParticipants} étudiants
-                      </span>{" "}
-                      seront notifiés par email à la publication.
+                  <>
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+                      Les étudiants ayant une copie notée verront leur note et les corrigés, et recevront une notification
+                      dans l'application. Une copie pas encore notée reste « en attente » : son étudiant est notifié dès qu'elle l'est.
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      La publication est possible 2 minutes après la fermeture, une fois plus personne ne peut rendre sa copie.
+                      Elle est définitive.
+                    </p>
                     <Button
                       className="w-full rounded-xl"
-                      onClick={() => handlePublier(evalSelected.id)}
-                      disabled={publishing === evalSelected.id}
+                      onClick={() => publier(evalSelected.id, evalSelected.titre)}
+                      disabled={publication.isPending}
                     >
-                      {publishing === evalSelected.id ? (
+                      {publication.isPending ? (
                         "Publication en cours..."
                       ) : (
                         <><Send className="size-4" /> Publier les résultats</>
                       )}
                     </Button>
-                  </div>
+                  </>
                 )}
 
                 {evalSelected.resultatsPublies && (
-                  <div className="flex items-center gap-2 border-t border-border px-6 pb-5 pt-4 text-sm text-primary">
+                  <div className="flex items-center gap-2 text-sm text-primary">
                     <CheckCircle2 className="size-4" />
-                    Résultats déjà publiés — étudiants notifiés.
+                    Résultats déjà publiés : les étudiants ont été notifiés.
                   </div>
                 )}
               </CardContent>

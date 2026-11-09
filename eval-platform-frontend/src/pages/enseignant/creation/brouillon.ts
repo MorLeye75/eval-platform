@@ -1,8 +1,11 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useLocation, useNavigate, useParams } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
+import { isAxiosError } from "axios"
 import type { StatutEvaluation, TypeQuestion } from "@/types"
-import { getEvaluationEnseignant } from "@/mocks/evaluationsEnseignant"
 import { CLE_BROUILLON_EVALUATION } from "@/lib/session"
+import { cleEvaluationEnseignant, detailEvaluationEnseignant } from "@/lib/evaluationsEnseignant"
+import { versBrouillon } from "./apiBrouillon"
 
 // ============================================================
 // Brouillon partagé par les 3 étapes de l'assistant de création / édition.
@@ -18,6 +21,7 @@ export interface InfosGeneralesForm {
   dateOuverture: string  // format datetime-local (AAAA-MM-JJTHH:mm)
   dateFermeture: string  // format datetime-local (AAAA-MM-JJTHH:mm)
   statut: StatutEvaluation
+  promotionIds: number[] // au moins une (GET /promotions)
 }
 
 export interface ChoixLocal {
@@ -60,6 +64,7 @@ export const INFOS_VIDES: InfosGeneralesForm = {
   dateOuverture: "",
   dateFermeture: "",
   statut: "BROUILLON",
+  promotionIds: [],
 }
 
 // Effacé à la déconnexion et sur jeton refusé (voir lib/session)
@@ -100,6 +105,13 @@ export function validerInfos(form: InfosGeneralesForm) {
   if (!form.dateFermeture)      erreurs.dateFermeture = "La date de fermeture est obligatoire."
   if (form.dateOuverture && form.dateFermeture && form.dateFermeture <= form.dateOuverture)
     erreurs.dateFermeture = "La fermeture doit être après l'ouverture."
+  if (form.promotionIds.length === 0) erreurs.promotionIds = "Choisissez au moins une promotion."
+  // La fin d'une épreuve est plafonnée à la fermeture : sans plage assez longue, la publication serait refusée
+  if (form.statut === "PUBLIEE" && form.dateOuverture && form.dateFermeture && form.dateFermeture > form.dateOuverture) {
+    const plage = Math.round((new Date(form.dateFermeture).getTime() - new Date(form.dateOuverture).getTime()) / 60_000)
+    if (form.duree > plage)
+      erreurs.dateFermeture = `La plage d'ouverture (${plage} min) est plus courte que la durée (${form.duree} min) : allongez la fermeture.`
+  }
   return erreurs
 }
 
@@ -150,7 +162,10 @@ export function erreurQuestion(q: QuestionLocal): string | null {
 function lireBrouillon(): BrouillonEvaluation | null {
   try {
     const brut = sessionStorage.getItem(CLE_STOCKAGE)
-    return brut ? (JSON.parse(brut) as BrouillonEvaluation) : null
+    if (!brut) return null
+    const brouillon = JSON.parse(brut) as BrouillonEvaluation
+    // Un brouillon gardé avant l'ajout du choix des promotions n'a pas ce champ
+    return { ...brouillon, infos: { ...brouillon.infos, promotionIds: brouillon.infos.promotionIds ?? [] } }
   } catch {
     return null
   }
@@ -164,27 +179,9 @@ export function effacerBrouillon() {
   }
 }
 
-/** ISO 8601 → valeur acceptée par un <input type="datetime-local"> */
-function versDateTimeLocal(iso: string) {
-  return iso.slice(0, 16)
-}
-
+/** Brouillon vide d'une création ; en édition, il est remplacé par le détail de l'évaluation renvoyé par l'API. */
 function brouillonInitial(evaluationId: number | null): BrouillonEvaluation {
-  const evaluation = evaluationId !== null ? getEvaluationEnseignant(evaluationId) : undefined
-  if (!evaluation) return { evaluationId, infos: INFOS_VIDES, questions: [] }
-  // TODO : GET /api/enseignant/evaluations/{id} pour charger aussi les questions
-  return {
-    evaluationId,
-    infos: {
-      titre: evaluation.titre,
-      description: evaluation.description,
-      duree: evaluation.duree,
-      dateOuverture: versDateTimeLocal(evaluation.dateOuverture),
-      dateFermeture: versDateTimeLocal(evaluation.dateFermeture),
-      statut: evaluation.statut === "PUBLIEE" ? "PUBLIEE" : "BROUILLON",
-    },
-    questions: [],
-  }
+  return { evaluationId, infos: INFOS_VIDES, questions: [] }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -205,22 +202,47 @@ export function useBrouillon() {
   const evaluationId = id ? Number(id) : null
   const nouveau = (location.state as { nouveau?: boolean } | null)?.nouveau === true
 
+  // Brouillon gardé sur cet onglet (retour arrière, rechargement) : il passe avant le serveur
+  const restaure = useRef<boolean>(false)
   const [brouillon, setBrouillon] = useState<BrouillonEvaluation>(() => {
     const existant = lireBrouillon()
-    const b = !nouveau && existant && existant.evaluationId === evaluationId
-      ? existant
-      : brouillonInitial(evaluationId)
+    const garde = !nouveau && existant && existant.evaluationId === evaluationId
+    restaure.current = Boolean(garde)
+    const b = garde ? existant : brouillonInitial(evaluationId)
     reserverIds(b.questions)
     return b
   })
 
+  // Édition sans brouillon local : les questions viennent du serveur (GET /enseignant/evaluations/{id})
+  const [aCharger] = useState(() => evaluationId !== null && !restaure.current)
+  const detail = useQuery({
+    queryKey: cleEvaluationEnseignant(evaluationId ?? 0),
+    queryFn: () => detailEvaluationEnseignant(evaluationId as number),
+    enabled: aCharger,
+    retry: false,
+    refetchOnWindowFocus: false,
+    gcTime: 0, // jamais de détail périmé : le brouillon local prend ensuite le relais
+  })
+  const termine = useRef(false)
+  const detailApplique = useRef(false)
   useEffect(() => {
+    if (!detail.data || detailApplique.current) return
+    detailApplique.current = true
+    const charge = versBrouillon(detail.data)
+    reserverIds(charge.questions)
+    setBrouillon(charge)
+  }, [detail.data])
+
+  useEffect(() => {
+    // Pendant le chargement, le brouillon vide ne doit pas écraser un éventuel brouillon gardé
+    if (termine.current) return // enregistrement confirmé : le brouillon est effacé, il ne doit pas renaître
+    if (aCharger && !detailApplique.current) return
     try {
       sessionStorage.setItem(CLE_STOCKAGE, JSON.stringify(brouillon))
     } catch {
       // stockage indisponible : le brouillon ne survivra qu'à l'étape courante
     }
-  }, [brouillon])
+  }, [brouillon, aCharger])
 
   // Le marqueur « nouveau » ne doit servir qu'une fois (pas à un rechargement)
   useEffect(() => {
@@ -232,11 +254,28 @@ export function useBrouillon() {
     return etape === "infos" ? base : `${base}/${etape}`
   }
 
+  // 404 (inconnue) et 403 (évaluation d'un autre enseignant) : même message, on ne révèle pas son existence
+  const refuse = aCharger && detail.isError && isAxiosError(detail.error)
+    && (detail.error.response?.status === 404 || detail.error.response?.status === 403)
+
+  /** Enregistrement confirmé par le serveur : efface le brouillon local et empêche toute réécriture. */
+  function terminer() {
+    termine.current = true
+    effacerBrouillon()
+  }
+
   return {
     brouillon,
     setBrouillon,
+    terminer,
     estEdition: evaluationId !== null,
-    evaluationIntrouvable: evaluationId !== null && !getEvaluationEnseignant(evaluationId),
+    /** Détail de l'évaluation en cours de chargement depuis le serveur. */
+    chargement: aCharger && detail.isPending,
+    evaluationIntrouvable: Boolean(refuse),
+    /** Erreur autre que 404 / 403 (serveur injoignable, 500...). */
+    erreurChargement: aCharger && detail.isError && !refuse,
+    /** Seul un brouillon est modifiable (409 sinon) : le dire avant que l'enseignant ne retape tout. */
+    nonModifiable: detail.data !== undefined && detail.data.statut !== "BROUILLON",
     chemin,
   }
 }

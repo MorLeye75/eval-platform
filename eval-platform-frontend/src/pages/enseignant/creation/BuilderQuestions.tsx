@@ -349,6 +349,12 @@ export default function BuilderQuestions() {
                     {q.type === "CODE" && (
                       <div className="flex flex-col gap-3">
                         <Label>Cas de test</Label>
+                        <p className="rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
+                          L'étudiant écrit un <strong>programme complet</strong> : l'entrée de chaque cas arrive sur
+                          l'entrée standard (stdin) et la sortie standard (stdout) est comparée à la sortie attendue
+                          (espaces de fin de ligne ignorés). L'entrée est facultative si le programme ne lit rien ; la
+                          sortie attendue est obligatoire et ne peut pas être vide.
+                        </p>
                         {q.casTests?.map((ct, i) => (
                           <div key={ct.id} className="rounded-xl border border-border p-3">
                             <div className="mb-2 flex items-center justify-between">
@@ -370,11 +376,11 @@ export default function BuilderQuestions() {
                             </div>
                             <div className="grid gap-2 md:grid-cols-2">
                               <div className="flex flex-col gap-1">
-                                <Label className="text-[11px]">Entrée</Label>
-                                <Input value={ct.entree} onChange={(e) => updateCasTest(q.localId, ct.id, { entree: e.target.value })} className="rounded-lg font-mono text-xs" placeholder="stdin" />
+                                <Label className="text-[11px]">Entrée (facultative)</Label>
+                                <Input value={ct.entree} onChange={(e) => updateCasTest(q.localId, ct.id, { entree: e.target.value })} className="rounded-lg font-mono text-xs" placeholder="stdin (facultatif)" />
                               </div>
                               <div className="flex flex-col gap-1">
-                                <Label className="text-[11px]">Sortie attendue</Label>
+                                <Label className="text-[11px]">Sortie attendue (obligatoire)</Label>
                                 <Input value={ct.sortieAttendue} onChange={(e) => updateCasTest(q.localId, ct.id, { sortieAttendue: e.target.value })} className="rounded-lg font-mono text-xs" placeholder="stdout attendu" />
                               </div>
                             </div>
