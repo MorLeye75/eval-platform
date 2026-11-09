@@ -24,7 +24,8 @@ export default function SaisieCode({ question, code, langage, onChange }: Saisie
       {/* Sélecteur de langage */}
       <div className="flex items-center gap-3">
         <span className="text-xs font-semibold text-muted-foreground">Langage</span>
-        <Select value={langage} onValueChange={(l) => l && onChange({ langage: l })}>
+        {/* items : le libellé (« Python ») s'affiche même avant la première ouverture de la liste, pas l'identifiant */}
+        <Select items={LANGAGES_LABELS} value={langage} onValueChange={(l) => l && onChange({ langage: l })}>
           <SelectTrigger className="w-44 rounded-xl">
             <SelectValue />
           </SelectTrigger>
