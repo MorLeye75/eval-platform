@@ -172,16 +172,17 @@ cd eval-platform-frontend && npm test && npx tsc -b --noEmit && npm run lint
 `mvn clean test` plutôt qu'une compilation incrémentale : celle-ci a déjà produit des `NoClassDefFoundError`.
 
 **Collection Postman** (`docs/Plateforme_Evaluation_Postman_Collection.json`). Elle couvre la connexion et
-`/auth/me`, la passation QCM, le quiz, l'épreuve de code et les résultats. Parcours étudiant, à lancer sur une
-base neuve (profil `h2-dev`) :
+`/auth/me`, la passation QCM, le quiz, l'épreuve de code et les résultats (16 requêtes, 17 assertions). Chaque
+login range son propre jeton : `{{token}}` pour l'étudiant (dossiers 02 à 04), `{{tokenEnseignant}}` et
+`{{tokenAdmin}}`. Elle se joue d'un bout à l'autre sur une base neuve (profil `h2-dev`), et la CI le fait à chaque
+push (tâche `api-tests`) :
 
 ```bash
 postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
-  --env-var "baseUrl=http://localhost:8080/api" \
-  -i "1.1 Login Étudiant (Aminou Niang)" -i "1.4 Profil de l'utilisateur connecté (/auth/me)" \
-  -i "02 - Passation & Soumission (DS-01, DS-02, DS-10)" -i "03 - Épreuve de code (DS-12)" \
-  -i "04 - Résultats de l'étudiant (DS-13)"
+  --env-var "baseUrl=http://localhost:8080/api"
 ```
+
+Rejouée sur la même base, elle échoue : les copies sont déjà remises.
 
 ## 9. Reste à faire
 

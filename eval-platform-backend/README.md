@@ -218,5 +218,6 @@ mvn test
 - **Test PostgreSQL** (`MigrationPostgresIntegrationTest`, Testcontainers) : applique la migration Flyway sur un vrai
   PostgreSQL et rejoue une passation. Il nécessite Docker ; sans Docker, il est ignoré localement mais s'exécute en CI.
 
-La CI GitHub Actions (`.github/workflows/ci.yml`) compile et lance les tests du backend et du frontend à chaque push
-sur `main`, `feature/**`, `feat/**`, `fix/**`, `refactor/**` et `docs/**`, ainsi qu'à chaque pull request vers `main`.
+La CI GitHub Actions (`.github/workflows/ci.yml`) lance les tests du backend, le lint (oxlint), les tests et le build
+du frontend, la collection Postman contre le vrai backend (base neuve, profil `h2-dev`) et les tests de bout en bout
+Playwright. Elle s'exécute à chaque push sur `main`, `feature/**`, `feat/**`, `fix/**`, `refactor/**` et `docs/**`, ainsi qu'à chaque pull request vers `main`.
