@@ -9,9 +9,9 @@
 [![Testing: Testcontainers](https://img.shields.io/badge/Testing-Testcontainers-black.svg)](https://testcontainers.com/)
 [![Sandbox: Judge0](https://img.shields.io/badge/Sandbox-Judge0-red.svg)](https://judge0.com/)
 
-**EvalPlatform** is an enterprise-grade, open-source digital assessment, automated code-grading, and academic integrity platform designed for higher education. 
+**EvalPlatform** is an open-source digital assessment, automated code-grading, and academic integrity platform currently under active development at **École Polytechnique de Thiès (EPT, Senegal)** as a transversal engineering project (DIC1-GIT).
 
-Initially engineered for **École Polytechnique de Thiès (EPT, Senegal)**, EvalPlatform addresses the high licensing costs, lack of infrastructure resilience (network packet loss, campus NAT bottlenecks), and monolithic limitations of commercial proctoring tools by offering a sovereign, reliable, and modern examination system.
+It is designed to address the high licensing costs, lack of infrastructure resilience (network packet loss, campus NAT bottlenecks), and fragmented workflows of existing tools by offering a sovereign, reliable, and self-hosted examination system for computer science education.
 
 ---
 
