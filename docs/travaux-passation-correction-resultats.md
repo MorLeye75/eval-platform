@@ -87,8 +87,14 @@ comptent pas.
   lot, identifiants des langages, limites maximales acceptées.
 - Parcours réel avec un Judge0 injoignable : tentatives comptées et relancées comme prévu.
 
-**Pas encore vérifié.** L'exécution sur un vrai Judge0. Judge0 1.13 exige les cgroups v1, alors que Docker
-Desktop sous WSL2 est en v2. Il faut soit modifier la configuration WSL, soit utiliser une machine Linux.
+**Vérifié face à un vrai Judge0 1.13.1** (9 novembre, `deploy/judge0/` sous Docker Desktop) : jeton exigé (401 sinon),
+les 5 langages présents, et la plateforme envoie, interroge et classe correctement les réponses. Ce test a révélé un
+défaut invisible avec un serveur simulé : le client HTTP envoyait le corps par morceaux (`chunked`), que Judge0
+ignore (422). Corrigé : corps mis en tampon, envoyé avec sa longueur.
+
+**Pas encore vérifié.** L'exécution elle-même : sur ce poste, le bac à sable échoue (statut 13, « Failed to create
+control group /sys/fs/cgroup/memory »), car WSL 2.7.3 ne propose plus les cgroups v1. La plateforme le traite comme
+prévu (Judge0 indisponible, nouvel essai). Il reste à lancer `verifier.sh` sur un hôte Linux en cgroups v1.
 
 ## 4. Clôture automatique des copies — DS-11
 

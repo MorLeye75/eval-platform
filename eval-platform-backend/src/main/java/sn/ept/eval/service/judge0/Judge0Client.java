@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
@@ -92,12 +93,16 @@ public class Judge0Client {
                 .build();
     }
 
-    /** Aucun appel ne bloque sans fin : connexion 5 s, lecture 15 s par défaut. */
+    /**
+     * Aucun appel ne bloque sans fin : connexion 5 s, lecture 15 s par défaut.
+     * Corps mis en tampon : il part avec sa longueur (Content-Length). Envoyé par morceaux (chunked, ce que fait le
+     * client du JDK sinon), il est ignoré par Judge0, qui répond 422 « source_code can't be blank ».
+     */
     private static ClientHttpRequestFactory fabriqueAvecDelais(Judge0Proprietes proprietes) {
         HttpClient client = HttpClient.newBuilder().connectTimeout(proprietes.delaiConnexion()).build();
         JdkClientHttpRequestFactory fabrique = new JdkClientHttpRequestFactory(client);
         fabrique.setReadTimeout(proprietes.delaiLecture());
-        return fabrique;
+        return new BufferingClientHttpRequestFactory(fabrique);
     }
 
     public boolean langageConnu(String langage) {
