@@ -14,6 +14,7 @@ import sn.ept.eval.repository.PromotionRepository;
 import sn.ept.eval.repository.UtilisateurRepository;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -25,6 +26,9 @@ import java.util.Set;
 public class DataInitializer implements CommandLineRunner {
 
     private static final Logger logger = LoggerFactory.getLogger(DataInitializer.class);
+
+    /** Titre du quiz de démonstration (ni « QCM » ni « code » : les tests repèrent les autres évaluations ainsi). */
+    static final String TITRE_QUIZ_DEMO = "Bases de données — Quiz chronométré";
 
     private final UtilisateurRepository utilisateurRepository;
     private final PromotionRepository promotionRepository;
@@ -46,6 +50,7 @@ public class DataInitializer implements CommandLineRunner {
     public void run(String... args) throws Exception {
         if (utilisateurRepository.count() > 0) {
             logger.info("Données initiales déjà présentes.");
+            ajouterQuizDemo();
             return;
         }
 
@@ -114,7 +119,54 @@ public class DataInitializer implements CommandLineRunner {
 
         evaluationRepository.save(eval2);
 
+        ajouterQuizDemo();
+
         logger.info("Données de test initialisées avec succès !");
         logger.info("Comptes de démonstration créés : admin@ept.sn, prof@ept.sn, etudiant@ept.sn");
+    }
+
+    /**
+     * Quiz chronométré de démonstration, pour essayer l'écran du quiz à la main. Ajouté aussi à une base déjà
+     * remplie (base de développement existante), une seule fois : il est reconnu à son titre.
+     */
+    private void ajouterQuizDemo() {
+        if (evaluationRepository.existsByTitre(TITRE_QUIZ_DEMO)) return;
+        Enseignant prof = utilisateurRepository.findByEmail("prof@ept.sn")
+                .filter(Enseignant.class::isInstance).map(Enseignant.class::cast).orElse(null);
+        Promotion dic2 = promotionRepository.findByNom("DIC2 Informatique").orElse(null);
+        if (prof == null || dic2 == null) return; // base sans les comptes de démonstration
+
+        Evaluation quiz = new Evaluation();
+        quiz.setTitre(TITRE_QUIZ_DEMO);
+        quiz.setDescription("Quiz chronométré : une question à la fois, sans retour en arrière.");
+        quiz.setDureeStandard(10);
+        quiz.setDateOuverture(LocalDateTime.now().minusHours(1));
+        quiz.setDateFermeture(LocalDateTime.now().plusDays(3));
+        quiz.setStatut(StatutEvaluation.EN_COURS);
+        quiz.setResultatsPublies(false);
+        quiz.setEnseignant(prof);
+        quiz.setPromotions(new HashSet<>(Set.of(dic2)));
+
+        QuestionQuiz q1 = new QuestionQuiz("Quelle commande SQL supprime toutes les lignes d'une table sans la supprimer ?", 1, 1.0, false, 30);
+        q1.addChoix(new ChoixReponse("DROP TABLE", false));
+        q1.addChoix(new ChoixReponse("TRUNCATE TABLE", true));
+        q1.addChoix(new ChoixReponse("ALTER TABLE", false));
+        quiz.addQuestion(q1);
+
+        QuestionQuiz q2 = new QuestionQuiz("Quelles propriétés font partie de ACID ?", 2, 2.0, true, 45);
+        q2.addChoix(new ChoixReponse("Atomicité", true));
+        q2.addChoix(new ChoixReponse("Disponibilité", false));
+        q2.addChoix(new ChoixReponse("Isolation", true));
+        q2.addChoix(new ChoixReponse("Durabilité", true));
+        quiz.addQuestion(q2);
+
+        QuestionQuiz q3 = new QuestionQuiz("Une clé étrangère référence…", 3, 1.0, false, 20);
+        q3.addChoix(new ChoixReponse("la clé primaire d'une autre table (ou de la même)", true));
+        q3.addChoix(new ChoixReponse("un index quelconque", false));
+        q3.addChoix(new ChoixReponse("une vue", false));
+        quiz.addQuestion(q3);
+
+        evaluationRepository.save(quiz);
+        logger.info("Quiz chronométré de démonstration ajouté : « {} »", TITRE_QUIZ_DEMO);
     }
 }

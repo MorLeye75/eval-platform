@@ -17,6 +17,7 @@ import java.util.Optional;
 public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
     List<Evaluation> findByEnseignantId(Long enseignantId);
     List<Evaluation> findByStatut(StatutEvaluation statut);
+    boolean existsByTitre(String titre);
     List<Evaluation> findByPromotionsId(Long promotionId);
     List<Evaluation> findByPromotionsIdAndStatutInOrderByDateOuvertureDesc(Long promotionId, Collection<StatutEvaluation> statuts);
 

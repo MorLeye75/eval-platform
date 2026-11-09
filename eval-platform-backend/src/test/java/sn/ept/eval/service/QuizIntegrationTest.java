@@ -197,4 +197,19 @@ class QuizIntegrationTest {
         assertThat(fin.getQuiz().indexQuestion()).isEqualTo(3);
         assertThat(fin.getQuestions()).isEmpty();
     }
+
+    @Test
+    @DisplayName("Quiz de démonstration : présent une seule fois, et un étudiant le démarre sur sa première question")
+    void quizDeDemonstration() {
+        List<Evaluation> quizDemo = evaluationRepository.findAll().stream()
+                .filter(e -> e.getTitre().equals("Bases de données — Quiz chronométré")).toList();
+        assertThat(quizDemo).hasSize(1);
+
+        SoumissionDetailResponse copie = soumissionService.demarrerOuReprendre(quizDemo.get(0).getId(), email);
+
+        assertThat(copie.getQuiz().nbQuestions()).isEqualTo(3);
+        assertThat(copie.getQuiz().indexQuestion()).isZero();
+        assertThat(copie.getQuiz().dureeQuestion()).isEqualTo(30);
+        assertThat(copie.getQuestions()).hasSize(1); // seule la question en cours est envoyée
+    }
 }
