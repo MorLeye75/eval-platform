@@ -193,8 +193,9 @@ class ResultatsIntegrationTest {
                 .andExpect(jsonPath("$.noteFinale").value(2.0))
                 .andExpect(jsonPath("$.totalPoints").value(5.0))
                 .andExpect(jsonPath("$.questions", hasSize(2)))
-                .andExpect(jsonPath("$.questions[0].noteObtenue").value(2.0))
-                .andExpect(jsonPath("$.questions[1].noteObtenue").value(0.0))
+                // Avant la fermeture : note totale seulement, les points par question QCM révéleraient le corrigé
+                .andExpect(jsonPath("$.questions[0].noteObtenue").doesNotExist())
+                .andExpect(jsonPath("$.questions[1].noteObtenue").doesNotExist())
                 .andExpect(jsonPath("$.questions[1].choix[?(@.texte == 'Python')].coche").value(true));
     }
 
@@ -225,7 +226,10 @@ class ResultatsIntegrationTest {
         mockMvc.perform(get("/soumissions/{id}/resultats", id).header("Authorization", auth))
                 .andExpect(jsonPath("$.corrigeVisible").value(false))
                 .andExpect(jsonPath("$.questions[*].choix[*].estCorrect", everyItem(nullValue())))
-                .andExpect(jsonPath("$.questions[0].noteObtenue").value(2.0)); // la note, elle, est visible
+                .andExpect(jsonPath("$.noteFinale").value(2.0)) // la note totale, elle, est visible
+                // « 2/2 points » à côté des choix cochés dirait lesquels sont justes : points masqués aussi
+                .andExpect(jsonPath("$.questions[0].noteObtenue").doesNotExist())
+                .andExpect(jsonPath("$.questions[1].noteObtenue").doesNotExist());
 
         // Fermée depuis 1 min : encore dans la marge, quelqu'un peut être en train de remettre
         jdbcTemplate.update("update evaluations set date_fermeture = ? where id = ?", LocalDateTime.now().minusMinutes(1), evalId);
@@ -235,6 +239,8 @@ class ResultatsIntegrationTest {
         jdbcTemplate.update("update evaluations set date_fermeture = ? where id = ?", LocalDateTime.now().minusMinutes(3), evalId);
         mockMvc.perform(get("/soumissions/{id}/resultats", id).header("Authorization", auth))
                 .andExpect(jsonPath("$.corrigeVisible").value(true))
+                .andExpect(jsonPath("$.questions[0].noteObtenue").value(2.0))
+                .andExpect(jsonPath("$.questions[1].noteObtenue").value(0.0))
                 .andExpect(jsonPath("$.questions[0].choix[?(@.id == " + choix4 + ")].estCorrect").value(true))
                 .andExpect(jsonPath("$.questions[0].choix[?(@.id == " + choix5 + ")].estCorrect").value(false));
     }

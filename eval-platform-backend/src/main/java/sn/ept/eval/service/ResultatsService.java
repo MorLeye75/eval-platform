@@ -110,8 +110,12 @@ public class ResultatsService {
         }
 
         ReponseEtudiant re = (ReponseEtudiant) reponse;
+        // QCM avant le corrigé : « 2/2 points » à côté des choix cochés dirait lesquels sont justes, à un camarade
+        // qui compose encore (tiers-temps). Seule la note totale est donnée ; les points reviennent avec le corrigé.
+        boolean pointsMasques = question instanceof QuestionQCM && !corrigeVisible;
+        Double note = (re == null || pointsMasques) ? null : re.getNoteObtenue();
         return new ResultatQuestionDto(q.getId(), q.getOrdre(), q.getType(), q.getEnonce(), q.getPoints(),
-                re == null ? null : re.getNoteObtenue(), re == null ? null : re.getCommentaireProf(),
+                note, re == null ? null : re.getCommentaireProf(),
                 choix, texte, code, langage, casTests);
     }
 

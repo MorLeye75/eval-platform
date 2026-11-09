@@ -94,12 +94,15 @@ describe("détail des résultats d'une copie (GET /soumissions/{id}/resultats)",
     expect(await screen.findByText("Détail de l'évaluation")).toBeTruthy()
   })
 
-  it("avant la fermeture : note et réponse de l'étudiant, corrigé annoncé mais pas affiché", async () => {
-    repondre(copie({}))
+  it("avant la fermeture : note totale et réponse de l'étudiant, ni corrigé ni points des QCM", async () => {
+    // Le serveur ne renvoie pas les points d'une question QCM avant le corrigé : ils le révéleraient
+    repondre(copie({ questions: [{ ...QCM, noteObtenue: null }, CODE] }))
     afficher(<ResultatsDetail />, "/etudiant/resultats/90", "/etudiant/resultats/:id")
 
-    expect(await screen.findByText(/Les bonnes réponses seront affichées après la fermeture/)).toBeTruthy()
-    expect(screen.getByText("0 / 2 pts")).toBeTruthy()
+    expect(await screen.findByText(/Les bonnes réponses et les points de chaque question à choix seront affichés/)).toBeTruthy()
+    expect(screen.getByText("— / 2 pts")).toBeTruthy() // pas un « 0 » trompeur
+    expect(screen.queryByText("0 / 2 pts")).toBeNull()
+    expect(screen.getByText("1,5 / 3 pts")).toBeTruthy() // les points du code restent affichés
     expect(screen.getByText("Votre réponse")).toBeTruthy()
     expect(screen.queryByText("Réponse attendue")).toBeNull()
     expect(screen.getByText("Moyenne de la promotion communiquée à partir de 5 copies notées.")).toBeTruthy()
@@ -116,7 +119,7 @@ describe("détail des résultats d'une copie (GET /soumissions/{id}/resultats)",
     afficher(<ResultatsDetail />, "/etudiant/resultats/90", "/etudiant/resultats/:id")
 
     expect(await screen.findByText("Réponse attendue")).toBeTruthy()
-    expect(screen.queryByText(/Les bonnes réponses seront affichées/)).toBeNull()
+    expect(screen.queryByText(/Les bonnes réponses et les points/)).toBeNull()
     expect(screen.getByText(/Moyenne de la promotion : 2,5 \/ 5/)).toBeTruthy()
     expect(screen.getByText(/-1 point\(s\) de la moyenne/)).toBeTruthy()
   })

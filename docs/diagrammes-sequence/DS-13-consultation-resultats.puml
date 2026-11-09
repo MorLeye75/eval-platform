@@ -33,10 +33,11 @@ else EVALUE et evaluation.resultatsPublies
   D --> B : nombre de copies notées, moyenne
   B -> B : construit la réponse (règles de confidentialité ci-dessous)
   note right of B
-    **Bonnes réponses des QCM** (choix corrects) :
+    **Bonnes réponses des QCM** (choix corrects) **et leurs points par question** :
     seulement après dateFermeture + 2 min de marge — plus personne ne compose,
     tiers-temps compris (fin de chaque épreuve plafonnée à la fermeture) ;
-    avant, l'étudiant voit ses notes et commentaires, pas le corrigé.
+    avant, l'étudiant voit sa note totale, ses réponses et les commentaires ; pas les points
+    par question QCM, qui à côté des choix cochés diraient lesquels sont justes.
     (Option future côté publication, module d'Aminou : « corrigé jamais visible ».)
     **Cas de test visibles** : toujours affichés (entrée, sortie attendue, sortie obtenue,
     message) : ils étaient déjà montrés pendant l'épreuve.
