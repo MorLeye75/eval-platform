@@ -32,6 +32,24 @@ describe("useExamTimer (DS-01 fin du chrono)", () => {
     expect(result.current.tempsRestantFormate).toBe("30:00")
   })
 
+  it("aucun rendu ne montre 00:00 quand la copie arrive (pas de flash rouge à l'ouverture)", () => {
+    const affiches: string[] = []
+    const { rerender } = renderHook(
+      ({ dureeSecondes, enabled }: Props) => {
+        const r = useExamTimer({ dureeSecondes, onExpire: () => {}, enabled })
+        affiches.push(r.tempsRestantFormate)
+        return r
+      },
+      { initialProps: { dureeSecondes: 0, enabled: false } }
+    )
+    affiches.length = 0 // avant le chargement, l'écran du chrono n'est pas affiché
+
+    rerender({ dureeSecondes: 1800, enabled: true })
+
+    expect(affiches.length).toBeGreaterThan(0)
+    expect(affiches).not.toContain("00:00")
+  })
+
   it("déclenche l'expiration une seule fois quand le temps est écoulé", () => {
     const onExpire = vi.fn()
     const { result } = renderHook(() => useExamTimer({ dureeSecondes: 3, onExpire }))

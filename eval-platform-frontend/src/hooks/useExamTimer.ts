@@ -31,6 +31,16 @@ export function useExamTimer({
 }: UseExamTimerOptions) {
   const [finA, setFinA] = useState<number | null>(null)
   const [tempsRestant, setTempsRestant] = useState(Math.max(0, dureeSecondes))
+
+  // Durée reçue (copie chargée ou rechargée) : le temps affiché suit dans le même rendu. Recalé seulement dans
+  // l'effet, il montrait « 00:00 » en rouge le temps d'un affichage à l'ouverture de l'épreuve.
+  const [dureeSuivie, setDureeSuivie] = useState(dureeSecondes)
+  const dureeChangee = dureeSecondes !== dureeSuivie
+  if (dureeChangee) {
+    setDureeSuivie(dureeSecondes)
+    setTempsRestant(Math.max(0, dureeSecondes))
+  }
+  const tempsAffiche = dureeChangee ? Math.max(0, dureeSecondes) : tempsRestant
   const expirationDeclenchee = useRef(false)
   const onExpireRef = useRef(onExpire)
   useEffect(() => {
@@ -62,7 +72,7 @@ export function useExamTimer({
   }, [finA])
 
   return {
-    tempsRestant,
-    tempsRestantFormate: formatTemps(tempsRestant),
+    tempsRestant: tempsAffiche,
+    tempsRestantFormate: formatTemps(tempsAffiche),
   }
 }
