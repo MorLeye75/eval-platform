@@ -14,6 +14,12 @@ export interface Utilisateur {
   role: Role
 }
 
+/** GET /profil : identité en lecture seule ; matricule et promotion pour un étudiant seulement. */
+export interface Profil extends Utilisateur {
+  numEtudiant?: string
+  promotion?: string
+}
+
 // ---------- Énumérations (d'après le diagramme de classes) ----------
 export type StatutEvaluation =
   | "BROUILLON"

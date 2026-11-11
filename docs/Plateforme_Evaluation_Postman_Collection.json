@@ -237,6 +237,102 @@
               ]
             }
           }
+        },
+        {
+          "name": "1.5 Mon profil (lecture seule)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : identité, matricule et promotion de l'étudiant, sans mot de passe', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.role).to.equal('ETUDIANT');",
+                  "    pm.expect(p.numEtudiant).to.be.a('string');",
+                  "    pm.expect(p.promotion).to.be.a('string');",
+                  "    pm.expect(p).to.not.have.property('motDePasse');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profil"
+              ]
+            },
+            "description": "Profil de l'utilisateur connecté, tous rôles. Identité en lecture seule : elle est gérée par l'administrateur. numEtudiant et promotion pour un étudiant seulement.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.6 Changer son mot de passe : mot de passe actuel faux",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 (pas 401, qui déconnecterait le front) avec un message', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().detail).to.include('actuel');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motDePasseActuel\": \"pas-le-bon\",\n  \"nouveauMotDePasse\": \"nouveauMotDePasse\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profil/mot-de-passe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profil",
+                "mot-de-passe"
+              ]
+            },
+            "description": "Changement de son mot de passe : 204 si le mot de passe actuel est bon. Nouveau : 8 caractères au moins, 72 octets au plus (BCrypt), différent de l'actuel. Les échecs comptent avec ceux de la connexion : 429 après 5 échecs en 15 min.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
         }
       ]
     },

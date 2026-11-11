@@ -1,36 +1,29 @@
 import { useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { useAuth } from "@/context/AuthContext"
+import { changerMotDePasse, lireProfil } from "@/lib/profil"
+import { messageErreur } from "@/lib/passation"
+import type { Role } from "@/types"
 import { CheckCircle2, KeyRound, User } from "lucide-react"
 
-// ============================================================
-// Données mockées — à remplacer par :
-// GET  /api/utilisateurs/moi
-// PUT  /api/utilisateurs/moi         (infos personnelles)
-// PUT  /api/utilisateurs/moi/mdp     (changement mot de passe)
-// ============================================================
-
-const ROLE_LABEL: Record<string, string> = {
+const ROLE_LABEL: Record<Role, string> = {
   ETUDIANT:   "Étudiant",
   ENSEIGNANT: "Enseignant",
   ADMIN:      "Administrateur",
 }
 
-const ROLE_CLS: Record<string, string> = {
+const ROLE_CLS: Record<Role, string> = {
   ETUDIANT:   "bg-blue-500/10 text-blue-700 border-blue-500/20 dark:text-blue-400",
   ENSEIGNANT: "bg-primary/10 text-primary border-primary/20",
   ADMIN:      "bg-purple-500/10 text-purple-700 border-purple-500/20",
 }
 
-interface InfosForm {
-  nom: string
-  prenom: string
-  email: string
-}
+/** Longueur minimale, vérifiée aussi par le serveur (qui limite en plus à 72 octets, la limite de BCrypt). */
+const LONGUEUR_MIN = 8
 
 interface MdpForm {
   actuel: string
@@ -38,31 +31,26 @@ interface MdpForm {
   confirmation: string
 }
 
+function Champ({ libelle, valeur }: { libelle: string; valeur: string }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-xs text-muted-foreground">{libelle}</dt>
+      <dd className="text-sm font-medium break-words">{valeur}</dd>
+    </div>
+  )
+}
+
+/**
+ * Profil de l'utilisateur connecté (tous les rôles). L'identité vient du serveur et n'est pas modifiable ici : elle
+ * est gérée par l'administrateur (cahier des charges, gestion des comptes). Seul le mot de passe se change.
+ */
 export default function ProfilePage() {
-  const { user, updateUser } = useAuth()
+  const { data: profil, isPending, isError } = useQuery({ queryKey: ["profil"], queryFn: lireProfil })
 
-  const [infos, setInfos] = useState<InfosForm>({
-    nom:    user?.nom    ?? "",
-    prenom: user?.prenom ?? "",
-    email:  user?.email  ?? "",
-  })
-
-  const [mdp, setMdp] = useState<MdpForm>({
-    actuel:       "",
-    nouveau:      "",
-    confirmation: "",
-  })
-
-  const [savedInfos, setSavedInfos]   = useState(false)
-  const [savedMdp,   setSavedMdp]     = useState(false)
-  const [errorMdp,   setErrorMdp]     = useState<string | null>(null)
-  const [savingInfos, setSavingInfos] = useState(false)
-  const [savingMdp,   setSavingMdp]   = useState(false)
-
-  function setInfo<K extends keyof InfosForm>(key: K, val: string) {
-    setInfos(f => ({ ...f, [key]: val }))
-    setSavedInfos(false)
-  }
+  const [mdp, setMdp] = useState<MdpForm>({ actuel: "", nouveau: "", confirmation: "" })
+  const [savedMdp, setSavedMdp] = useState(false)
+  const [errorMdp, setErrorMdp] = useState<string | null>(null)
+  const [savingMdp, setSavingMdp] = useState(false)
 
   function setMdpField<K extends keyof MdpForm>(key: K, val: string) {
     setMdp(f => ({ ...f, [key]: val }))
@@ -70,41 +58,29 @@ export default function ProfilePage() {
     setErrorMdp(null)
   }
 
-  async function handleSaveInfos() {
-    setSavingInfos(true)
-    try {
-      // TODO : await api.put("/utilisateurs/moi", infos)
-      await new Promise(r => setTimeout(r, 600))
-      updateUser({ nom: infos.nom.trim(), prenom: infos.prenom.trim(), email: infos.email.trim() })
-      setSavedInfos(true)
-    } finally {
-      setSavingInfos(false)
-    }
-  }
-
   async function handleSaveMdp() {
     if (mdp.nouveau !== mdp.confirmation) {
       setErrorMdp("Les deux mots de passe ne correspondent pas.")
       return
     }
-    if (mdp.nouveau.length < 8) {
-      setErrorMdp("Le mot de passe doit contenir au moins 8 caractères.")
+    if (mdp.nouveau.length < LONGUEUR_MIN) {
+      setErrorMdp(`Le mot de passe doit contenir au moins ${LONGUEUR_MIN} caractères.`)
       return
     }
     setSavingMdp(true)
     try {
-      // TODO : await api.put("/utilisateurs/moi/mdp", { actuel: mdp.actuel, nouveau: mdp.nouveau })
-      await new Promise(r => setTimeout(r, 600))
+      await changerMotDePasse(mdp.actuel, mdp.nouveau)
       setMdp({ actuel: "", nouveau: "", confirmation: "" })
       setSavedMdp(true)
+    } catch (err) {
+      // Mot de passe actuel faux (400), trop d'échecs récents (429), nouveau mot de passe refusé : message du serveur
+      setErrorMdp(messageErreur(err, "Le mot de passe n'a pas pu être modifié. Vérifiez votre connexion puis réessayez."))
     } finally {
       setSavingMdp(false)
     }
   }
 
-  const initiales = user
-    ? `${user.prenom?.[0] ?? ""}${user.nom?.[0] ?? ""}`.toUpperCase()
-    : "?"
+  const initiales = profil ? `${profil.prenom?.[0] ?? ""}${profil.nom?.[0] ?? ""}`.toUpperCase() : "?"
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
@@ -113,34 +89,11 @@ export default function ProfilePage() {
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Mon profil</h1>
         <p className="mt-1 text-muted-foreground">
-          Gérez vos informations personnelles et votre mot de passe.
+          Consultez vos informations et changez votre mot de passe.
         </p>
       </div>
 
-      {/* Avatar + rôle */}
-      <Card className="rounded-2xl border-border/60 shadow-sm">
-        <CardContent className="flex items-center gap-4 p-5">
-          <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-extrabold text-primary">
-            {initiales}
-          </div>
-          <div>
-            <p className="text-xl font-bold">
-              {user?.prenom} {user?.nom}
-            </p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
-            <div className="mt-2">
-              <Badge
-                variant="outline"
-                className={`rounded-full text-xs font-semibold ${ROLE_CLS[user?.role ?? "ETUDIANT"]}`}
-              >
-                {ROLE_LABEL[user?.role ?? "ETUDIANT"]}
-              </Badge>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Informations personnelles */}
+      {/* Informations personnelles (lecture seule) */}
       <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2 text-base font-bold">
@@ -149,48 +102,43 @@ export default function ProfilePage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="flex flex-col gap-1.5">
-              <Label>Prénom</Label>
-              <Input
-                value={infos.prenom}
-                onChange={e => setInfo("prenom", e.target.value)}
-                className="rounded-xl"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label>Nom</Label>
-              <Input
-                value={infos.nom}
-                onChange={e => setInfo("nom", e.target.value)}
-                className="rounded-xl"
-              />
-            </div>
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>Adresse email</Label>
-            <Input
-              type="email"
-              value={infos.email}
-              onChange={e => setInfo("email", e.target.value)}
-              className="rounded-xl"
-            />
-          </div>
+          {isPending ? (
+            <p className="text-sm text-muted-foreground">Chargement du profil...</p>
+          ) : isError || !profil ? (
+            <p role="alert" className="text-sm text-destructive">
+              Impossible de charger votre profil. Vérifiez votre connexion puis rechargez la page.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="flex size-16 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-2xl font-extrabold text-primary">
+                  {initiales}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xl font-bold">
+                    {profil.prenom} {profil.nom}
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className={`mt-1 rounded-full text-xs font-semibold ${ROLE_CLS[profil.role]}`}
+                  >
+                    {ROLE_LABEL[profil.role]}
+                  </Badge>
+                </div>
+              </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              className="rounded-xl"
-              onClick={handleSaveInfos}
-              disabled={savingInfos}
-            >
-              {savingInfos ? "Enregistrement..." : "Enregistrer"}
-            </Button>
-            {savedInfos && (
-              <span className="flex items-center gap-1.5 text-sm text-primary">
-                <CheckCircle2 className="size-4" /> Modifications enregistrées
-              </span>
-            )}
-          </div>
+              <dl className="grid gap-4 sm:grid-cols-2">
+                <Champ libelle="Adresse email" valeur={profil.email} />
+                {profil.numEtudiant && <Champ libelle="Matricule" valeur={profil.numEtudiant} />}
+                {profil.promotion && <Champ libelle="Promotion" valeur={profil.promotion} />}
+              </dl>
+
+              <p className="text-xs text-muted-foreground">
+                Une erreur dans ces informations ? Elles sont gérées par l'administration de l'école : contactez
+                l'administrateur de la plateforme pour les faire corriger.
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -204,9 +152,11 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label>Mot de passe actuel</Label>
+            <Label htmlFor="mdp-actuel">Mot de passe actuel</Label>
             <Input
+              id="mdp-actuel"
               type="password"
+              autoComplete="current-password"
               value={mdp.actuel}
               onChange={e => setMdpField("actuel", e.target.value)}
               className="rounded-xl"
@@ -215,9 +165,11 @@ export default function ProfilePage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="flex flex-col gap-1.5">
-              <Label>Nouveau mot de passe</Label>
+              <Label htmlFor="mdp-nouveau">Nouveau mot de passe</Label>
               <Input
+                id="mdp-nouveau"
                 type="password"
+                autoComplete="new-password"
                 value={mdp.nouveau}
                 onChange={e => setMdpField("nouveau", e.target.value)}
                 className="rounded-xl"
@@ -225,9 +177,11 @@ export default function ProfilePage() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label>Confirmation</Label>
+              <Label htmlFor="mdp-confirmation">Confirmation</Label>
               <Input
+                id="mdp-confirmation"
                 type="password"
+                autoComplete="new-password"
                 value={mdp.confirmation}
                 onChange={e => setMdpField("confirmation", e.target.value)}
                 className="rounded-xl"
@@ -237,11 +191,11 @@ export default function ProfilePage() {
           </div>
 
           {errorMdp && (
-            <p className="text-sm text-destructive">{errorMdp}</p>
+            <p role="alert" className="text-sm text-destructive">{errorMdp}</p>
           )}
 
           <p className="text-[11px] text-muted-foreground">
-            Minimum 8 caractères. Utilisez un mélange de lettres, chiffres et symboles.
+            Minimum {LONGUEUR_MIN} caractères. Utilisez un mélange de lettres, chiffres et symboles.
           </p>
 
           <div className="flex items-center gap-3">

@@ -191,8 +191,10 @@ Rejouée sur la même base, elle échoue : les copies sont déjà remises.
 - Faire tourner un **vrai Judge0** : le Docker Compose est prêt (`deploy/judge0/`, avec `verifier.sh`). Il faut un
   hôte Linux en cgroups v1 (Ubuntu 20.04, ou paramètre de démarrage `systemd.unified_cgroup_hierarchy=0`) : ce
   n'est pas possible sur le poste de Mor (WSL 2.7.3 ne propose plus les cgroups v1).
-- La page des notifications et le profil étudiant sont encore simulés (Aminou a des branches `feature/notifications`
-  et `feature/profil` : répartition à confirmer).
+- La page des notifications est encore simulée (répartition confirmée : écrans étudiant pour Mor, enseignant et
+  admin pour Aminou). Le profil est branché (11 novembre) : `GET /profil` (identité en lecture seule, gérée par
+  l'administrateur ; matricule et promotion pour un étudiant) et `PUT /profil/mot-de-passe` (mot de passe actuel
+  exigé, échecs comptés avec ceux de la connexion). La page est commune aux trois rôles.
 - **Service de notifications** côté serveur (`NotificationService`), laissé à Mor par Aminou dans son DS-05 :
   diagramme DS-15 à écrire avec lui (événements, contenu), puis la page des notifications étudiant.
 - Révocation des jetons à la déconnexion (liste de révocation ou jetons plus courts), si on la juge utile.
