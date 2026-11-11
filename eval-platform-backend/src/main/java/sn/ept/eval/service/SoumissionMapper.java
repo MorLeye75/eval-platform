@@ -35,8 +35,23 @@ public class SoumissionMapper {
         this.tempsEpreuveService = tempsEpreuveService;
     }
 
-    /** Copie complète : temps restant, questions ordonnées et réponses déjà enregistrées. */
+    /**
+     * Copie pour son étudiant en composition : temps restant, questions ordonnées et réponses déjà enregistrées.
+     * Quiz chronométré : seule la question en cours.
+     */
     public SoumissionDetailResponse versDetail(Soumission soumission) {
+        return versDetail(soumission, false);
+    }
+
+    /**
+     * Copie pour l'enseignant de l'évaluation ou l'administrateur : toutes les questions et réponses, même d'un quiz
+     * (dont la copie remise n'a plus de question en cours). Toujours sans les bonnes réponses ni les cas masqués.
+     */
+    public SoumissionDetailResponse versDetailComplet(Soumission soumission) {
+        return versDetail(soumission, true);
+    }
+
+    private SoumissionDetailResponse versDetail(Soumission soumission, boolean toutesLesQuestions) {
         SoumissionDetailResponse resp = versDetailSansQuestions(soumission);
 
         List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId());
@@ -48,12 +63,14 @@ public class SoumissionMapper {
         resp.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(
                 tempsEpreuveService.finEpreuve(soumission, resp.getDureeMinutes(), questionsQuiz)));
 
-        // Quiz chronométré : seule la question en cours part vers le navigateur
+        // Quiz chronométré : seule la question en cours part vers le navigateur de l'étudiant
         if (!questionsQuiz.isEmpty()) {
             QuizService.EtatQuiz etat = quizService.etat(soumission, questionsQuiz);
             resp.setQuiz(new EtatQuizDto(etat.index(), etat.nbQuestions(), etat.dureeQuestion(),
                     quizService.tempsRestantQuestionSecondes(etat)));
-            questions = etat.termine() ? List.of() : List.of(questionsQuiz.get(etat.index()));
+            if (!toutesLesQuestions) {
+                questions = etat.termine() ? List.of() : List.of(questionsQuiz.get(etat.index()));
+            }
         }
 
         List<QuestionExamenDto> questionsDtos = new ArrayList<>();

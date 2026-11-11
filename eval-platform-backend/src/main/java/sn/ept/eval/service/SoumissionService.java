@@ -264,7 +264,8 @@ public class SoumissionService {
         if (consulteeParSonEtudiant && !enComposition) {
             return soumissionMapper.versDetailSansQuestions(soumission);
         }
-        return soumissionMapper.versDetail(soumission);
+        // Enseignant ou administrateur : toute la copie, même d'un quiz (sa question en cours ne concerne que l'étudiant)
+        return consulteeParSonEtudiant ? soumissionMapper.versDetail(soumission) : soumissionMapper.versDetailComplet(soumission);
     }
 
     /** Fin de l'épreuve de cette copie : durée effective, fermeture et, pour un quiz, fin de sa dernière question. */

@@ -304,4 +304,30 @@ class QuizIntegrationTest {
         assertThat(copie.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
         assertThat(copie.getDateRemise()).isEqualTo(copie.getDateDebut().plusMinutes(1));
     }
+
+    @Test
+    @DisplayName("Enseignant : la copie de quiz remise lui arrive complète (toutes les questions et réponses), pas réduite à la question en cours")
+    void enseignant_CopieDeQuizComplete() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+        repondre(soumissionId, 0);
+        soumissionService.passerQuestionSuivante(soumissionId, 0, email);
+        soumissionService.passerQuestionSuivante(soumissionId, 1, email);
+        soumissionService.passerQuestionSuivante(soumissionId, 2, email);
+        soumissionService.soumettreCopie(soumissionId, email);
+
+        SoumissionDetailResponse copie = soumissionService.getDetail(soumissionId, "prof@ept.sn");
+
+        assertThat(copie.getQuestions()).extracting(QuestionExamenDto::getId).containsExactlyElementsOf(questionIds);
+        assertThat(copie.getQuestions().get(0).getReponseActuelle().getChoixIds()).containsExactly(choix.get(0));
+        assertThat(copie.getQuestions().get(1).getReponseActuelle()).isNull();
+    }
+
+    @Test
+    @DisplayName("Étudiant en composition : toujours la seule question en cours (la règle du quiz ne change pas pour lui)")
+    void etudiant_ToujoursLaQuestionEnCours() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+
+        assertThat(soumissionService.getDetail(soumissionId, email).getQuestions())
+                .extracting(QuestionExamenDto::getId).containsExactly(questionIds.get(0));
+    }
 }
