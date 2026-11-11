@@ -145,8 +145,9 @@ public class SoumissionService {
             throw new SoumissionNonModifiableException("Action rejetée : la copie a déjà été soumise ou verrouillée.");
         }
 
-        // 2. Vérifie !isExpiree() (fin du quiz comprise)
-        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(soumission);
+        // 2. Vérifie !isExpiree() (fin du quiz comprise). Questions lues une fois, pour le quiz et l'enregistrement
+        List<Question> questions = quizService.questionsDeLaCopie(soumission);
+        List<QuestionQuiz> questionsQuiz = QuizService.questionsQuiz(questions);
         LocalDateTime finEpreuve = tempsEpreuveService.finEpreuve(soumission, questionsQuiz);
         if (tempsEpreuveService.estDepassee(finEpreuve)) {
             log.warn("Tentative de sauvegarde tardive rejetée pour soumission ID={}", soumissionId);
@@ -169,7 +170,7 @@ public class SoumissionService {
         }
 
         // 5. Mise à jour ou création des réponses
-        int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, reponses);
+        int nbSauvegardees = enregistrementReponsesService.enregistrer(soumission, reponses, questions);
 
         // 6. Nouvelle version des réponses (le verrou sur la copie garantit un incrément sans perte)
         int version = soumission.getVersionReponses() + 1;

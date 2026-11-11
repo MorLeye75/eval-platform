@@ -134,6 +134,8 @@ class SoumissionServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getDateSauvegarde()).isNotNull();
         assertThat(response.getMessage()).contains("succès");
+        // Questions lues une seule fois par sauvegarde (quiz ou non, puis enregistrement des réponses)
+        verify(questionRepository, times(1)).findByEvaluationIdOrderByOrdreAsc(10L);
     }
 
     @Test

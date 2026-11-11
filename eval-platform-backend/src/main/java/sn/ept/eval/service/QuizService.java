@@ -54,7 +54,12 @@ public class QuizService {
     }
 
     public List<QuestionQuiz> questionsQuiz(Soumission soumission) {
-        return questionsQuiz(questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId()));
+        return questionsQuiz(questionsDeLaCopie(soumission));
+    }
+
+    /** Questions de l'évaluation de la copie, dans l'ordre (une requête) : pour un appelant qui en a besoin ailleurs. */
+    public List<Question> questionsDeLaCopie(Soumission soumission) {
+        return questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId());
     }
 
     /**
