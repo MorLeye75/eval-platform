@@ -125,6 +125,10 @@ export default function PassationQuiz() {
     try {
       const sauvegarde = await sauvegarderMaintenant()
       if (sauvegarde === "verrouillee") return // copie figée par le serveur : l'écran d'expiration prend le relais
+      if (sauvegarde === "refusee" && !tempsEcoule) {
+        setErreurAvance("Votre réponse a été refusée par le serveur : modifiez-la puis réessayez.")
+        return
+      }
       if ((sauvegarde === "echec" || sauvegarde === "conflit") && !tempsEcoule) {
         setErreurAvance("Votre réponse n'a pas pu être enregistrée. Vérifiez votre connexion puis réessayez.")
         return

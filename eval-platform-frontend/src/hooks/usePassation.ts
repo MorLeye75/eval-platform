@@ -65,6 +65,8 @@ export function usePassation<T>({
   const [erreurSoumission, setErreurSoumission] = useState<string | null>(null)
   const [avertissement, setAvertissement] = useState<string | null>(null)
   const termine = useRef(false)
+  // Refus du serveur déjà expliqué à l'étudiant : une nouvelle demande de remise part sans ces réponses
+  const refusAnnonce = useRef(false)
   // Copie dont les réponses ont été chargées dans le formulaire (rechargée après un conflit de version)
   const copieInitialisee = useRef<typeof copie>(undefined)
 
@@ -104,7 +106,7 @@ export function usePassation<T>({
     enabled: pret && enCours,
   })
 
-  const { derniereSauvegarde, erreurSauvegarde, sauvegarderMaintenant, marquerSauvegarde } =
+  const { derniereSauvegarde, erreurSauvegarde, refusSauvegarde, sauvegarderMaintenant, marquerSauvegarde } =
     useAutoSave({
       data: reponses,
       onSave: async (donnees, versionAttendue) => {
@@ -135,6 +137,11 @@ export function usePassation<T>({
       },
       enabled: pret && enCours,
     })
+
+  // Refus levé (contenu corrigé et enregistré) : un nouveau refus sera de nouveau expliqué avant la remise
+  useEffect(() => {
+    if (refusSauvegarde === null) refusAnnonce.current = false
+  }, [refusSauvegarde])
 
   // Réponses de départ : celles du serveur (source de vérité), ou le tampon local s'il reste des réponses
   // non confirmées saisies sur cette même version (coupure réseau puis rechargement de la page)
@@ -187,6 +194,15 @@ export function usePassation<T>({
       // La copie vient d'être rechargée : l'étudiant vérifie ses réponses avant de soumettre
       setErreurSoumission(
         "Votre copie a été modifiée ailleurs et vient d'être rechargée. Vérifiez vos réponses puis soumettez à nouveau."
+      )
+      setSoumissionEnCours(false)
+      return
+    }
+    if (sauvegarde === "refusee" && fin === "confirmation" && !refusAnnonce.current) {
+      // Le renvoyer ne servirait à rien ; bloquer la remise laisserait l'étudiant sans issue jusqu'à la fin du chrono
+      refusAnnonce.current = true
+      setErreurSoumission(
+        "Le serveur a refusé vos dernières réponses (voir le message de sauvegarde). Corrigez-les, ou soumettez de nouveau pour remettre la copie sans elles."
       )
       setSoumissionEnCours(false)
       return
@@ -250,6 +266,7 @@ export function usePassation<T>({
     tempsRestantFormate,
     derniereSauvegarde,
     erreurSauvegarde,
+    refusSauvegarde,
     soumettre,
     soumissionEnCours,
     erreurSoumission,

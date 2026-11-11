@@ -282,3 +282,44 @@ describe("usePassation : chrono recalé sur le serveur (DS-01)", () => {
     expect(result.current.tempsRestantFormate).toBe("45:00")
   })
 })
+
+describe("usePassation : remise avec des réponses refusées par le serveur (400)", () => {
+  const refus = () =>
+    new AxiosError("refus", "ERR_BAD_REQUEST", config, null, {
+      status: 400,
+      statusText: "",
+      headers: {},
+      config,
+      data: { detail: "Langage non pris en charge" },
+    })
+
+  beforeEach(() => {
+    localStorage.clear()
+    navigate.mockReset()
+    vi.mocked(demarrerEpreuve).mockReset().mockResolvedValue(COPIE)
+    vi.mocked(sauvegarderReponses).mockReset().mockRejectedValue(refus())
+    vi.mocked(soumettreCopie).mockReset().mockResolvedValue("2026-11-07T10:20:00")
+  })
+
+  afterEach(() => cleanup())
+
+  it("premier clic : explication (pas « vérifiez votre connexion ») ; second clic : la copie est remise sans elles", async () => {
+    const { result } = monter()
+    await waitFor(() => expect(result.current.chargement).toBe(false))
+    act(() => result.current.setReponses({ modifie: true } as never))
+
+    await act(async () => {
+      await result.current.soumettre()
+    })
+    expect(soumettreCopie).not.toHaveBeenCalled()
+    expect(result.current.erreurSoumission).toContain("refusé")
+    expect(result.current.erreurSoumission).not.toContain("connexion")
+    expect(result.current.soumissionEnCours).toBe(false)
+
+    await act(async () => {
+      await result.current.soumettre()
+    })
+    expect(soumettreCopie).toHaveBeenCalledTimes(1)
+    expect(navigate).toHaveBeenCalledWith("/examen/7/confirmation", expect.anything())
+  })
+})

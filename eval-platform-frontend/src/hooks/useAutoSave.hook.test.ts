@@ -268,3 +268,48 @@ describe("useAutoSave : sauvegarde enregistrée dont la réponse s'est perdue", 
   })
 })
 
+describe("useAutoSave : sauvegarde refusée par le serveur (400)", () => {
+  const config = { url: "/soumissions/12/sauvegarder", headers: new AxiosHeaders() } as InternalAxiosRequestConfig
+  const refus = () =>
+    new AxiosError("refus", "ERR_BAD_REQUEST", config, null, {
+      status: 400,
+      statusText: "",
+      headers: {},
+      config,
+      data: { detail: "Le code ne peut pas dépasser 50000 caractères" },
+    })
+
+  beforeEach(() => localStorage.clear())
+  afterEach(() => cleanup())
+
+  it("refus : message du serveur affiché (pas « hors ligne »), même contenu pas renvoyé, réponses gardées", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(refus()).mockResolvedValue({ version: 4 })
+    const { result, rerender } = monter(onSave)
+    rerender({ data: { 1: "code trop long" }, enabled: true })
+
+    let resultat: unknown
+    await act(async () => {
+      resultat = await result.current.sauvegarderMaintenant()
+    })
+    expect(resultat).toBe("refusee")
+    expect(result.current.erreurSauvegarde).toBe(false)
+    expect(result.current.refusSauvegarde).toBe("Le code ne peut pas dépasser 50000 caractères")
+    expect(tampon()).toEqual({ version: 3, donnees: { 1: "code trop long" } })
+
+    // Le même contenu serait refusé de nouveau : il ne repart pas toutes les 30 s
+    await act(async () => {
+      resultat = await result.current.sauvegarderMaintenant()
+    })
+    expect(resultat).toBe("refusee")
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    // Contenu corrigé : il part, et le refus disparaît
+    rerender({ data: { 1: "code corrigé" }, enabled: true })
+    await act(async () => {
+      resultat = await result.current.sauvegarderMaintenant()
+    })
+    expect(resultat).toBe("ok")
+    expect(onSave).toHaveBeenCalledTimes(2)
+    expect(result.current.refusSauvegarde).toBeNull()
+  })
+})

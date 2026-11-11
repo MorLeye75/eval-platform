@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react"
-import { estCopieVerrouillee, estErreurReseau, estVersionObsolete, formatHeure } from "@/lib/passation"
+import {
+  estCopieVerrouillee,
+  estErreurReseau,
+  estRequeteRefusee,
+  estVersionObsolete,
+  formatHeure,
+  messageErreur,
+} from "@/lib/passation"
 
-export type ResultatSauvegarde = "ok" | "verrouillee" | "conflit" | "echec"
+export type ResultatSauvegarde = "ok" | "verrouillee" | "conflit" | "refusee" | "echec"
 
 /** Réponse du serveur à une sauvegarde réussie. */
 export interface SauvegardeConfirmee {
@@ -110,6 +117,8 @@ function ecrireTampon<T>(cle: string, tampon: Tampon<T>) {
  * - 409 (temps expiré ou copie verrouillée) : `onVerrouillage`, l'édition doit être bloquée.
  * - 409 VERSION_OBSOLETE (copie enregistrée depuis un autre onglet ou appareil) : les réponses locales
  *   sont mises de côté et `onConflit` doit recharger la copie du serveur.
+ * - 400 et autres refus du contenu : `refusSauvegarde` porte le message du serveur, les réponses restent dans le
+ *   tampon et ce même contenu n'est pas renvoyé (il serait refusé de nouveau) ; une modification repart normalement.
  * - Échec (coupure réseau…) : les réponses restent dans le localStorage et une nouvelle
  *   tentative part dès que le navigateur détecte la reconnexion.
  *
@@ -127,6 +136,9 @@ export function useAutoSave<T>({
 }: UseAutoSaveOptions<T>) {
   const [derniereSauvegarde, setDerniereSauvegarde] = useState<string | null>(null)
   const [erreurSauvegarde, setErreurSauvegarde] = useState(false)
+  const [refusSauvegarde, setRefusSauvegarde] = useState<string | null>(null)
+  // Dernier contenu refusé par le serveur : inutile de le renvoyer tel quel
+  const dernierRefuse = useRef<string | null>(null)
   const dataRef = useRef(data)
   const onSaveRef = useRef(onSave)
   const onVerrouillageRef = useRef(onVerrouillage)
@@ -157,6 +169,7 @@ export function useAutoSave<T>({
     const donnees = dataRef.current
     const serialise = JSON.stringify(donnees)
     if (serialise === dernierSerialise.current) return "ok"
+    if (serialise === dernierRefuse.current) return "refusee"
 
     try {
       const confirmation = await onSaveRef.current?.(donnees, versionServeur.current)
@@ -171,6 +184,8 @@ export function useAutoSave<T>({
         // Modifié pendant l'envoi : ces réponses restent à envoyer, sur la version que le serveur vient de donner
         else ecrireTampon(cle, tamponCourant(actuelles))
       }
+      dernierRefuse.current = null
+      setRefusSauvegarde(null)
       setErreurSauvegarde(false)
       setDerniereSauvegarde(formatHeure(confirmation?.dateSauvegarde))
       return "ok"
@@ -202,6 +217,14 @@ export function useAutoSave<T>({
         }
         onConflitRef.current?.()
         return "conflit"
+      }
+      // Contenu refusé (400…) : ni coupure ni panne, le renvoyer tel quel échouerait encore
+      if (estRequeteRefusee(err)) {
+        dernierRefuse.current = serialise
+        if (cleTamponRef.current) ecrireTampon(cleTamponRef.current, tamponCourant(dataRef.current))
+        setErreurSauvegarde(false)
+        setRefusSauvegarde(messageErreur(err, "Vos réponses ont été refusées par le serveur."))
+        return "refusee"
       }
       // Sans réponse (délai dépassé, coupure) : le serveur a peut-être enregistré cet envoi
       if (estErreurReseau(err)) {
@@ -265,6 +288,7 @@ export function useAutoSave<T>({
   return {
     derniereSauvegarde,
     erreurSauvegarde,
+    refusSauvegarde,
     sauvegarderMaintenant,
     marquerSauvegarde,
   }

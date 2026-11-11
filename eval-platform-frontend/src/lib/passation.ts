@@ -103,6 +103,18 @@ export function estErreurReseau(err: unknown) {
   return isAxiosError(err) && !err.response
 }
 
+/** Statuts 4xx qui ne disent rien du contenu : session (401), délai (408), conflits (409), trop de requêtes (429). */
+const STATUTS_A_REESSAYER = [401, 408, 409, 429]
+
+/**
+ * Le serveur a refusé la requête pour son contenu (400 validation, 404, 413, 422…) : la renvoyer telle quelle
+ * échouerait encore. À distinguer d'une coupure réseau ou d'une panne du serveur (5xx), qui méritent un nouvel essai.
+ */
+export function estRequeteRefusee(err: unknown) {
+  const status = isAxiosError(err) ? err.response?.status : undefined
+  return status !== undefined && status >= 400 && status < 500 && !STATUTS_A_REESSAYER.includes(status)
+}
+
 /** Message d'erreur renvoyé par le serveur (ProblemDetail RFC 7807), sinon message par défaut. */
 export function messageErreur(err: unknown, parDefaut: string) {
   if (isAxiosError(err) && typeof err.response?.data?.detail === "string") {

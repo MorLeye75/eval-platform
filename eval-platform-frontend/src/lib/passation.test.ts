@@ -3,6 +3,7 @@ import { AxiosError, type AxiosResponse } from "axios"
 import {
   estCopieVerrouillee,
   estErreurReseau,
+  estRequeteRefusee,
   estVersionObsolete,
   formatHeure,
   memesReponses,
@@ -54,6 +55,17 @@ describe("estErreurReseau", () => {
   it("vrai seulement quand le serveur n'a pas répondu", () => {
     expect(estErreurReseau(erreurReseau())).toBe(true)
     expect(estErreurReseau(erreurHttp(500))).toBe(false)
+  })
+})
+
+describe("estRequeteRefusee", () => {
+  it("requête refusée pour son contenu (400, 403, 404, 413, 422) : la renvoyer telle quelle échouerait encore", () => {
+    for (const status of [400, 403, 404, 413, 422]) expect(estRequeteRefusee(erreurHttp(status))).toBe(true)
+  })
+
+  it("pas un refus du contenu : réseau, 5xx, 401 (session), 408 et 429 (réessayer), 409 (traités à part)", () => {
+    expect(estRequeteRefusee(erreurReseau())).toBe(false)
+    for (const status of [401, 408, 409, 429, 500, 503]) expect(estRequeteRefusee(erreurHttp(status))).toBe(false)
   })
 })
 
