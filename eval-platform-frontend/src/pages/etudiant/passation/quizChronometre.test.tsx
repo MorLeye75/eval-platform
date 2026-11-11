@@ -140,6 +140,22 @@ describe("quiz chronométré branché sur le serveur", () => {
 
     await waitFor(() => expect(soumettreCopie).toHaveBeenCalledWith(12))
   })
+
+  it("quiz terminé et remise en échec (réseau) : message et bouton pour réessayer, pas d'attente sans fin", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue(copieQuiz(2, 0))
+    vi.mocked(soumettreCopie).mockRejectedValueOnce(new Error("Network Error"))
+    afficher()
+
+    expect(await screen.findByText(/La soumission a échoué/)).toBeTruthy()
+    expect(navigate).not.toHaveBeenCalled()
+
+    // Le réseau revient : nouvel essai, la copie est remise
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Réessayer la remise/ }))
+    })
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/examen/7/confirmation", expect.anything()))
+    expect(soumettreCopie).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe("aucune donnée simulée dans le quiz (les mocks contiennent les bonnes réponses)", () => {

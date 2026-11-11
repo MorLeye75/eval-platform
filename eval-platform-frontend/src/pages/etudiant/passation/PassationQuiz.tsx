@@ -101,6 +101,17 @@ export default function PassationQuiz() {
   if (erreur || !copie) return <EtatPassation message={erreur ?? "Évaluation introuvable."} />
   if (!quiz) return <EtatPassation message="Cette évaluation n'est pas un quiz chronométré." />
   if (termine || questions.length === 0) {
+    // Remise automatique en échec (réseau…) : sans ce bouton, l'écran attendait sans fin
+    if (erreurSoumission && !soumissionEnCours) {
+      return (
+        <EtatPassation message={erreurSoumission} retour={false} erreur>
+          <Button size="lg" onClick={() => soumettre("confirmation")}>
+            <Send className="mr-1 size-4" />
+            Réessayer la remise
+          </Button>
+        </EtatPassation>
+      )
+    }
     return <EtatPassation message="Quiz terminé : remise de votre copie..." retour={false} />
   }
 
