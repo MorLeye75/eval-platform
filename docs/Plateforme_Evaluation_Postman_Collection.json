@@ -245,7 +245,7 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "pm.test('200 : identité, matricule et promotion de l'étudiant, sans mot de passe', () => {",
+                  "pm.test(\"200 : identité, matricule et promotion de l'étudiant, sans mot de passe\", () => {",
                   "    pm.response.to.have.status(200);",
                   "    const p = pm.response.json();",
                   "    pm.expect(p.role).to.equal('ETUDIANT');",
