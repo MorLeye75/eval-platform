@@ -105,7 +105,7 @@ public class ResultatsService {
             langage = rc.getLangage();
             casTests = rc.getResultatsCasTests().stream()
                     .sorted(Comparator.comparing(rt -> rt.getCasDeTest().getId()))
-                    .map(ResultatsService::resultatCas)
+                    .map(rt -> resultatCas(rt, corrigeVisible))
                     .toList();
         }
 
@@ -121,12 +121,17 @@ public class ResultatsService {
 
     /**
      * Cas visible : déjà montré pendant l'épreuve (entrée, sortie attendue), donc toujours affiché.
-     * Cas masqué : verdict et temps seulement (réutilisable, et la sortie d'erreur peut recopier l'entrée).
+     * Cas masqué : verdict et temps seulement (réutilisable, et la sortie d'erreur peut recopier l'entrée), et
+     * seulement après la fermeture + 2 min, comme le corrigé des QCM : « cas masqué n° 3 échoué » dirait à un
+     * camarade en tiers-temps où est le piège. Vérifié ici, pas seulement par la règle de publication (DS-07).
      */
-    private static CasTestResultatDto resultatCas(ResultatCasTest r) {
+    private static CasTestResultatDto resultatCas(ResultatCasTest r, boolean corrigeVisible) {
         CasDeTest cas = r.getCasDeTest();
         boolean reussi = Boolean.TRUE.equals(r.getEstValide());
         if (Boolean.TRUE.equals(cas.getEstMasque())) {
+            if (!corrigeVisible) {
+                return new CasTestResultatDto(true, null, null, null, null, null, null, null);
+            }
             return new CasTestResultatDto(true, reussi, r.getVerdict(), r.getTempsExecution(), null, null, null, null);
         }
         return new CasTestResultatDto(false, reussi, r.getVerdict(), r.getTempsExecution(), cas.getEntree(),

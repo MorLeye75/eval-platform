@@ -69,14 +69,19 @@ function BlocTexte({ titre, children }: { titre: string; children: ReactNode }) 
 
 function CasTestLigne({ cas, numero }: { cas: CasTestResultat; numero: number }) {
   const temps = cas.tempsExecution !== null ? ` · ${formatNote(cas.tempsExecution)} s` : ""
+  // Cas masqué avant la fermeture + 2 min : ni réussi ni échoué, son verdict n'est pas encore communiqué
+  const enAttente = cas.reussi === null
+  const style = enAttente
+    ? "border-border/60 bg-muted/40"
+    : cas.reussi
+      ? "border-primary/30 bg-primary/5"
+      : "border-destructive/30 bg-destructive/5"
   return (
-    <div
-      className={`flex flex-col gap-2 rounded-xl border p-3 ${
-        cas.reussi ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"
-      }`}
-    >
+    <div className={`flex flex-col gap-2 rounded-xl border p-3 ${style}`}>
       <div className="flex items-center gap-2 text-sm">
-        {cas.reussi ? (
+        {enAttente ? (
+          <Hourglass className="size-4 shrink-0 text-muted-foreground" />
+        ) : cas.reussi ? (
           <CircleCheck className="size-4 shrink-0 text-primary" />
         ) : (
           <CircleX className="size-4 shrink-0 text-destructive" />
@@ -93,7 +98,9 @@ function CasTestLigne({ cas, numero }: { cas: CasTestResultat; numero: number })
       {cas.masque ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <EyeOff className="size-3.5" />
-          Cas caché par l'enseignant : seul le verdict est communiqué.
+          {enAttente
+            ? "Cas caché par l'enseignant : son verdict sera communiqué après la fermeture de l'évaluation."
+            : "Cas caché par l'enseignant : seul le verdict est communiqué."}
         </p>
       ) : (
         <div className="grid gap-2 md:grid-cols-3">
@@ -263,8 +270,9 @@ function Publies({ r }: { r: ResultatsCopie }) {
         <div className="flex items-start gap-2 rounded-xl border border-border/60 bg-muted/40 p-3 text-sm text-muted-foreground">
           <Info className="mt-0.5 size-4 shrink-0" />
           <span>
-            Les bonnes réponses et les points de chaque question à choix seront affichés après la fermeture de
-            l'évaluation, quand plus personne ne compose. Votre note totale est déjà définitive.
+            Les bonnes réponses et les points de chaque question à choix, ainsi que les verdicts des cas de test
+            masqués, seront affichés après la fermeture de l'évaluation, quand plus personne ne compose. Votre note
+            totale est déjà définitive.
           </span>
         </div>
       )}

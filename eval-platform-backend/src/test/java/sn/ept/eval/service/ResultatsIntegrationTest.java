@@ -272,7 +272,7 @@ class ResultatsIntegrationTest {
     }
 
     @Test
-    @DisplayName("Cas de test masqué : verdict et temps seulement ; cas visible : entrée, sorties et message")
+    @DisplayName("Cas de test masqué : rien avant la fermeture + 2 min (d'autres composent encore), puis verdict et temps seulement ; cas visible : entrée, sorties et message")
     void casMasques_VerdictSeulement() throws Exception {
         Long evalCodeId = evaluationRepository.findAll().stream()
                 .filter(e -> e.getTitre().contains("code")).map(Evaluation::getId).findFirst().orElseThrow();
@@ -303,8 +303,24 @@ class ResultatsIntegrationTest {
             s.setNoteFinale(3.33);
         });
         publier(evalCodeId);
+        String auth = bearer(email, "motDePasse");
 
-        String json = mockMvc.perform(get("/soumissions/{id}/resultats", id).header("Authorization", bearer(email, "motDePasse")))
+        // Avant la fermeture + 2 min : un camarade en tiers-temps compose peut-être encore, aucun verdict de cas masqué
+        String avant = mockMvc.perform(get("/soumissions/{id}/resultats", id).header("Authorization", auth))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.questions[0].casTests", hasSize(3)))
+                .andExpect(jsonPath("$.questions[0].casTests[?(@.masque == true)].verdict").value(contains(nullValue())))
+                .andExpect(jsonPath("$.questions[0].casTests[?(@.masque == true)].reussi").value(contains(nullValue())))
+                .andExpect(jsonPath("$.questions[0].casTests[?(@.masque == true)].tempsExecution").value(contains(nullValue())))
+                .andExpect(jsonPath("$.questions[0].casTests[?(@.masque == false)].verdict", everyItem(is("REUSSI"))))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(avant).doesNotContain("ERREUR_EXECUTION");
+
+        // Après la fermeture + 2 min : plus personne ne compose
+        jdbcTemplate.update("update evaluations set date_fermeture = ? where id = ?",
+                LocalDateTime.now().minusMinutes(3), evalCodeId);
+
+        String json = mockMvc.perform(get("/soumissions/{id}/resultats", id).header("Authorization", auth))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.questions[0].codeSoumis").value("print('true')"))
                 .andExpect(jsonPath("$.questions[0].langage").value("python"))

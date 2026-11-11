@@ -99,7 +99,7 @@ describe("détail des résultats d'une copie (GET /soumissions/{id}/resultats)",
     repondre(copie({ questions: [{ ...QCM, noteObtenue: null }, CODE] }))
     afficher(<ResultatsDetail />, "/etudiant/resultats/90", "/etudiant/resultats/:id")
 
-    expect(await screen.findByText(/Les bonnes réponses et les points de chaque question à choix seront affichés/)).toBeTruthy()
+    expect(await screen.findByText(/Les bonnes réponses et les points de chaque question à choix, ainsi que les verdicts des cas de test/)).toBeTruthy()
     expect(screen.getByText("— / 2 pts")).toBeTruthy() // pas un « 0 » trompeur
     expect(screen.queryByText("0 / 2 pts")).toBeNull()
     expect(screen.getByText("1,5 / 3 pts")).toBeTruthy() // les points du code restent affichés
@@ -124,8 +124,8 @@ describe("détail des résultats d'une copie (GET /soumissions/{id}/resultats)",
     expect(screen.getByText(/-1 point\(s\) de la moyenne/)).toBeTruthy()
   })
 
-  it("code : cas visible détaillé, cas masqué réduit à son verdict", async () => {
-    repondre(copie({}))
+  it("code, après la fermeture : cas visible détaillé, cas masqué réduit à son verdict", async () => {
+    repondre(copie({ corrigeVisible: true }))
     afficher(<ResultatsDetail />, "/etudiant/resultats/90", "/etudiant/resultats/:id")
 
     expect(await screen.findByText("print(input())")).toBeTruthy()
@@ -135,6 +135,18 @@ describe("détail des résultats d'une copie (GET /soumissions/{id}/resultats)",
     expect(screen.getByText(/Erreur à l'exécution/)).toBeTruthy()
     expect(screen.getByText(/seul le verdict est communiqué/)).toBeTruthy()
     expect(screen.getByText("1,5 / 3 pts")).toBeTruthy()
+  })
+
+  it("code, avant la fermeture : cas masqué sans verdict (ni réussi ni échoué), avec l'explication", async () => {
+    const masqueSansVerdict = { masque: true, reussi: null, verdict: null, tempsExecution: null, entree: null,
+      sortieAttendue: null, sortieObtenue: null, message: null }
+    repondre(copie({ corrigeVisible: false, questions: [QCM, { ...CODE, casTests: [CODE.casTests[0], masqueSansVerdict] }] }))
+    afficher(<ResultatsDetail />, "/etudiant/resultats/90", "/etudiant/resultats/:id")
+
+    expect(await screen.findByText("Cas 2 (masqué)")).toBeTruthy()
+    expect(screen.getByText("Verdict après la fermeture")).toBeTruthy()
+    expect(screen.queryByText(/Échoué|Erreur à l'exécution/)).toBeNull()
+    expect(screen.getByText(/verdicts des cas de test masqués/)).toBeTruthy() // bandeau d'explication
   })
 
   it("copie d'un autre étudiant : message du serveur", async () => {

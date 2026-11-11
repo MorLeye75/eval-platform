@@ -123,8 +123,11 @@ Diagramme : [`DS-13-consultation-resultats.puml`](diagrammes-sequence/DS-13-cons
 - Les bonnes réponses des QCM ne sont visibles qu'**après la fermeture + 2 min**. Plus personne ne compose
   alors, puisque chaque épreuve est plafonnée à la fermeture, tiers-temps compris.
 - Les **cas de test masqués** sont réduits à leur verdict (réussi, mauvaise réponse, temps dépassé, erreur de
-  compilation ou d'exécution) et à leur temps. Le verdict est enregistré par la correction (V8). Les cas
-  visibles sont affichés en entier : l'étudiant les voyait déjà pendant l'épreuve.
+  compilation ou d'exécution) et à leur temps. Le verdict est enregistré par la correction (V8). Comme le
+  corrigé des QCM, il n'est affiché qu'**après la fermeture + 2 min** (décision de Mor du 11 novembre) :
+  « cas masqué n° 3 échoué » dirait à un camarade en tiers-temps où est le piège. Cette règle est vérifiée par
+  l'écran de résultats lui-même, sans compter seulement sur la règle de publication (DS-07). Les cas visibles
+  sont affichés en entier : l'étudiant les voyait déjà pendant l'épreuve.
 - La **moyenne de la promotion** n'est communiquée qu'à partir de 5 copies notées.
 - **Pas de rang** dans la promotion, seulement l'écart à la moyenne, comme le demande le cahier des charges.
 - La **proposition de l'IA** n'est jamais renvoyée : l'étudiant ne voit que la note et le commentaire validés

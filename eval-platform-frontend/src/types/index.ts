@@ -230,7 +230,7 @@ export interface ChoixResultat {
 /** Cas masqué : verdict et temps seulement, les autres champs sont null. */
 export interface CasTestResultat {
   masque: boolean
-  reussi: boolean
+  reussi: boolean | null // null : cas masqué avant la fermeture + 2 min (verdict pas encore communiqué)
   verdict: VerdictCas | null
   tempsExecution: number | null
   entree: string | null
