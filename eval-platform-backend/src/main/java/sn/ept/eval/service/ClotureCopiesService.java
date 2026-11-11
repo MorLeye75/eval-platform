@@ -8,6 +8,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import sn.ept.eval.model.QuestionQuiz;
 import sn.ept.eval.model.Soumission;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.SoumissionRepository;
@@ -15,6 +16,7 @@ import sn.ept.eval.repository.SoumissionRepository;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Traitements de fond sur les copies, exécutés par PassationScheduler : clôture des copies abandonnées
@@ -30,16 +32,19 @@ public class ClotureCopiesService {
 
     private final SoumissionRepository soumissionRepository;
     private final TempsEpreuveService tempsEpreuveService;
+    private final QuizService quizService;
     private final CorrectionDeclencheur correctionDeclencheur;
     /** Une transaction courte par copie clôturée : verrou relâché aussitôt, échec isolé. */
     private final TransactionTemplate transactionParCopie;
 
     public ClotureCopiesService(SoumissionRepository soumissionRepository,
                                 TempsEpreuveService tempsEpreuveService,
+                                QuizService quizService,
                                 CorrectionDeclencheur correctionDeclencheur,
                                 PlatformTransactionManager transactionManager) {
         this.soumissionRepository = soumissionRepository;
         this.tempsEpreuveService = tempsEpreuveService;
+        this.quizService = quizService;
         this.correctionDeclencheur = correctionDeclencheur;
         this.transactionParCopie = new TransactionTemplate(transactionManager);
         this.transactionParCopie.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -47,9 +52,11 @@ public class ClotureCopiesService {
 
     /**
      * Les copies EN_COURS dont le temps, marge comprise, est écoulé sont figées à leur dernier auto-save
-     * puis corrigées. Cas typique : l'étudiant a fermé son navigateur.
+     * puis corrigées. Cas typique : l'étudiant a fermé son navigateur. Un quiz chronométré se termine avec sa
+     * dernière question, souvent bien avant sa durée standard.
      *
-     * Les copies expirées sont repérées en mémoire (évaluations et aménagements chargés en lot), puis chacune
+     * Les copies expirées sont repérées en mémoire (évaluations, aménagements et questions des quiz chargés en
+     * lot), puis chacune
      * est clôturée dans sa propre transaction : les verrous ne s'accumulent pas sur tout le lot, et une copie
      * verrouillée ailleurs (soumission en cours…) est simplement reprise au passage suivant.
      *
@@ -58,10 +65,14 @@ public class ClotureCopiesService {
     public int cloturerCopiesExpirees() {
         List<Soumission> enCours = soumissionRepository.findByStatutAvecEvaluation(StatutSoumission.EN_COURS);
         Map<Long, Integer> durees = tempsEpreuveService.dureesEffectivesMinutes(enCours);
+        Map<Long, List<QuestionQuiz>> quizParEvaluation = quizService.questionsQuizParEvaluation(
+                enCours.stream().map(s -> s.getEvaluation().getId()).collect(Collectors.toSet()));
 
         int nbCloturees = 0;
         for (Soumission candidate : enCours) {
-            if (!tempsEpreuveService.estExpiree(candidate, durees.get(candidate.getId()))) continue;
+            LocalDateTime fin = tempsEpreuveService.finEpreuve(candidate, durees.get(candidate.getId()),
+                    quizParEvaluation.get(candidate.getEvaluation().getId()));
+            if (!tempsEpreuveService.estDepassee(fin)) continue;
             Long id = candidate.getId();
             try {
                 if (Boolean.TRUE.equals(transactionParCopie.execute(tx -> cloturerSiToujoursExpiree(id)))) {
@@ -82,9 +93,9 @@ public class ClotureCopiesService {
     private boolean cloturerSiToujoursExpiree(Long soumissionId) {
         Soumission soumission = soumissionRepository.findByIdForUpdateSansAttente(soumissionId).orElse(null);
         if (soumission == null || soumission.getStatut() != StatutSoumission.EN_COURS) return false;
-        int duree = tempsEpreuveService.dureeEffectiveMinutes(soumission);
-        if (!tempsEpreuveService.estExpiree(soumission, duree)) return false;
-        cloturerExpiree(soumission, duree);
+        LocalDateTime fin = tempsEpreuveService.finEpreuve(soumission, quizService.questionsQuiz(soumission));
+        if (!tempsEpreuveService.estDepassee(fin)) return false;
+        cloturerExpiree(soumission, fin);
         log.info("Clôture automatique de la soumission ID={} (temps écoulé)", soumissionId);
         return true;
     }
@@ -92,15 +103,13 @@ public class ClotureCopiesService {
     /**
      * Fige une copie expirée à son dernier auto-save et lance sa correction après le commit, sans alerte
      * anti-triche (l'étudiant n'a rien envoyé hors délai). L'appelant doit détenir le verrou sur la copie.
+     *
+     * @param finEpreuve fin calculée par {@link TempsEpreuveService#finEpreuve} : date de remise de la copie
      */
     @Transactional
-    public void cloturerExpiree(Soumission soumission) {
-        cloturerExpiree(soumission, tempsEpreuveService.dureeEffectiveMinutes(soumission));
-    }
-
-    private void cloturerExpiree(Soumission soumission, int dureeEffectiveMinutes) {
+    public void cloturerExpiree(Soumission soumission, LocalDateTime finEpreuve) {
         soumission.setStatut(StatutSoumission.SOUMIS);
-        soumission.setDateRemise(tempsEpreuveService.finEpreuve(soumission, dureeEffectiveMinutes));
+        soumission.setDateRemise(finEpreuve);
         // La relance ne reprend la copie que si la correction lancée ci-dessous ne l'a pas prise en charge à temps
         soumission.setProchaineTentativeLe(
                 tempsEpreuveService.maintenant().plusMinutes(CorrectionService.DELAI_AVANT_RELANCE_MINUTES));

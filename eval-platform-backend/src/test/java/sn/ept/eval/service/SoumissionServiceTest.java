@@ -93,7 +93,7 @@ class SoumissionServiceTest {
         CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService,
                 new CorrectionsEnFile(), soumissionRepository);
         ClotureCopiesService clotureCopiesService = new ClotureCopiesService(soumissionRepository, tempsEpreuveService,
-                correctionDeclencheur, mock(PlatformTransactionManager.class));
+                quizService, correctionDeclencheur, mock(PlatformTransactionManager.class));
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
                 enregistrementReponses, correctionDeclencheur, tempsEpreuveService,
                 soumissionMapper, accesService, antiTricheService, clotureCopiesService, quizService);
@@ -336,7 +336,8 @@ class SoumissionServiceTest {
                 .isInstanceOf(VersionObsoleteException.class)
                 .satisfies(e -> assertThat(((VersionObsoleteException) e).getVersionActuelle()).isEqualTo(3));
         assertThat(soumission.getVersionReponses()).isEqualTo(3);
-        verify(questionRepository, never()).findByEvaluationIdOrderByOrdreAsc(any());
+        verify(reponseEtudiantRepository, never()).save(any());
+        verify(reponseEtudiantRepository, never()).delete(any());
     }
 
     @Test

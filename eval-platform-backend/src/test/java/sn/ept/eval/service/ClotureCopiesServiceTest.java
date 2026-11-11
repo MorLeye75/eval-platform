@@ -14,6 +14,7 @@ import sn.ept.eval.model.Evaluation;
 import sn.ept.eval.model.Soumission;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.AmenagementTempsRepository;
+import sn.ept.eval.repository.QuestionRepository;
 import sn.ept.eval.repository.SoumissionRepository;
 
 import java.time.Clock;
@@ -44,6 +45,9 @@ class ClotureCopiesServiceTest {
     @Mock
     private CorrectionService correctionService;
 
+    @Mock
+    private QuestionRepository questionRepository;
+
     /** Gestionnaire simulé : chaque clôture s'exécute « dans sa transaction » sans base. */
     @Mock
     private PlatformTransactionManager transactionManager;
@@ -57,7 +61,8 @@ class ClotureCopiesServiceTest {
     void setUp() {
         Clock horlogeFigee = Clock.fixed(MAINTENANT.atZone(ZONE).toInstant(), ZONE);
         TempsEpreuveService temps = new TempsEpreuveService(amenagementTempsRepository, horlogeFigee);
-        service = new ClotureCopiesService(soumissionRepository, temps, new CorrectionDeclencheur(correctionService, new CorrectionsEnFile(), soumissionRepository),
+        service = new ClotureCopiesService(soumissionRepository, temps, new QuizService(questionRepository, temps),
+                new CorrectionDeclencheur(correctionService, new CorrectionsEnFile(), soumissionRepository),
                 transactionManager);
 
         etudiant = new Etudiant("Niang", "Aminou", "etudiant@ept.sn", "pass", "ETU-2026-42", null);

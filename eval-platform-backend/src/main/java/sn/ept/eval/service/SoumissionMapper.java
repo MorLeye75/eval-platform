@@ -38,15 +38,17 @@ public class SoumissionMapper {
     /** Copie complète : temps restant, questions ordonnées et réponses déjà enregistrées. */
     public SoumissionDetailResponse versDetail(Soumission soumission) {
         SoumissionDetailResponse resp = versDetailSansQuestions(soumission);
-        // Durée effective déjà calculée : l'aménagement n'est lu qu'une fois
-        resp.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(soumission, resp.getDureeMinutes()));
 
         List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId());
         Map<Long, ReponseEtudiant> reponsesParQuestion = reponseEtudiantRepository.findBySoumissionId(soumission.getId()).stream()
                 .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
+        List<QuestionQuiz> questionsQuiz = QuizService.questionsQuiz(questions);
+
+        // Durée effective déjà calculée et questions déjà lues : ni l'aménagement ni les questions ne sont relus
+        resp.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(
+                tempsEpreuveService.finEpreuve(soumission, resp.getDureeMinutes(), questionsQuiz)));
 
         // Quiz chronométré : seule la question en cours part vers le navigateur
-        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(questions);
         if (!questionsQuiz.isEmpty()) {
             QuizService.EtatQuiz etat = quizService.etat(soumission, questionsQuiz);
             resp.setQuiz(new EtatQuizDto(etat.index(), etat.nbQuestions(), etat.dureeQuestion(),

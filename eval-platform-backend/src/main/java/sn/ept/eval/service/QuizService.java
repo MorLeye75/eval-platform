@@ -10,7 +10,11 @@ import sn.ept.eval.repository.QuestionRepository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Règles du quiz chronométré, imposées par le serveur : les questions se suivent dans l'ordre, chacune dans son
@@ -43,7 +47,7 @@ public class QuizService {
     }
 
     /** Questions du quiz dans l'ordre, ou liste vide si l'évaluation n'est pas un quiz (toutes ses questions). */
-    public List<QuestionQuiz> questionsQuiz(List<Question> questions) {
+    public static List<QuestionQuiz> questionsQuiz(List<Question> questions) {
         List<Object> reelles = questions.stream().map(q -> (Object) Hibernate.unproxy(q)).toList();
         if (reelles.isEmpty() || !reelles.stream().allMatch(QuestionQuiz.class::isInstance)) return List.of();
         return reelles.stream().map(QuestionQuiz.class::cast).toList();
@@ -51,6 +55,38 @@ public class QuizService {
 
     public List<QuestionQuiz> questionsQuiz(Soumission soumission) {
         return questionsQuiz(questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId()));
+    }
+
+    /**
+     * Questions de quiz de plusieurs évaluations en une requête (évaluation → questions, vide si ce n'est pas un
+     * quiz). Pour la clôture en lot des copies (DS-11).
+     */
+    public Map<Long, List<QuestionQuiz>> questionsQuizParEvaluation(Collection<Long> evaluationIds) {
+        if (evaluationIds.isEmpty()) return Map.of();
+        Map<Long, List<Question>> parEvaluation = new HashMap<>();
+        for (Question q : questionRepository.findByEvaluationIdInOrderByOrdreAsc(evaluationIds)) {
+            parEvaluation.computeIfAbsent(q.getEvaluation().getId(), id -> new ArrayList<>()).add(q);
+        }
+        Map<Long, List<QuestionQuiz>> resultat = new HashMap<>();
+        for (Long id : evaluationIds) {
+            resultat.put(id, questionsQuiz(parEvaluation.getOrDefault(id, List.of())));
+        }
+        return resultat;
+    }
+
+    /**
+     * Fin du quiz si l'étudiant laisse courir le temps : début de la question en cours + durées de celle-ci et des
+     * suivantes (fin de la dernière question si le quiz est terminé). Ne dépend pas de l'instant : clore une
+     * question écoulée (voir {@link #etat}) avance le début de la suivante d'autant que sa durée.
+     */
+    public static LocalDateTime finQuiz(Soumission soumission, List<QuestionQuiz> questions) {
+        int index = soumission.getIndexQuestionQuiz() != null ? soumission.getIndexQuestionQuiz() : 0;
+        LocalDateTime fin = soumission.getDebutQuestionQuiz() != null
+                ? soumission.getDebutQuestionQuiz() : soumission.getDateDebut();
+        for (int i = index; i < questions.size(); i++) {
+            fin = fin.plusSeconds(duree(questions.get(i)));
+        }
+        return fin;
     }
 
     /** État à cet instant : les questions dont le temps est écoulé sont closes (sans rien enregistrer). */

@@ -20,10 +20,12 @@ CC -> T ++ : dureesEffectivesMinutes(copies)
 T -> D : SELECT AmenagementTemps WHERE evaluation_id IN (…)
 D --> T : aménagements (tiers-temps)
 T --> CC -- : durée effective par copie
-note right of CC : une seule requête d'aménagements pour tout le lot,\nquel que soit le nombre de copies
+CC -> D : SELECT Question WHERE evaluation_id IN (…) ORDER BY ordre
+D --> CC : questions (une évaluation n'est un quiz que si toutes sont des quiz)
+note right of CC : une seule requête d'aménagements et une seule de questions\npour tout le lot, quel que soit le nombre de copies
 loop pour chaque copie en cours
-  CC -> T : estExpiree(copie, durée effective)
-  note right of T : expirée si maintenant > fin + 2 min de marge,\nfin = min(dateDebut + durée effective, dateFermeture)
+  CC -> T : finEpreuve(copie, durée effective, questions du quiz)\npuis estDepassee(fin)
+  note right of T : expirée si maintenant > fin + 2 min de marge,\nfin = min(dateDebut + durée effective, dateFermeture, fin du quiz)\nfin du quiz = début de la question en cours + durées restantes :\nun quiz abandonné est clos avec sa dernière question,\npas à la fin de sa durée standard
   T --> CC : expirée ou non
 end
 note right of CC : copies dans les temps : ni verrou ni écriture
@@ -39,10 +41,10 @@ loop pour chaque copie expirée
     break statut ≠ EN_COURS (remise ou reprise entre le repérage et le verrou)
       note right of CC : rien n'est modifié (date de la vraie remise conservée)
     end
-    CC -> T ++ : dureeEffectiveMinutes(copie)
+    CC -> T ++ : finEpreuve(copie, questions du quiz)
     T -> D : SELECT AmenagementTemps WHERE etudiant_id, evaluation_id
     D --> T : aménagement éventuel
-    T --> CC -- : durée relue
+    T --> CC -- : fin relue (durée, fermeture, position dans le quiz)
     break plus expirée (aménagement accordé entre le repérage et le verrou)
       note right of CC : la copie reste ouverte avec sa nouvelle durée
     end

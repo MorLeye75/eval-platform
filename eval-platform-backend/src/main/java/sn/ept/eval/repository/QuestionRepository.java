@@ -13,6 +13,9 @@ import java.util.List;
 public interface QuestionRepository extends JpaRepository<Question, Long> {
     List<Question> findByEvaluationIdOrderByOrdreAsc(Long evaluationId);
 
+    /** Questions de plusieurs évaluations en une requête, dans l'ordre de chacune (clôture en lot, DS-11). */
+    List<Question> findByEvaluationIdInOrderByOrdreAsc(Collection<Long> evaluationIds);
+
     /** Total des points d'une évaluation (barème). */
     interface TotalPoints {
         Long getEvaluationId();
