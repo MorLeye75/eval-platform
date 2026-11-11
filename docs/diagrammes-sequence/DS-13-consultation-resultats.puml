@@ -45,6 +45,11 @@ else EVALUE et evaluation.resultatsPublies
     erreur à l'exécution, erreur de compilation) et temps ; jamais l'entrée,
     la sortie attendue, la sortie obtenue ni le message d'erreur (réutilisables,
     et la sortie d'erreur d'un programme peut recopier son entrée).
+    Verdict et temps eux-mêmes **seulement après dateFermeture + 2 min**, comme
+    le corrigé des QCM : « cas masqué n° 3 échoué » dirait à un camarade en
+    tiers-temps où est le piège. Avant : cas listé, reussi, verdict et temps nuls
+    (« Verdict après la fermeture »). Vérifié ici, sans compter seulement sur la
+    règle de publication (DS-07, publication après TERMINEE + 2 min).
     **Questions ouvertes** : note et commentaire validés par l'enseignant ;
     la proposition de l'IA n'est jamais renvoyée.
     **Moyenne de la promotion** : seulement à partir de 5 copies notées
