@@ -59,7 +59,7 @@ Une question sans cas de test est laissée à l'enseignant.
 
 **Pannes.**
 
-- *Judge0 indisponible* (réseau, erreur 5xx, statuts 13 et 14, délai dépassé) : nouvel essai 1, 2, 4 puis 8 min
+- *Judge0 indisponible* (réseau, erreur 5xx, 429 trop de requêtes, statuts 13 et 14, délai dépassé) : nouvel essai 1, 2, 4 puis 8 min
   plus tard. À la 5e tentative, la copie passe en correction manuelle avec ses QCM notés.
 - *Erreur imprévue* : elle compte de la même façon.
 - *Relance planifiée* : elle reprend les copies dont `prochaine_tentative_le` est passée, 50 par minute au plus.
