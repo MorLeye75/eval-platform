@@ -12,7 +12,7 @@ public class SauvegardeReponsesRequest {
 
     @NotNull
     @Size(max = NB_MAX_REPONSES, message = "Trop de réponses dans une seule sauvegarde")
-    private List<@Valid ReponseItemDto> reponses = new ArrayList<>();
+    private List<@NotNull(message = "Réponse vide dans la sauvegarde") @Valid ReponseItemDto> reponses = new ArrayList<>();
 
     // Version des réponses sur laquelle le client a saisi ; null = pas de contrôle (client sans versionnement)
     private Integer versionAttendue;
