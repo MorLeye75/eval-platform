@@ -83,7 +83,12 @@ class MigrationPostgresIntegrationTest {
     void migrationAppliquee() {
         // Le contexte ne démarre que si Hibernate valide le schéma créé par Flyway
         assertThat(flyway.info().pending()).isEmpty();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("8");
+        // Version courante = la plus haute des migrations du projet, quel que soit son numéro (pas de « 8 » en dur
+        // qui casse à chaque nouvelle migration)
+        org.flywaydb.core.api.MigrationVersion derniere = java.util.Arrays.stream(flyway.info().all())
+                .map(org.flywaydb.core.api.MigrationInfo::getVersion)
+                .max(Comparable::compareTo).orElseThrow();
+        assertThat(flyway.info().current().getVersion()).isEqualTo(derniere);
     }
 
     @Test
