@@ -38,8 +38,8 @@ class TentativesConnexionServiceTest {
     @BeforeEach
     void setUp() {
         horloge = new HorlogeManuelle();
-        // 5 échecs par couple, 10 par IP, fenêtre et blocage de 15 min, 1000 entrées au plus
-        service = new TentativesConnexionService(horloge, 5, 15, 15, 10, 1000);
+        // 5 échecs par couple, fenêtre et blocage de 15 min, 1000 entrées au plus
+        service = new TentativesConnexionService(horloge, 5, 15, 15, 1000);
     }
 
     private void echouer(int fois) {
@@ -101,42 +101,26 @@ class TentativesConnexionServiceTest {
     }
 
     @Test
-    @DisplayName("Password spraying : trop d'échecs depuis une IP, tous comptes confondus, bloquent cette IP")
-    void sprayingBloqueLIp() {
-        for (int i = 0; i < 10; i++) {
+    @DisplayName("Campus derrière un NAT : beaucoup d'échecs depuis une même IP, sur des comptes différents, ne bloquent pas les autres comptes")
+    void memeIpComptesDifferents_PasDeBlocageCollectif() {
+        for (int i = 0; i < 200; i++) {
             service.enregistrerEchec("compte" + i + "@ept.sn", IP); // un seul essai par compte
         }
 
-        assertThatThrownBy(() -> service.verifierNonBloque("autre@ept.sn", IP))
-                .isInstanceOf(TropDeTentativesException.class)
-                .hasMessageContaining("réseau");
-        assertThatCode(() -> service.verifierNonBloque("autre@ept.sn", "10.0.0.2")).doesNotThrowAnyException();
-    }
-
-    @Test
-    @DisplayName("Une connexion réussie ne remet pas à zéro le compteur de l'IP (l'attaquant pourrait se connecter à son propre compte)")
-    void reussiteNeReinitialisePasLIp() {
-        for (int i = 0; i < 9; i++) {
-            service.enregistrerEchec("compte" + i + "@ept.sn", IP);
-        }
-        service.reinitialiser("compte0@ept.sn", IP);
-        service.enregistrerEchec("compte9@ept.sn", IP);
-
-        assertThatThrownBy(() -> service.verifierNonBloque("autre@ept.sn", IP))
-                .isInstanceOf(TropDeTentativesException.class);
+        assertThatCode(() -> service.verifierNonBloque("autre@ept.sn", IP)).doesNotThrowAnyException();
     }
 
     @Test
     @DisplayName("Mémoire bornée : des milliers d'emails inventés ne font pas grossir les compteurs sans limite")
     void memoireBornee() {
-        TentativesConnexionService borne = new TentativesConnexionService(horloge, 5, 15, 15, 1_000_000, 50);
+        TentativesConnexionService borne = new TentativesConnexionService(horloge, 5, 15, 15, 50);
         for (int i = 0; i < 5; i++) borne.enregistrerEchec(EMAIL, IP); // couple bloqué, à conserver
 
         for (int i = 0; i < 5_000; i++) {
             borne.enregistrerEchec("invente" + i + "@ept.sn", "10.1." + (i / 250) + "." + (i % 250));
         }
 
-        assertThat(borne.nombreDeCompteurs()).isLessThanOrEqualTo(2 * 50);
+        assertThat(borne.nombreDeCompteurs()).isLessThanOrEqualTo(50);
         // Un blocage en cours n'est pas évincé au profit des nouvelles entrées
         assertThatThrownBy(() -> borne.verifierNonBloque(EMAIL, IP)).isInstanceOf(TropDeTentativesException.class);
     }

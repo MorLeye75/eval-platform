@@ -23,7 +23,7 @@ Toutes les corrections sont couvertes par un test écrit pour reproduire le déf
 | Passation | Plus de copie vide soumise à l'ouverture (chrono à 0 au premier rendu). Une seule réponse par question et par copie (V3). Plus d'énoncés renvoyés après la remise. Réponses gardées localement à chaque frappe, délai maximal de 15 s par requête. Fenêtre de remise verrouillée pendant l'envoi, heure de remise fixée par le serveur. Une modification annulée n'est plus restaurée au rechargement. |
 | Correction | Plus de notes partielles en cas d'erreur (transaction annulée). Une file de correction pleine ne provoque plus d'erreur 500. |
 | Sécurité et configuration | Plus de profil `dev` par défaut. Démarrage refusé sans `DB_PASSWORD` ni `JWT_SECRET`. Origines CORS configurables, Swagger désactivé hors développement. |
-| Authentification | Session vidée à la déconnexion, rôle revalidé par le serveur (`/auth/me`). Limite de tentatives par IP en plus du couple email + IP, avec 429 affiché. Session d'un autre compte effacée sur un poste partagé. Connexion sans modifier l'audit du compte. |
+| Authentification | Session vidée à la déconnexion, rôle revalidé par le serveur (`/auth/me`). Limite de tentatives par couple email + IP, avec 429 affiché (le blocage par IP seule a été retiré le 11 novembre : derrière le NAT du campus, il bloquait toute l'école). Session d'un autre compte effacée sur un poste partagé. Connexion sans modifier l'audit du compte. |
 | Erreurs | Champ `code` sur toutes les erreurs ; 409 `CONFLIT_DONNEES` / `VERROU_INDISPONIBLE`. |
 | Performances | Clôture des copies en lot, une transaction courte par copie. Tables de liaison avec clé primaire (V4), proposition IA chargée à la demande. |
 | Accessibilité | Vrais liens et boutons nommés, accordéons accessibles. |
@@ -137,7 +137,7 @@ l'identifiant de la **copie**.
 
 Diagramme : [`DS-14-connexion.puml`](diagrammes-sequence/DS-14-connexion.puml). Il documente le code existant :
 
-- limite des tentatives (5 échecs par couple email + IP, 100 par IP, sur 15 min ; réponse 429) ;
+- limite des tentatives (5 échecs par couple email + IP sur 15 min ; réponse 429 ; pas de blocage par IP seule) ;
 - même message 401 que le compte existe ou non ;
 - jeton de 24 h, avec rôle et état du compte relus en base à chaque requête ;
 - revalidation au démarrage par `/auth/me`, et effacement de la session à la déconnexion.

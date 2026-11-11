@@ -15,13 +15,12 @@ activate F
 F -> B ++ : POST /api/auth/login { email, motDePasse }
 B -> TC : verifierNonBloque(email, ip)
 note right of TC
-  deux compteurs d'échecs sur 15 min :
-  couple (email, IP) : blocage à 5 échecs ;
-  IP seule, tous comptes : blocage à 100 (password spraying,
-  seuil haut à cause du NAT du campus). IP réelle derrière
-  un proxy : FORWARD_HEADERS_STRATEGY=native
+  échecs comptés par couple (email, IP) sur 15 min :
+  blocage à 5 échecs. Pas de blocage par IP seule : derrière
+  le NAT du campus, il bloquerait toute l'école. IP réelle
+  derrière un proxy : FORWARD_HEADERS_STRATEGY=native
 end note
-alt couple ou IP bloqué
+alt couple bloqué
   B --> F : 429 TROP_DE_TENTATIVES + en-tête Retry-After
   F --> U : message du serveur (délai avant le prochain essai)
 else

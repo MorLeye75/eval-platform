@@ -18,11 +18,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Protection contre la force brute sur /auth/login, à deux niveaux :
- * - couple (email, IP) : après N échecs dans la fenêtre d'observation, ce couple est bloqué ;
- * - IP seule, tous comptes confondus (password spraying : un mot de passe courant essayé sur beaucoup de
- *   comptes). Seuil volontairement haut : les étudiants d'un campus sortent souvent par la même IP (NAT).
- *   Une connexion réussie ne remet pas ce compteur à zéro (l'attaquant pourrait se connecter à son compte).
+ * Protection contre la force brute sur /auth/login (et sur le changement de mot de passe) : après N échecs dans la
+ * fenêtre d'observation, le couple (email, IP) est bloqué.
+ *
+ * Pas de blocage par IP seule, tous comptes confondus (décision du 11 novembre 2026) : les étudiants d'un campus
+ * sortent souvent par la même IP (NAT), et quelques erreurs de mot de passe de chacun, au début d'un examen,
+ * bloqueraient toute l'école. Contrepartie acceptée : un mot de passe courant essayé sur beaucoup de comptes depuis
+ * une même IP (password spraying) n'est pas freiné.
  *
  * Compteurs en mémoire, bornés en nombre d'entrées (des emails inventés ne doivent pas épuiser la mémoire) :
  * suffisant pour une instance unique (à remplacer par un cache partagé en cas de déploiement multi-instances).
@@ -37,41 +39,33 @@ public class TentativesConnexionService {
     private final Duration fenetre;
     private final Duration dureeBlocage;
     private final Compteurs parCouple;
-    private final Compteurs parIp;
 
     public TentativesConnexionService(Clock clock,
                                       @Value("${securite.login.max-echecs:5}") int maxEchecs,
                                       @Value("${securite.login.fenetre-minutes:15}") long fenetreMinutes,
                                       @Value("${securite.login.duree-blocage-minutes:15}") long dureeBlocageMinutes,
-                                      @Value("${securite.login.max-echecs-par-ip:100}") int maxEchecsParIp,
                                       @Value("${securite.login.max-compteurs:10000}") int maxCompteurs) {
         this.clock = clock;
         this.fenetre = Duration.ofMinutes(fenetreMinutes);
         this.dureeBlocage = Duration.ofMinutes(dureeBlocageMinutes);
         this.parCouple = new Compteurs("couple", maxEchecs, maxCompteurs,
                 "Trop de tentatives de connexion échouées. Réessayez dans %d minute(s).");
-        this.parIp = new Compteurs("IP", maxEchecsParIp, maxCompteurs,
-                "Trop de tentatives de connexion échouées depuis votre réseau. Réessayez dans %d minute(s).");
     }
 
     private static String couple(String email, String ip) {
         return (email == null ? "" : email.trim().toLowerCase(Locale.ROOT)) + "|" + ip;
     }
 
-    /** Lève TropDeTentativesException si l'IP ou le couple (email, IP) est actuellement bloqué. */
+    /** Lève TropDeTentativesException si le couple (email, IP) est actuellement bloqué. */
     public void verifierNonBloque(String email, String ip) {
-        Instant maintenant = clock.instant();
-        parIp.verifier(ip, maintenant);
-        parCouple.verifier(couple(email, ip), maintenant);
+        parCouple.verifier(couple(email, ip), clock.instant());
     }
 
     public void enregistrerEchec(String email, String ip) {
-        Instant maintenant = clock.instant();
-        parCouple.echec(couple(email, ip), maintenant);
-        parIp.echec(ip, maintenant);
+        parCouple.echec(couple(email, ip), clock.instant());
     }
 
-    /** Connexion réussie : seul le compteur du couple repart de zéro. */
+    /** Connexion réussie : le compteur du couple repart de zéro. */
     public void reinitialiser(String email, String ip) {
         parCouple.retirer(couple(email, ip));
     }
@@ -79,14 +73,12 @@ public class TentativesConnexionService {
     /** Purge des entrées expirées. */
     @Scheduled(fixedDelay = 600_000)
     public void purger() {
-        Instant maintenant = clock.instant();
-        parCouple.purger(maintenant);
-        parIp.purger(maintenant);
+        parCouple.purger(clock.instant());
     }
 
-    /** Nombre total d'entrées en mémoire (couples et IP). */
+    /** Nombre d'entrées en mémoire. */
     public int nombreDeCompteurs() {
-        return parCouple.taille() + parIp.taille();
+        return parCouple.taille();
     }
 
     /** Compteurs d'échecs pour un type de clé, avec seuil de blocage et nombre d'entrées borné. */

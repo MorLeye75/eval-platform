@@ -93,8 +93,7 @@ ni de secret par défaut) : l'application démarre sans profil et exige ces vari
 | `correction.judge0.duree-max-execution` | `10m` | durée maximale de toutes les exécutions d'une copie |
 | `correction.judge0.langages.*` | c 50, cpp 54, java 62, python 71, javascript 63 | `language_id` de Judge0 CE 1.13 |
 | `securite.login.max-echecs` | `5` | échecs de connexion avant blocage d'un couple (email, IP) |
-| `securite.login.max-echecs-par-ip` | `100` | échecs depuis une même IP, tous comptes confondus, avant blocage de l'IP (password spraying). À ajuster : les étudiants d'un campus partagent souvent une IP |
-| `securite.login.max-compteurs` | `10000` | entrées en mémoire par type de compteur (couples, IP) ; au-delà, les plus anciennes sont évincées |
+| `securite.login.max-compteurs` | `10000` | couples (email, IP) gardés en mémoire ; au-delà, les plus anciens sont évincés. Pas de blocage par IP seule : derrière le NAT d'un campus, il bloquerait tous les étudiants |
 | `securite.login.fenetre-minutes` | `15` | fenêtre de comptage des échecs |
 | `securite.login.duree-blocage-minutes` | `15` | durée du blocage |
 
