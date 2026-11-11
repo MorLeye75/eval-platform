@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import sn.ept.eval.security.services.RevocationJetonsService;
 import sn.ept.eval.security.services.UserDetailsServiceImpl;
 
 import java.io.IOException;
@@ -21,10 +22,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserDetailsServiceImpl userDetailsService;
+    private final RevocationJetonsService revocationJetonsService;
 
-    public AuthTokenFilter(JwtUtils jwtUtils, UserDetailsServiceImpl userDetailsService) {
+    public AuthTokenFilter(JwtUtils jwtUtils, UserDetailsServiceImpl userDetailsService,
+                           RevocationJetonsService revocationJetonsService) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.revocationJetonsService = revocationJetonsService;
     }
 
     @Override
@@ -32,7 +36,9 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+            // Jeton d'une session fermée par la déconnexion : refusé jusqu'à son expiration (DS-14)
+            if (jwt != null && jwtUtils.validateJwtToken(jwt)
+                    && !revocationJetonsService.estRevoque(jwtUtils.lireJeton(jwt).jti())) {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);

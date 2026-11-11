@@ -140,10 +140,12 @@ Diagramme : [`DS-14-connexion.puml`](diagrammes-sequence/DS-14-connexion.puml). 
 - limite des tentatives (5 échecs par couple email + IP sur 15 min ; réponse 429 ; pas de blocage par IP seule) ;
 - même message 401 que le compte existe ou non ;
 - jeton de 24 h, avec rôle et état du compte relus en base à chaque requête ;
-- revalidation au démarrage par `/auth/me`, et effacement de la session à la déconnexion.
+- revalidation au démarrage par `/auth/me`, et effacement de la session à la déconnexion ;
+- révocation à la déconnexion (11 novembre) : `POST /auth/logout` révoque le jeton de cette session seulement
+  (identifiant `jti`, table `jetons_revoques`, V10). Les sessions ouvertes sur d'autres appareils restent valides.
 
-**Limite connue.** La déconnexion n'appelle pas le serveur : un jeton copié reste valable jusqu'à son
-expiration, 24 h au plus.
+**Limite connue.** Un changement de mot de passe ne ferme pas les autres sessions : leurs jetons restent
+valables jusqu'à leur expiration, 24 h au plus.
 
 ## 7. Migrations Flyway ajoutées
 
@@ -155,6 +157,7 @@ expiration, 24 h au plus.
 | V6 | Langage de la réponse de code |
 | V7 | Suivi de la correction : `correction_demarree_le`, `tentatives_correction`, `prochaine_tentative_le`, index partiel de relance |
 | V8 | Verdict des cas de test |
+| V10 | Jetons révoqués à la déconnexion (`jetons_revoques`). V9 est celle d'Aminou (version des évaluations) |
 
 Toutes sont vérifiées sur un vrai PostgreSQL par `MigrationPostgresIntegrationTest` : le schéma est validé contre
 les entités, avec un parcours de passation, la relance des corrections et les statistiques de résultats.
@@ -197,7 +200,6 @@ Rejouée sur la même base, elle échoue : les copies sont déjà remises.
   exigé, échecs comptés avec ceux de la connexion). La page est commune aux trois rôles.
 - **Service de notifications** côté serveur (`NotificationService`), laissé à Mor par Aminou dans son DS-05 :
   diagramme DS-15 à écrire avec lui (événements, contenu), puis la page des notifications étudiant.
-- Révocation des jetons à la déconnexion (liste de révocation ou jetons plus courts), si on la juge utile.
 - Fait le 9 novembre : verrou partagé sur l'évaluation au démarrage d'une copie (point ouvert du DS-04 d'Aminou,
   test de concurrence sur PostgreSQL) ; accueil étudiant branché sur `/etudiant/evaluations` et
   `/etudiant/performances`.

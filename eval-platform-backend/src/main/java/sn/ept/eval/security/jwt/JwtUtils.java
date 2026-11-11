@@ -12,7 +12,9 @@ import sn.ept.eval.security.services.UserDetailsImpl;
 
 import javax.crypto.SecretKey;
 import java.time.Clock;
+import java.time.LocalDateTime;
 import java.util.Date;
+import java.util.UUID;
 
 @Component
 public class JwtUtils {
@@ -58,6 +60,8 @@ public class JwtUtils {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
         return Jwts.builder()
+                // Identifiant unique : la déconnexion révoque ce jeton-là seulement (DS-14)
+                .id(UUID.randomUUID().toString())
                 .subject(userPrincipal.getUsername())
                 .claim("id", userPrincipal.getId())
                 .claim("role", userPrincipal.getRole().name())
@@ -73,6 +77,18 @@ public class JwtUtils {
         return parser.parseSignedClaims(token)
                 .getPayload()
                 .getSubject();
+    }
+
+    /** Identifiant (jti) et expiration d'un jeton dont la signature et l'expiration sont valides. */
+    public record JetonLu(String jti, LocalDateTime expiration) {}
+
+    /**
+     * Lit un jeton déjà validé ({@link #validateJwtToken}). jti nul pour un jeton émis avant l'ajout de la
+     * révocation : il n'est pas révocable, mais expire comme les autres.
+     */
+    public JetonLu lireJeton(String token) {
+        Claims claims = parser.parseSignedClaims(token).getPayload();
+        return new JetonLu(claims.getId(), LocalDateTime.ofInstant(claims.getExpiration().toInstant(), clock.getZone()));
     }
 
     public boolean validateJwtToken(String authToken) {

@@ -55,7 +55,7 @@ alt jeton valide
   D --> B : compte
   note right of B : rôle et état relus en base à chaque requête :\nun compte désactivé ou un rôle changé après\nl'émission du jeton s'applique aussitôt
 end
-alt jeton absent, invalide, expiré, ou compte désactivé
+alt jeton absent, invalide, expiré, révoqué (déconnexion), ou compte désactivé
   B --> F : 401 NON_AUTHENTIFIE (AuthEntryPointJwt)
   F -> F : intercepteur : viderSession (réponses d'examen non envoyées\ngardées pour le même compte), retour à /login
 else rôle insuffisant (@PreAuthorize)
@@ -83,13 +83,19 @@ deactivate F
 == Déconnexion ==
 U -> F : « Se déconnecter »
 activate F
+F -> B ++ : POST /api/auth/logout (Authorization: Bearer jeton)\nenvoyé avant d'effacer le jeton, sans attendre la réponse
+B -> D : INSERT jetons_revoques (jti du jeton, expire_le, revoque_le)
+B --> F -- : 204 (401 si déjà révoqué ou expiré : ignoré,\nl'intercepteur ne vide pas la session d'un compte suivant)
 F -> F : viderSession : jeton, utilisateur, brouillon d'évaluation,\nréponses locales des copies ; cache des requêtes vidé
 F --> U : page de connexion
 deactivate F
-note right of F
-  Aucun appel au serveur : le jeton JWT est sans état.
-  **Limite connue** : un jeton copié avant la déconnexion
-  reste valable jusqu'à son expiration (24 h au plus).
+note right of B
+  Chaque jeton porte un identifiant unique (jti). Seule la session
+  fermée est révoquée : se déconnecter sur son téléphone ne coupe pas
+  l'épreuve en cours sur le PC. Chaque requête vérifie que son jti
+  n'est pas révoqué (recherche par clé primaire). Révocations en base
+  (V10) : elles survivent à un redémarrage ; purge horaire des jetons
+  expirés. Hors ligne, la session locale est vidée quand même.
 end note
 
 note over F, D

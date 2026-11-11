@@ -60,6 +60,10 @@
       "key": "tokenAdmin",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "tokenDeconnexion",
+      "value": ""
     }
   ],
   "item": [
@@ -929,6 +933,134 @@
                 {
                   "key": "token",
                   "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Déconnexion (DS-14)",
+      "description": "Révocation du jeton à la déconnexion. Session à part : le jeton {{token}} des autres dossiers reste valide.",
+      "item": [
+        {
+          "name": "6.1 Connexion d'une session à fermer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : jeton d'une session à part (les autres dossiers gardent {{token}})\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.collectionVariables.set('tokenDeconnexion', pm.response.json().token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"etudiant@ept.sn\",\n  \"motDePasse\": \"etudiant123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.2 Se déconnecter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 : jeton de cette session révoqué\", () => {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Révoque le jeton de cette session jusqu'à son expiration (table jetons_revoques). Les autres sessions du compte restent valides.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDeconnexion}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.3 Jeton révoqué refusé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"401 : le jeton de la session fermée n'est plus accepté\", () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Le même jeton, encore loin de son expiration, est refusé après la déconnexion.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDeconnexion}}",
                   "type": "string"
                 }
               ]
