@@ -42,7 +42,8 @@ else réponse invalide : question hors de l'évaluation, même question en doubl
 else vérifications valides
   B -> D : INSERT / UPDATE ReponseEtudiant (une seule réponse par question et par copie)
   B -> D : UPDATE Soumission SET versionReponses = versionReponses + 1
-  B --> F : 200 OK { dateSauvegarde, nbReponses, versionReponses }
+  B --> F : 200 OK { dateSauvegarde, nbReponses, versionReponses, tempsRestantSecondes }
+  note right of F : le chrono se recale sur tempsRestantSecondes\n(tiers-temps accordé pendant l'épreuve, horloge du PC décalée)
   F -> F : retient la nouvelle version ; vide le tampon local,\nsauf si l'étudiant a modifié ses réponses pendant l'envoi\n(tampon réécrit sur la nouvelle version)
   F --> E : affiche "Sauvegardé à HH:MM"
 end

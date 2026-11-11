@@ -13,7 +13,7 @@ activate F
 note over F : Affiche modale de confirmation\n(questions sans réponse listées par numéro)
 E -> F : confirme la soumission
 note right of F : pendant l'envoi, la modale reste ouverte\net « Continuer » est désactivé
-note right of F : même parcours, sans modale, quand le chrono\natteint 0 (soumission automatique en fin de temps)
+note right of F : même parcours, sans modale, quand le chrono\natteint 0 (soumission automatique en fin de temps).\nAvant, le navigateur relit la copie (reprise, DS-10) : si le serveur\nannonce encore du temps (tiers-temps accordé depuis le chargement,\nhorloge du PC en avance), le chrono se recale et rien n'est remis ;\nserveur injoignable : la remise part quand même
 
 == Dernière sauvegarde (DS-02) ==
 opt réponses modifiées depuis la dernière sauvegarde

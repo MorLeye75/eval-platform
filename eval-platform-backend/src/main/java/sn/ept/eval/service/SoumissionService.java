@@ -147,7 +147,8 @@ public class SoumissionService {
 
         // 2. Vérifie !isExpiree() (fin du quiz comprise)
         List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(soumission);
-        if (tempsEpreuveService.estDepassee(tempsEpreuveService.finEpreuve(soumission, questionsQuiz))) {
+        LocalDateTime finEpreuve = tempsEpreuveService.finEpreuve(soumission, questionsQuiz);
+        if (tempsEpreuveService.estDepassee(finEpreuve)) {
             log.warn("Tentative de sauvegarde tardive rejetée pour soumission ID={}", soumissionId);
             throw new TempsEcouleException("Action rejetée : temps imparti expiré.");
         }
@@ -174,8 +175,10 @@ public class SoumissionService {
         int version = soumission.getVersionReponses() + 1;
         soumission.setVersionReponses(version);
 
-        return new SauvegardeResponse(tempsEpreuveService.maintenant(), "Sauvegarde effectuée avec succès.",
-                nbSauvegardees, version);
+        SauvegardeResponse reponse = new SauvegardeResponse(tempsEpreuveService.maintenant(),
+                "Sauvegarde effectuée avec succès.", nbSauvegardees, version);
+        reponse.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(finEpreuve));
+        return reponse;
     }
 
     /**

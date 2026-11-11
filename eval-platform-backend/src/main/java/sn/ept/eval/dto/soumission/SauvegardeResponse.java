@@ -8,6 +8,8 @@ public class SauvegardeResponse {
     private String message;
     private Integer nbReponses;
     private Integer versionReponses; // nouvelle version des réponses de la copie
+    // Temps restant selon le serveur (tiers-temps accordé en cours d'épreuve compris) : le chrono s'y recale
+    private Long tempsRestantSecondes;
 
     public SauvegardeResponse() {}
 
@@ -29,4 +31,7 @@ public class SauvegardeResponse {
 
     public Integer getVersionReponses() { return versionReponses; }
     public void setVersionReponses(Integer versionReponses) { this.versionReponses = versionReponses; }
+
+    public Long getTempsRestantSecondes() { return tempsRestantSecondes; }
+    public void setTempsRestantSecondes(Long tempsRestantSecondes) { this.tempsRestantSecondes = tempsRestantSecondes; }
 }

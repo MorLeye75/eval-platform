@@ -83,4 +83,36 @@ describe("useExamTimer (DS-01 fin du chrono)", () => {
     })
     expect(onExpire).not.toHaveBeenCalled()
   })
+
+  it("recaler : le chrono repart du temps donné par le serveur, et peut expirer de nouveau", () => {
+    const onExpire = vi.fn()
+    const { result } = renderHook(() => useExamTimer({ dureeSecondes: 2, onExpire }))
+    act(() => {
+      vi.advanceTimersByTime(2000)
+    })
+    expect(onExpire).toHaveBeenCalledTimes(1)
+
+    // Le serveur annonce encore 10 min (tiers-temps accordé pendant l'épreuve)
+    act(() => result.current.recaler(600))
+    expect(result.current.tempsRestantFormate).toBe("10:00")
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(result.current.tempsRestantFormate).toBe("09:00")
+
+    act(() => {
+      vi.advanceTimersByTime(540_000)
+    })
+    expect(onExpire).toHaveBeenCalledTimes(2)
+  })
+
+  it("recaler sans réseau fiable : un temps négatif est ramené à 0", () => {
+    const onExpire = vi.fn()
+    const { result } = renderHook(() => useExamTimer({ dureeSecondes: 600, onExpire }))
+
+    act(() => result.current.recaler(-5))
+
+    expect(result.current.tempsRestant).toBe(0)
+    expect(onExpire).toHaveBeenCalledTimes(1)
+  })
 })

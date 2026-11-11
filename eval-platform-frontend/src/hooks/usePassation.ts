@@ -98,11 +98,19 @@ export function usePassation<T>({
     })
   }
 
+  const { tempsRestant, tempsRestantFormate, recaler } = useExamTimer({
+    dureeSecondes: copie?.tempsRestantSecondes ?? 0,
+    onExpire: () => void finDuChrono(),
+    enabled: pret && enCours,
+  })
+
   const { derniereSauvegarde, erreurSauvegarde, sauvegarderMaintenant, marquerSauvegarde } =
     useAutoSave({
       data: reponses,
       onSave: async (donnees, versionAttendue) => {
         const r = await sauvegarderReponses(copie!.id, versReponsesRef.current(donnees), versionAttendue)
+        // Le serveur fait foi : tiers-temps accordé pendant l'épreuve, horloge du PC décalée
+        if (typeof r.tempsRestantSecondes === "number") recaler(r.tempsRestantSecondes)
         return { dateSauvegarde: r.dateSauvegarde, version: r.versionReponses }
       },
       cleTampon,
@@ -146,6 +154,25 @@ export function usePassation<T>({
     marquerSauvegarde(serveur, copie.versionReponses)
     setPret(true)
   }, [copie, enCours, depuisCopie, marquerSauvegarde])
+
+  /**
+   * Fin du chrono du navigateur : le serveur confirme avant la remise. Sans cela, un tiers-temps accordé depuis le
+   * chargement de la page, ou une horloge du PC en avance, faisait remettre la copie avant l'heure.
+   * Lecture par la reprise, qui ne modifie pas une copie dans les temps (et clôture une copie expirée).
+   */
+  async function finDuChrono() {
+    if (!copie || termine.current) return
+    try {
+      const serveur = await demarrerEpreuve(evaluationId!)
+      if (serveur.statut === "EN_COURS" && serveur.tempsRestantSecondes > 0) {
+        recaler(serveur.tempsRestantSecondes)
+        return
+      }
+    } catch {
+      // Serveur injoignable : remise quand même, il clôturera la copie à l'état de la dernière sauvegarde
+    }
+    await soumettre("expiration")
+  }
 
   /** DS-01 : soumission de la copie (bouton « Soumettre » ou fin du chrono). */
   async function soumettre(fin: Fin = "confirmation") {
@@ -192,12 +219,6 @@ export function usePassation<T>({
       }
     }
   }
-
-  const { tempsRestant, tempsRestantFormate } = useExamTimer({
-    dureeSecondes: copie?.tempsRestantSecondes ?? 0,
-    onExpire: () => soumettre("expiration"),
-    enabled: pret && enCours,
-  })
 
   // Anti-triche : compteur repris du serveur, chaque nouvelle sortie lui est signalée (il fait foi)
   const { changementsOnglet, setChangementsOnglet } = useAntiCheat({

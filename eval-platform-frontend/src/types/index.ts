@@ -184,6 +184,7 @@ export interface SauvegardeResponse {
   message: string
   nbReponses: number
   versionReponses: number
+  tempsRestantSecondes: number // temps restant selon le serveur : le chrono s'y recale
 }
 
 // ---------- Correction IA ----------

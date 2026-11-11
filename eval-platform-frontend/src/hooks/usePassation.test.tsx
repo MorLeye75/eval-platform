@@ -217,3 +217,68 @@ describe("usePassation : rechargement après une sauvegarde dont la réponse s'e
     expect(localStorage.getItem("passation-copie-12-conflit")).not.toBeNull() // mis de côté, pas détruit
   })
 })
+
+describe("usePassation : chrono recalé sur le serveur (DS-01)", () => {
+  beforeEach(() => {
+    localStorage.clear()
+    navigate.mockReset()
+    vi.mocked(demarrerEpreuve).mockReset()
+    vi.mocked(sauvegarderReponses).mockReset()
+    vi.mocked(soumettreCopie).mockReset()
+  })
+
+  afterEach(() => cleanup())
+
+  it("fin du chrono du navigateur alors que le serveur accorde encore du temps : pas de remise, chrono recalé", async () => {
+    // Horloge du PC en avance, ou tiers-temps accordé depuis le chargement de la page
+    vi.mocked(demarrerEpreuve)
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 600 })
+    const { result } = monter()
+
+    await waitFor(() => expect(result.current.tempsRestantFormate).toBe("10:00"))
+    expect(soumettreCopie).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it("fin du chrono confirmée par le serveur : la copie est remise", async () => {
+    vi.mocked(demarrerEpreuve)
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+    vi.mocked(soumettreCopie).mockResolvedValue("2026-11-07T10:30:00")
+    monter()
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/examen/7/expiration", expect.anything()))
+    expect(soumettreCopie).toHaveBeenCalledTimes(1)
+  })
+
+  it("serveur injoignable à la fin du chrono : la remise part quand même (comportement d'avant)", async () => {
+    vi.mocked(demarrerEpreuve)
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+      .mockRejectedValueOnce(delaiDepasse())
+    vi.mocked(soumettreCopie).mockResolvedValue("2026-11-07T10:30:00")
+    monter()
+
+    await waitFor(() => expect(soumettreCopie).toHaveBeenCalledTimes(1))
+  })
+
+  it("chaque sauvegarde recale le chrono sur le temps restant du serveur", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue(COPIE) // 30:00
+    vi.mocked(sauvegarderReponses).mockResolvedValue({
+      dateSauvegarde: "2026-11-07T10:05:00",
+      message: "ok",
+      nbReponses: 0,
+      versionReponses: 1,
+      tempsRestantSecondes: 2700, // tiers-temps accordé : 45 min restantes
+    })
+    const { result } = monter()
+    await waitFor(() => expect(result.current.chargement).toBe(false))
+
+    act(() => result.current.setReponses({ modifie: true } as never))
+    await act(async () => {
+      await result.current.sauvegarderMaintenant()
+    })
+
+    expect(result.current.tempsRestantFormate).toBe("45:00")
+  })
+})
