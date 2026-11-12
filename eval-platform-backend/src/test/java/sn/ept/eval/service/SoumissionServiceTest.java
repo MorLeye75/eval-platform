@@ -93,7 +93,7 @@ class SoumissionServiceTest {
         CorrectionDeclencheur correctionDeclencheur = new CorrectionDeclencheur(correctionService,
                 new CorrectionsEnFile(), soumissionRepository);
         ClotureCopiesService clotureCopiesService = new ClotureCopiesService(soumissionRepository, tempsEpreuveService,
-                correctionDeclencheur, mock(PlatformTransactionManager.class));
+                quizService, correctionDeclencheur, mock(PlatformTransactionManager.class));
         soumissionService = new SoumissionService(soumissionRepository, evaluationRepository, etudiantRepository,
                 enregistrementReponses, correctionDeclencheur, tempsEpreuveService,
                 soumissionMapper, accesService, antiTricheService, clotureCopiesService, quizService);
@@ -134,6 +134,8 @@ class SoumissionServiceTest {
         assertThat(response).isNotNull();
         assertThat(response.getDateSauvegarde()).isNotNull();
         assertThat(response.getMessage()).contains("succès");
+        // Questions lues une seule fois par sauvegarde (quiz ou non, puis enregistrement des réponses)
+        verify(questionRepository, times(1)).findByEvaluationIdOrderByOrdreAsc(10L);
     }
 
     @Test
@@ -311,6 +313,26 @@ class SoumissionServiceTest {
     }
 
     @Test
+    @DisplayName("DS-02 : la sauvegarde renvoie le temps restant du serveur, sur lequel le chrono du navigateur se recale")
+    void sauvegarderReponses_RenvoieLeTempsRestant() {
+        when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
+        when(soumissionRepository.findByIdForUpdate(100L)).thenReturn(Optional.of(soumission));
+        SauvegardeReponsesRequest vide = new SauvegardeReponsesRequest(List.of());
+
+        // Débutée il y a 10 min sur 30 min
+        assertThat(soumissionService.sauvegarderReponses(100L, vide, "etudiant@ept.sn").getTempsRestantSecondes())
+                .isEqualTo(20 * 60L);
+
+        // Tiers-temps accordé pendant l'épreuve (45 min) : le temps renvoyé en tient compte aussitôt
+        AmenagementTemps tiersTemps = new AmenagementTemps();
+        tiersTemps.setDureePersonnalisee(45);
+        when(amenagementTempsRepository.findByEtudiantIdAndEvaluationId(etudiant.getId(), evaluation.getId()))
+                .thenReturn(Optional.of(tiersTemps));
+        assertThat(soumissionService.sauvegarderReponses(100L, vide, "etudiant@ept.sn").getTempsRestantSecondes())
+                .isEqualTo(35 * 60L);
+    }
+
+    @Test
     @DisplayName("DS-02 : chaque sauvegarde réussie incrémente la version des réponses de la copie")
     void sauvegarderReponses_MetAJourLaVersion() {
         when(etudiantRepository.findByEmail("etudiant@ept.sn")).thenReturn(Optional.of(etudiant));
@@ -336,7 +358,8 @@ class SoumissionServiceTest {
                 .isInstanceOf(VersionObsoleteException.class)
                 .satisfies(e -> assertThat(((VersionObsoleteException) e).getVersionActuelle()).isEqualTo(3));
         assertThat(soumission.getVersionReponses()).isEqualTo(3);
-        verify(questionRepository, never()).findByEvaluationIdOrderByOrdreAsc(any());
+        verify(reponseEtudiantRepository, never()).save(any());
+        verify(reponseEtudiantRepository, never()).delete(any());
     }
 
     @Test

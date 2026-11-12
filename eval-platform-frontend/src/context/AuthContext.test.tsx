@@ -48,6 +48,31 @@ describe("AuthContext", () => {
     expect(sessionStorage.getItem(CLE_BROUILLON_EVALUATION)).toBeNull()
   })
 
+  it("déconnexion : le jeton de cette session est révoqué côté serveur (envoyé avant d'être effacé)", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({ data: { ...UTILISATEUR_STOCKE, token: null } })
+    const post = vi.spyOn(api, "post").mockResolvedValue({ status: 204 })
+    const { result } = rendre(new QueryClient())
+
+    act(() => result.current.logout())
+
+    expect(post).toHaveBeenCalledWith("/auth/logout", null, { headers: { Authorization: "Bearer jeton" } })
+    expect(localStorage.getItem("token")).toBeNull()
+  })
+
+  it("déconnexion sans réseau : la session locale est quand même vidée, sans erreur non gérée", async () => {
+    vi.spyOn(api, "get").mockResolvedValue({ data: { ...UTILISATEUR_STOCKE, token: null } })
+    vi.spyOn(api, "post").mockRejectedValue(new Error("Network Error"))
+    const { result } = rendre(new QueryClient())
+
+    act(() => result.current.logout())
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    expect(result.current.user).toBeNull()
+    expect(localStorage.getItem("token")).toBeNull()
+  })
+
   it("au démarrage, l'utilisateur stocké est revalidé par GET /auth/me (le rôle du localStorage ne fait pas foi)", async () => {
     const get = vi.spyOn(api, "get").mockResolvedValue({
       data: { ...UTILISATEUR_STOCKE, role: "ADMIN", token: null },

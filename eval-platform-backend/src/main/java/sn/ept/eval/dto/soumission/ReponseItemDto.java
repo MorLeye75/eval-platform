@@ -14,6 +14,7 @@ public class ReponseItemDto {
     public static final int TAILLE_MAX_CODE = 50_000;
     public static final int NB_MAX_CHOIX = 20;
 
+    @NotNull(message = "Chaque réponse doit indiquer sa question (questionId)")
     private Long questionId;
 
     @Size(max = TAILLE_MAX_TEXTE, message = "La réponse texte ne peut pas dépasser " + TAILLE_MAX_TEXTE + " caractères")

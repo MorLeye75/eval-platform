@@ -320,7 +320,7 @@ export default function BuilderQuestions() {
                               <Input
                                 value={c.texte}
                                 onChange={(e) => updateChoix(q.localId, c.id, { texte: e.target.value })}
-                                placeholder={`Choix ${q.choix?.indexOf(c)! + 1}`}
+                                placeholder={`Choix ${(q.choix?.indexOf(c) ?? 0) + 1}`}
                                 className="rounded-xl flex-1"
                               />
                               <button onClick={() => removeChoix(q.localId, c.id)} className="shrink-0 text-muted-foreground hover:text-destructive">

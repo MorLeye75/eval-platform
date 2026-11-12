@@ -230,6 +230,27 @@ class Judge0ClientTest {
     }
 
     @Test
+    @DisplayName("Erreur 429 de Judge0 (trop de requêtes) à l'envoi : indisponible, pas un bug")
+    void erreur429_Envoi_Indisponible() {
+        serveur.expect(once(), requestTo(BASE + "/submissions?base64_encoded=true"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertThatThrownBy(() -> client.executer("code", "python", cas(1), dans10Minutes()))
+                .isInstanceOf(Judge0IndisponibleException.class);
+    }
+
+    @Test
+    @DisplayName("Erreur 429 de Judge0 pendant l'attente du résultat : indisponible, pas un bug")
+    void erreur429_Interrogation_Indisponible() {
+        attendrePremierCas("t1");
+        serveur.expect(once(), requestTo(org.hamcrest.Matchers.startsWith(BASE + "/submissions/t1")))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertThatThrownBy(() -> client.executer("code", "python", cas(1), dans10Minutes()))
+                .isInstanceOf(Judge0IndisponibleException.class);
+    }
+
+    @Test
     @DisplayName("Judge0 injoignable ou délai de lecture dépassé : indisponible")
     void reseau_Indisponible() {
         serveur.expect(once(), requestTo(BASE + "/submissions?base64_encoded=true"))

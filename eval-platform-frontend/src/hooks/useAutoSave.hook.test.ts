@@ -126,7 +126,8 @@ describe("useAutoSave : tampon local et fermeture de page (DS-02)", () => {
       premier = await result.current.sauvegarderMaintenant()
     })
     expect(premier).toBe("echec")
-    expect(tampon()).toEqual({ version: 3, donnees: { 1: "modifiée" } })
+    // L'envoi sans réponse est retenu : le serveur a pu l'enregistrer (relu après un rechargement de la page)
+    expect(tampon()).toEqual({ version: 3, donnees: { 1: "modifiée" }, envois: [{ 1: "modifiée" }] })
     expect(result.current.erreurSauvegarde).toBe(true)
 
     let second!: unknown
@@ -183,5 +184,168 @@ describe("useAutoSave : tampon local et fermeture de page (DS-02)", () => {
     window.dispatchEvent(evt)
 
     expect(evt.defaultPrevented).toBe(false)
+  })
+})
+
+describe("useAutoSave : sauvegarde enregistrée dont la réponse s'est perdue", () => {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig
+  const reseau = () => new AxiosError("Network Error", "ERR_NETWORK", config) // pas de réponse : issue inconnue
+  const obsolete = (versionActuelle: number) => new AxiosError("conflit", "409", config, null, {
+    status: 409, statusText: "", headers: {}, config, data: { code: "VERSION_OBSOLETE", versionActuelle },
+  })
+
+  beforeEach(() => {
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    cleanup()
+  })
+
+  type Envoi = (d: Donnees, v: number | null) => Promise<SauvegardeConfirmee | void>
+  type Verification = (envois: Donnees[]) => Promise<{ version: number; index: number } | null>
+
+  function monterAvec(onSave: Envoi, verifierEnvoiPerdu: Verification, onConflit = vi.fn()) {
+    const vue = renderHook(
+      ({ data, enabled }: Props) =>
+        useAutoSave({ data, onSave, cleTampon: CLE, enabled, onConflit, verifierEnvoiPerdu }),
+      { initialProps: { data: {}, enabled: false } }
+    )
+    act(() => vue.result.current.marquerSauvegarde({ 1: "serveur" }, 3))
+    return { vue, onConflit }
+  }
+
+  async function sauvegarder(vue: { result: { current: { sauvegarderMaintenant: () => Promise<unknown> } } }) {
+    let resultat!: unknown
+    await act(async () => {
+      resultat = await vue.result.current.sauvegarderMaintenant()
+    })
+    return resultat
+  }
+
+  it("le serveur contient l'envoi perdu : pas de faux conflit, les réponses actuelles repartent sur sa version", async () => {
+    const onSave = vi.fn<Envoi>()
+      .mockRejectedValueOnce(reseau())        // enregistré par le serveur (version 4), réponse perdue
+      .mockRejectedValueOnce(obsolete(4))     // envoi suivant sur la version 3 : refusé
+      .mockResolvedValueOnce({ version: 5, dateSauvegarde: "2026-11-09T10:00:00" })
+    const verifierEnvoiPerdu = vi.fn<Verification>().mockResolvedValue({ version: 4, index: 0 })
+    const { vue, onConflit } = monterAvec(onSave, verifierEnvoiPerdu)
+
+    vue.rerender({ data: { 1: "A" }, enabled: true })
+    expect(await sauvegarder(vue)).toBe("echec")
+    vue.rerender({ data: { 1: "AB" }, enabled: true })
+    expect(await sauvegarder(vue)).toBe("ok")
+
+    expect(verifierEnvoiPerdu).toHaveBeenCalledWith([{ 1: "A" }])
+    expect(onSave).toHaveBeenLastCalledWith({ 1: "AB" }, 4)
+    expect(onConflit).not.toHaveBeenCalled()
+    expect(localStorage.getItem(CLE + "-conflit")).toBeNull() // rien de mis de côté
+  })
+
+  it("le serveur contient autre chose (autre onglet) : vrai conflit, comme avant", async () => {
+    const onSave = vi.fn<Envoi>().mockRejectedValueOnce(reseau()).mockRejectedValueOnce(obsolete(4))
+    const verifierEnvoiPerdu = vi.fn<Verification>().mockResolvedValue(null)
+    const { vue, onConflit } = monterAvec(onSave, verifierEnvoiPerdu)
+
+    vue.rerender({ data: { 1: "A" }, enabled: true })
+    await sauvegarder(vue)
+    vue.rerender({ data: { 1: "AB" }, enabled: true })
+
+    expect(await sauvegarder(vue)).toBe("conflit")
+    expect(onConflit).toHaveBeenCalledTimes(1)
+  })
+
+  it("409 sans envoi incertain avant : aucune vérification, conflit direct", async () => {
+    const onSave = vi.fn<Envoi>().mockRejectedValueOnce(obsolete(4))
+    const verifierEnvoiPerdu = vi.fn<Verification>()
+    const { vue, onConflit } = monterAvec(onSave, verifierEnvoiPerdu)
+
+    vue.rerender({ data: { 1: "A" }, enabled: true })
+
+    expect(await sauvegarder(vue)).toBe("conflit")
+    expect(verifierEnvoiPerdu).not.toHaveBeenCalled()
+    expect(onConflit).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("useAutoSave : sauvegarde refusée par le serveur (400)", () => {
+  const config = { url: "/soumissions/12/sauvegarder", headers: new AxiosHeaders() } as InternalAxiosRequestConfig
+  const refus = () =>
+    new AxiosError("refus", "ERR_BAD_REQUEST", config, null, {
+      status: 400,
+      statusText: "",
+      headers: {},
+      config,
+      data: { detail: "Le code ne peut pas dépasser 50000 caractères" },
+    })
+
+  beforeEach(() => localStorage.clear())
+  afterEach(() => cleanup())
+
+  it("refus : message du serveur affiché (pas « hors ligne »), même contenu pas renvoyé, réponses gardées", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(refus()).mockResolvedValue({ version: 4 })
+    const { result, rerender } = monter(onSave)
+    rerender({ data: { 1: "code trop long" }, enabled: true })
+
+    let resultat: unknown
+    await act(async () => {
+      resultat = await result.current.sauvegarderMaintenant()
+    })
+    expect(resultat).toBe("refusee")
+    expect(result.current.erreurSauvegarde).toBe(false)
+    expect(result.current.refusSauvegarde).toBe("Le code ne peut pas dépasser 50000 caractères")
+    expect(tampon()).toEqual({ version: 3, donnees: { 1: "code trop long" } })
+
+    // Le même contenu serait refusé de nouveau : il ne repart pas toutes les 30 s
+    await act(async () => {
+      resultat = await result.current.sauvegarderMaintenant()
+    })
+    expect(resultat).toBe("refusee")
+    expect(onSave).toHaveBeenCalledTimes(1)
+
+    // Contenu corrigé : il part, et le refus disparaît
+    rerender({ data: { 1: "code corrigé" }, enabled: true })
+    await act(async () => {
+      resultat = await result.current.sauvegarderMaintenant()
+    })
+    expect(resultat).toBe("ok")
+    expect(onSave).toHaveBeenCalledTimes(2)
+    expect(result.current.refusSauvegarde).toBeNull()
+  })
+})
+
+describe("useAutoSave : une erreur imprévue ne bloque pas les sauvegardes suivantes", () => {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig
+  const copieFigee = () => new AxiosError("conflit", "409", config, null, {
+    status: 409, statusText: "", headers: {}, config, data: { code: "TEMPS_EXPIRE" },
+  })
+
+  beforeEach(() => localStorage.clear())
+  afterEach(() => cleanup())
+
+  it("un rappel qui lève (onVerrouillage) : l'envoi suivant part quand même, la file n'est pas rejetée", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(copieFigee()).mockResolvedValue({ version: 4 })
+    const onVerrouillage = vi.fn(() => {
+      throw new Error("navigation impossible")
+    })
+    const vue = renderHook(
+      ({ data, enabled }: Props) => useAutoSave({ data, onSave, cleTampon: CLE, enabled, onVerrouillage }),
+      { initialProps: { data: {}, enabled: false } }
+    )
+    act(() => vue.result.current.marquerSauvegarde({ 1: "serveur" }, 3))
+    vue.rerender({ data: { 1: "premier envoi" }, enabled: true })
+
+    let premier: unknown
+    await act(async () => {
+      premier = await vue.result.current.sauvegarderMaintenant()
+    })
+    expect(premier).toBe("echec") // pas de rejet remonté à l'appelant (soumission, quiz)
+
+    vue.rerender({ data: { 1: "second envoi" }, enabled: true })
+    await act(async () => {
+      await vue.result.current.sauvegarderMaintenant()
+    })
+    expect(onSave).toHaveBeenCalledTimes(2)
+    expect(onSave).toHaveBeenLastCalledWith({ 1: "second envoi" }, 3)
   })
 })

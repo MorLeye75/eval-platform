@@ -14,6 +14,12 @@ export interface Utilisateur {
   role: Role
 }
 
+/** GET /profil : identité en lecture seule ; matricule et promotion pour un étudiant seulement. */
+export interface Profil extends Utilisateur {
+  numEtudiant?: string
+  promotion?: string
+}
+
 // ---------- Énumérations (d'après le diagramme de classes) ----------
 export type StatutEvaluation =
   | "BROUILLON"
@@ -184,6 +190,7 @@ export interface SauvegardeResponse {
   message: string
   nbReponses: number
   versionReponses: number
+  tempsRestantSecondes: number // temps restant selon le serveur : le chrono s'y recale
 }
 
 // ---------- Correction IA ----------
@@ -223,7 +230,7 @@ export interface ChoixResultat {
 /** Cas masqué : verdict et temps seulement, les autres champs sont null. */
 export interface CasTestResultat {
   masque: boolean
-  reussi: boolean
+  reussi: boolean | null // null : cas masqué avant la fermeture + 2 min (verdict pas encore communiqué)
   verdict: VerdictCas | null
   tempsExecution: number | null
   entree: string | null

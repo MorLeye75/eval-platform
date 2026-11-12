@@ -77,9 +77,42 @@ export function estCopieVerrouillee(err: unknown) {
   return code !== null && (code === "" || CODES_COPIE_FIGEE.includes(code))
 }
 
+/**
+ * Deux jeux de réponses sont-ils les mêmes, sur les questions données ? L'ordre des réponses et des choix cochés
+ * ne compte pas. Sert à reconnaître une sauvegarde enregistrée par le serveur dont la réponse s'est perdue.
+ */
+export function memesReponses(a: ReponseItem[], b: ReponseItem[], questionIds: Set<number>) {
+  const canonique = (reponses: ReponseItem[]) =>
+    JSON.stringify(
+      reponses
+        .filter((r) => questionIds.has(r.questionId))
+        .map((r) => ({
+          questionId: r.questionId,
+          choixIds: [...(r.choixIds ?? [])].sort((x, y) => x - y),
+          texteSoumis: r.texteSoumis ?? null,
+          codeSoumis: r.codeSoumis ?? null,
+          langage: r.langage ?? null,
+        }))
+        .sort((x, y) => x.questionId - y.questionId)
+    )
+  return canonique(a) === canonique(b)
+}
+
 /** La requête n'a pas atteint le serveur (coupure réseau). */
 export function estErreurReseau(err: unknown) {
   return isAxiosError(err) && !err.response
+}
+
+/** Statuts 4xx qui ne disent rien du contenu : session (401), délai (408), conflits (409), trop de requêtes (429). */
+const STATUTS_A_REESSAYER = [401, 408, 409, 429]
+
+/**
+ * Le serveur a refusé la requête pour son contenu (400 validation, 404, 413, 422…) : la renvoyer telle quelle
+ * échouerait encore. À distinguer d'une coupure réseau ou d'une panne du serveur (5xx), qui méritent un nouvel essai.
+ */
+export function estRequeteRefusee(err: unknown) {
+  const status = isAxiosError(err) ? err.response?.status : undefined
+  return status !== undefined && status >= 400 && status < 500 && !STATUTS_A_REESSAYER.includes(status)
 }
 
 /** Message d'erreur renvoyé par le serveur (ProblemDetail RFC 7807), sinon message par défaut. */

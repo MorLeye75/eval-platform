@@ -93,8 +93,7 @@ ni de secret par défaut) : l'application démarre sans profil et exige ces vari
 | `correction.judge0.duree-max-execution` | `10m` | durée maximale de toutes les exécutions d'une copie |
 | `correction.judge0.langages.*` | c 50, cpp 54, java 62, python 71, javascript 63 | `language_id` de Judge0 CE 1.13 |
 | `securite.login.max-echecs` | `5` | échecs de connexion avant blocage d'un couple (email, IP) |
-| `securite.login.max-echecs-par-ip` | `100` | échecs depuis une même IP, tous comptes confondus, avant blocage de l'IP (password spraying). À ajuster : les étudiants d'un campus partagent souvent une IP |
-| `securite.login.max-compteurs` | `10000` | entrées en mémoire par type de compteur (couples, IP) ; au-delà, les plus anciennes sont évincées |
+| `securite.login.max-compteurs` | `10000` | couples (email, IP) gardés en mémoire ; au-delà, les plus anciens sont évincés. Pas de blocage par IP seule : derrière le NAT d'un campus, il bloquerait tous les étudiants |
 | `securite.login.fenetre-minutes` | `15` | fenêtre de comptage des échecs |
 | `securite.login.duree-blocage-minutes` | `15` | durée du blocage |
 
@@ -122,6 +121,8 @@ Si le schéma et les entités divergent, l'application ne démarre pas et Hibern
 | `V7__suivi_correction_automatique.sql` | suivi de la correction : jeton, tentatives, prochaine tentative, index partiel de relance |
 | `V8__verdict_cas_de_test.sql` | verdict de chaque cas de test (réussi, mauvaise réponse, temps dépassé, erreur) |
 | `V9__evaluation_version.sql` | `evaluations.version` : verrou optimiste (`@Version`), pour qu'un « modifier » et un « publier » simultanés ne s'écrasent pas |
+| `V10__jetons_revoques.sql` | jetons révoqués à la déconnexion (DS-14), purgés une fois expirés |
+| `V11__emails_en_minuscules.sql` | emails en minuscules et sans espaces, unicité insensible à la casse |
 
 ## API
 
@@ -225,8 +226,10 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
   (deux clics ne notifient pas deux fois). Les copies pas encore notées ne bloquent pas : elles sont comptées « en
   attente » et leur étudiant est notifié à la validation de leur dernière note (`NotificationService.resultatPublie`).
 - **Notifications** : les services appellent l'interface `NotificationService` (3 événements). Tant que le module de
-  notifications n'est pas branché, `NotificationParDefautConfig` fournit une implémentation sans effet, qui s'efface
-  dès qu'un autre bean `NotificationService` est déclaré.
+  notifications n'est pas branché, `NotificationParDefautConfig` fournit une implémentation sans effet, déclarée en
+  `@Bean @Fallback` : Spring ne l'injecte que si aucune autre implémentation existe, quel que soit l'ordre d'enregistrement
+  des beans (`@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration). `NotificationParDefautConfigTest`
+  le vérifie dans les deux ordres.
 - **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
   étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
 
@@ -299,5 +302,6 @@ Utiliser `mvn clean test` plutôt qu'une compilation incrémentale (un fichier d
 `target/classes`). Si Mockito échoue avec « Could not self-attach to current VM using external process » (observé sous
 Windows), lancer avec `JAVA_TOOL_OPTIONS=-Djdk.attach.allowAttachSelf=true`.
 
-La CI GitHub Actions (`.github/workflows/ci.yml`) compile et lance les tests du backend et du frontend à chaque push
-sur `main`, `feature/**`, `feat/**`, `fix/**`, `refactor/**` et `docs/**`, ainsi qu'à chaque pull request vers `main`.
+La CI GitHub Actions (`.github/workflows/ci.yml`) lance les tests du backend, le lint (oxlint), les tests et le build
+du frontend, la collection Postman contre le vrai backend (base neuve, profil `h2-dev`) et les tests de bout en bout
+Playwright. Elle s'exécute à chaque push sur `main`, `feature/**`, `feat/**`, `fix/**`, `refactor/**` et `docs/**`, ainsi qu'à chaque pull request vers `main`.

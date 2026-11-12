@@ -105,24 +105,33 @@ public class ResultatsService {
             langage = rc.getLangage();
             casTests = rc.getResultatsCasTests().stream()
                     .sorted(Comparator.comparing(rt -> rt.getCasDeTest().getId()))
-                    .map(ResultatsService::resultatCas)
+                    .map(rt -> resultatCas(rt, corrigeVisible))
                     .toList();
         }
 
         ReponseEtudiant re = (ReponseEtudiant) reponse;
+        // QCM avant le corrigé : « 2/2 points » à côté des choix cochés dirait lesquels sont justes, à un camarade
+        // qui compose encore (tiers-temps). Seule la note totale est donnée ; les points reviennent avec le corrigé.
+        boolean pointsMasques = question instanceof QuestionQCM && !corrigeVisible;
+        Double note = (re == null || pointsMasques) ? null : re.getNoteObtenue();
         return new ResultatQuestionDto(q.getId(), q.getOrdre(), q.getType(), q.getEnonce(), q.getPoints(),
-                re == null ? null : re.getNoteObtenue(), re == null ? null : re.getCommentaireProf(),
+                note, re == null ? null : re.getCommentaireProf(),
                 choix, texte, code, langage, casTests);
     }
 
     /**
      * Cas visible : déjà montré pendant l'épreuve (entrée, sortie attendue), donc toujours affiché.
-     * Cas masqué : verdict et temps seulement (réutilisable, et la sortie d'erreur peut recopier l'entrée).
+     * Cas masqué : verdict et temps seulement (réutilisable, et la sortie d'erreur peut recopier l'entrée), et
+     * seulement après la fermeture + 2 min, comme le corrigé des QCM : « cas masqué n° 3 échoué » dirait à un
+     * camarade en tiers-temps où est le piège. Vérifié ici, pas seulement par la règle de publication (DS-07).
      */
-    private static CasTestResultatDto resultatCas(ResultatCasTest r) {
+    private static CasTestResultatDto resultatCas(ResultatCasTest r, boolean corrigeVisible) {
         CasDeTest cas = r.getCasDeTest();
         boolean reussi = Boolean.TRUE.equals(r.getEstValide());
         if (Boolean.TRUE.equals(cas.getEstMasque())) {
+            if (!corrigeVisible) {
+                return new CasTestResultatDto(true, null, null, null, null, null, null, null);
+            }
             return new CasTestResultatDto(true, reussi, r.getVerdict(), r.getTempsExecution(), null, null, null, null);
         }
         return new CasTestResultatDto(false, reussi, r.getVerdict(), r.getTempsExecution(), cas.getEntree(),

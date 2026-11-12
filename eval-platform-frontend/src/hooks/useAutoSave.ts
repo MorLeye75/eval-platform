@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from "react"
-import { estCopieVerrouillee, estVersionObsolete, formatHeure } from "@/lib/passation"
+import {
+  estCopieVerrouillee,
+  estErreurReseau,
+  estRequeteRefusee,
+  estVersionObsolete,
+  formatHeure,
+  messageErreur,
+} from "@/lib/passation"
 
-export type ResultatSauvegarde = "ok" | "verrouillee" | "conflit" | "echec"
+export type ResultatSauvegarde = "ok" | "verrouillee" | "conflit" | "refusee" | "echec"
 
 /** Réponse du serveur à une sauvegarde réussie. */
 export interface SauvegardeConfirmee {
@@ -26,28 +33,42 @@ interface UseAutoSaveOptions<T> {
   onVerrouillage?: () => void
   /** Le serveur refuse la sauvegarde : copie enregistrée entre-temps ailleurs (409 VERSION_OBSOLETE). */
   onConflit?: () => void
+  /**
+   * Après un 409 VERSION_OBSOLETE qui suit des envois restés sans réponse (délai dépassé, coupure) : le serveur
+   * contient-il l'un de ces envois ? Résout avec sa version et l'indice de l'envoi trouvé, sinon null.
+   * Une sauvegarde enregistrée dont la réponse s'est perdue n'est alors pas prise pour un conflit.
+   */
+  verifierEnvoiPerdu?: (envois: T[]) => Promise<{ version: number; index: number } | null>
   enabled?: boolean
 }
+
+/** Envois sans réponse retenus au plus : chacun a pu être enregistré par le serveur. */
+const ENVOIS_INCERTAINS_MAX = 3
 
 interface Tampon<T> {
   version: number | null
   donnees: T
+  /** Envois restés sans réponse depuis la dernière sauvegarde confirmée : le serveur a pu les enregistrer. */
+  envois?: T[]
 }
 
 /** Clé où un tampon en conflit avec le serveur est mis de côté jusqu'à la remise de la copie. */
 const cleConflit = (cle: string) => `${cle}-conflit`
 
 /**
- * Réponses du tampon, seulement s'il a été saisi sur la version actuelle du serveur.
- * Si le serveur a reçu une sauvegarde plus récente (autre navigateur), les réponses du serveur font foi :
+ * Réponses du tampon, s'il a été saisi sur la version actuelle du serveur, ou si le serveur contient l'un de ses
+ * envois restés sans réponse (`estNotreEnvoi`) : la version plus récente du serveur vient alors de ce navigateur
+ * (sauvegarde enregistrée dont la réponse s'est perdue) et les réponses tapées depuis ne doivent pas disparaître.
+ * Sinon le serveur a reçu une sauvegarde d'ailleurs (autre navigateur) et ses réponses font foi :
  * le tampon n'est pas restauré mais mis de côté, pour ne pas détruire un travail jamais synchronisé.
  */
-export function lireTampon<T>(cle: string, versionServeur: number): T | null {
+export function lireTampon<T>(cle: string, versionServeur: number, estNotreEnvoi?: (envoi: T) => boolean): T | null {
   try {
     const brut = localStorage.getItem(cle)
     if (!brut) return null
     const tampon = JSON.parse(brut) as Tampon<T>
     if (tampon.version === versionServeur) return tampon.donnees
+    if (estNotreEnvoi && tampon.envois?.some(estNotreEnvoi)) return tampon.donnees
     localStorage.setItem(cleConflit(cle), brut)
     localStorage.removeItem(cle)
     return null
@@ -96,6 +117,8 @@ function ecrireTampon<T>(cle: string, tampon: Tampon<T>) {
  * - 409 (temps expiré ou copie verrouillée) : `onVerrouillage`, l'édition doit être bloquée.
  * - 409 VERSION_OBSOLETE (copie enregistrée depuis un autre onglet ou appareil) : les réponses locales
  *   sont mises de côté et `onConflit` doit recharger la copie du serveur.
+ * - 400 et autres refus du contenu : `refusSauvegarde` porte le message du serveur, les réponses restent dans le
+ *   tampon et ce même contenu n'est pas renvoyé (il serait refusé de nouveau) ; une modification repart normalement.
  * - Échec (coupure réseau…) : les réponses restent dans le localStorage et une nouvelle
  *   tentative part dès que le navigateur détecte la reconnexion.
  *
@@ -108,35 +131,50 @@ export function useAutoSave<T>({
   cleTampon,
   onVerrouillage,
   onConflit,
+  verifierEnvoiPerdu,
   enabled = true,
 }: UseAutoSaveOptions<T>) {
   const [derniereSauvegarde, setDerniereSauvegarde] = useState<string | null>(null)
   const [erreurSauvegarde, setErreurSauvegarde] = useState(false)
+  const [refusSauvegarde, setRefusSauvegarde] = useState<string | null>(null)
+  // Dernier contenu refusé par le serveur : inutile de le renvoyer tel quel
+  const dernierRefuse = useRef<string | null>(null)
   const dataRef = useRef(data)
   const onSaveRef = useRef(onSave)
   const onVerrouillageRef = useRef(onVerrouillage)
   const onConflitRef = useRef(onConflit)
+  const verifierEnvoiPerduRef = useRef(verifierEnvoiPerdu)
+  // Envois restés sans réponse depuis la dernière sauvegarde confirmée (le serveur a pu les enregistrer)
+  const envoisIncertains = useRef<{ donnees: T; serialise: string }[]>([])
   const cleTamponRef = useRef(cleTampon)
   const dernierSerialise = useRef<string | null>(null)
   // Version serveur des réponses : celle de la dernière sauvegarde confirmée
   const versionServeur = useRef<number | null>(null)
   const file = useRef<Promise<ResultatSauvegarde>>(Promise.resolve("ok"))
+  /** Tampon des réponses données, avec les envois restés sans réponse (relus après un rechargement de la page). */
+  const tamponCourant = useCallback((donnees: T): Tampon<T> => {
+    const envois = envoisIncertains.current.map((e) => e.donnees)
+    return { version: versionServeur.current, donnees, ...(envois.length > 0 ? { envois } : {}) }
+  }, [])
   useEffect(() => {
     dataRef.current = data
     onSaveRef.current = onSave
     onVerrouillageRef.current = onVerrouillage
     onConflitRef.current = onConflit
+    verifierEnvoiPerduRef.current = verifierEnvoiPerdu
     cleTamponRef.current = cleTampon
   })
 
-  const tenter = useCallback(async (): Promise<ResultatSauvegarde> => {
+  const tenter = useCallback(async function envoyer(): Promise<ResultatSauvegarde> {
     const donnees = dataRef.current
     const serialise = JSON.stringify(donnees)
     if (serialise === dernierSerialise.current) return "ok"
+    if (serialise === dernierRefuse.current) return "refusee"
 
     try {
       const confirmation = await onSaveRef.current?.(donnees, versionServeur.current)
       dernierSerialise.current = serialise
+      envoisIncertains.current = []
       if (confirmation?.version !== undefined) versionServeur.current = confirmation.version
       const cle = cleTamponRef.current
       if (cle) {
@@ -144,8 +182,10 @@ export function useAutoSave<T>({
         const actuelles = dataRef.current
         if (JSON.stringify(actuelles) === serialise) retirer(cle)
         // Modifié pendant l'envoi : ces réponses restent à envoyer, sur la version que le serveur vient de donner
-        else ecrireTampon(cle, { version: versionServeur.current, donnees: actuelles })
+        else ecrireTampon(cle, tamponCourant(actuelles))
       }
+      dernierRefuse.current = null
+      setRefusSauvegarde(null)
       setErreurSauvegarde(false)
       setDerniereSauvegarde(formatHeure(confirmation?.dateSauvegarde))
       return "ok"
@@ -156,23 +196,59 @@ export function useAutoSave<T>({
       }
       // Les réponses les plus récentes (celles tapées pendant l'envoi comprises) sont gardées, pas celles envoyées
       if (estVersionObsolete(err)) {
+        // Notre propre sauvegarde, enregistrée mais dont la réponse s'est perdue ? Alors pas de conflit :
+        // on adopte la version du serveur et les réponses actuelles repartent aussitôt
+        const incertains = envoisIncertains.current
+        envoisIncertains.current = []
+        if (incertains.length > 0 && verifierEnvoiPerduRef.current) {
+          try {
+            const trouve = await verifierEnvoiPerduRef.current(incertains.map((e) => e.donnees))
+            if (trouve) {
+              versionServeur.current = trouve.version
+              dernierSerialise.current = incertains[trouve.index].serialise
+              return envoyer()
+            }
+          } catch {
+            // Vérification impossible : traité comme un vrai conflit
+          }
+        }
         if (cleTamponRef.current) {
           mettreDeCote(cleTamponRef.current, { version: versionServeur.current, donnees: dataRef.current })
         }
         onConflitRef.current?.()
         return "conflit"
       }
+      // Contenu refusé (400…) : ni coupure ni panne, le renvoyer tel quel échouerait encore
+      if (estRequeteRefusee(err)) {
+        dernierRefuse.current = serialise
+        if (cleTamponRef.current) ecrireTampon(cleTamponRef.current, tamponCourant(dataRef.current))
+        setErreurSauvegarde(false)
+        setRefusSauvegarde(messageErreur(err, "Vos réponses ont été refusées par le serveur."))
+        return "refusee"
+      }
+      // Sans réponse (délai dépassé, coupure) : le serveur a peut-être enregistré cet envoi
+      if (estErreurReseau(err)) {
+        envoisIncertains.current = [...envoisIncertains.current, { donnees, serialise }].slice(-ENVOIS_INCERTAINS_MAX)
+      }
       if (cleTamponRef.current) {
-        ecrireTampon(cleTamponRef.current, { version: versionServeur.current, donnees: dataRef.current })
+        ecrireTampon(cleTamponRef.current, tamponCourant(dataRef.current))
       }
       setErreurSauvegarde(true)
       return "echec"
     }
-  }, [])
+  }, [tamponCourant])
 
-  /** Sauvegarde immédiate (ex. avant la soumission), placée dans la file des envois. */
+  /**
+   * Sauvegarde immédiate (ex. avant la soumission), placée dans la file des envois. La file ne peut jamais être
+   * rejetée : une erreur imprévue (un rappel qui lève, un stockage plein) bloquerait sinon, sans bruit, toutes les
+   * sauvegardes suivantes. Elle compte comme un échec : les réponses restent dans le tampon et repartent ensuite.
+   */
   const sauvegarderMaintenant = useCallback(() => {
-    file.current = file.current.then(tenter)
+    file.current = file.current.then(tenter).catch((err: unknown): ResultatSauvegarde => {
+      console.error("Sauvegarde automatique : erreur imprévue", err)
+      setErreurSauvegarde(true)
+      return "echec"
+    })
     return file.current
   }, [tenter])
 
@@ -190,8 +266,8 @@ export function useAutoSave<T>({
       retirer(cleTampon)
       return
     }
-    ecrireTampon(cleTampon, { version: versionServeur.current, donnees: data })
-  }, [data, enabled, cleTampon])
+    ecrireTampon(cleTampon, tamponCourant(data))
+  }, [data, enabled, cleTampon, tamponCourant])
 
   // Fermeture ou rechargement avec des réponses non envoyées : le navigateur demande confirmation
   useEffect(() => {
@@ -220,6 +296,7 @@ export function useAutoSave<T>({
   return {
     derniereSauvegarde,
     erreurSauvegarde,
+    refusSauvegarde,
     sauvegarderMaintenant,
     marquerSauvegarde,
   }

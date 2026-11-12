@@ -60,7 +60,7 @@ loop pour chaque question de code de l'évaluation
         J --> JC : statuts et sorties
       end
     end
-    alt statut 13 « Internal Error » ou 14 « Exec Format Error », délai dépassé, erreur 5xx ou réseau
+    alt statut 13 « Internal Error » ou 14 « Exec Format Error », délai dépassé, erreur 5xx, 429 (saturé) ou réseau
       JC --> CS : Judge0 indisponible
       note right of CS : panne de Judge0 (pas une erreur de l'étudiant) :\non quitte **toute la boucle des questions**,\npuis phase 3 « tentative échouée »
     else exécutions abouties

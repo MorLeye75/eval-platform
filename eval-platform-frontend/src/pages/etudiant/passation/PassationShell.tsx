@@ -30,6 +30,8 @@ interface PassationShellProps {
   tempsRestantFormate: string
   derniereSauvegarde: string | null
   erreurSauvegarde: boolean
+  /** Message du serveur quand il refuse les réponses (400) : ce n'est pas une coupure réseau. */
+  refusSauvegarde?: string | null
   avertissement: string | null
   changementsOnglet: number
   soumettre: () => void
@@ -57,6 +59,7 @@ export default function PassationShell({
   tempsRestantFormate,
   derniereSauvegarde,
   erreurSauvegarde,
+  refusSauvegarde = null,
   avertissement,
   changementsOnglet,
   soumettre,
@@ -97,9 +100,14 @@ export default function PassationShell({
             </span>
           </div>
 
-          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span
+            role={refusSauvegarde ? "alert" : undefined}
+            className={`flex items-center gap-1.5 text-xs ${refusSauvegarde ? "text-destructive" : "text-muted-foreground"}`}
+          >
             <Save className="size-3.5" />
-            {erreurSauvegarde
+            {refusSauvegarde
+              ? `Sauvegarde refusée : ${refusSauvegarde}`
+              : erreurSauvegarde
               ? "Hors ligne : réponses conservées sur cet appareil"
               : derniereSauvegarde
                 ? `Sauvegardé à ${derniereSauvegarde}`

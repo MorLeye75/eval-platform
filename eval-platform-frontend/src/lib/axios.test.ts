@@ -56,6 +56,15 @@ describe("intercepteur 401", () => {
     expect(redirection).not.toHaveBeenCalled()
   })
 
+  it("401 sur /auth/logout (jeton déjà expiré) : la session, peut-être déjà celle d'un autre compte, n'est pas vidée", async () => {
+    // Déconnexion puis connexion d'un autre compte : la réponse tardive de l'ancienne déconnexion ne doit rien effacer
+    localStorage.setItem("token", "jeton-du-compte-suivant")
+    await expect(gererErreurReponse(erreur(401, "/auth/logout"), redirection)).rejects.toBeInstanceOf(AxiosError)
+
+    expect(localStorage.getItem("token")).toBe("jeton-du-compte-suivant")
+    expect(redirection).not.toHaveBeenCalled()
+  })
+
   it("autre erreur (500) : session intacte", async () => {
     await expect(gererErreurReponse(erreur(500, "/soumissions/5"), redirection)).rejects.toBeInstanceOf(AxiosError)
 

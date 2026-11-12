@@ -43,7 +43,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Publication des résultats | `POST /enseignant/evaluations/{id}/resultats/publier` : évaluation `TERMINEE` et marge de 2 min écoulée ; bascule atomique ; bilan `nbCopiesNotees` / `nbCopiesEnAttente` |
 | Cas de test | **entrée facultative**, **sortie attendue obligatoire et non vide** (Judge0 traite une sortie vide comme absente) |
 | Détail étudiant | `GET /etudiant/evaluations/{id}` (demandé par Mor pour l'écran d'accueil du quiz) |
-| Notifications | interface `NotificationService` (3 événements) + implémentation par défaut sans effet, remplacée dès que le module de Mor est branché |
+| Notifications | interface `NotificationService` (3 événements) + implémentation par défaut sans effet (`@Bean @Fallback`), jamais préférée à celle du module de Mor |
 
 ### Frontend
 
@@ -64,7 +64,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Résultats publiables seulement après fermeture + 2 min | même règle que DS-13 pour dévoiler les corrigés : plus personne ne compose |
 | Copies pas encore notées : publication autorisée | elles restent « en attente » ; leur étudiant est notifié à la notation (`resultatPublie`) |
 | Notifications créées dans la transaction de l'événement | jamais « publié sans notification », jamais de notification pour un événement annulé |
-| `NotificationService` en interface + bean par défaut | pas de conflit avec le module de Mor : son bean remplace le mien sans modifier mon code |
+| `NotificationService` en interface + `@Bean @Fallback` | pas de conflit avec le module de Mor : son bean est injecté à la place du mien, dans n'importe quel ordre d'enregistrement ; `@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration |
 | `window.confirm` pour supprimer et publier les résultats | actions destructives ou irréversibles ; un vrai dialogue pourra le remplacer |
 
 ## Vérifier

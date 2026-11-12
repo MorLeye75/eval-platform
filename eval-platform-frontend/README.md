@@ -39,20 +39,23 @@ cd ../eval-platform-frontend && npx playwright install chromium   # une seule fo
 npm run test:e2e
 ```
 
-L'éditeur de code (Monaco) est chargé depuis un CDN : le scénario du code a besoin d'Internet.
+L'éditeur de code (Monaco) est livré avec l'application, sans CDN : le scénario du code bloque d'ailleurs jsDelivr
+pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécharge pas Monaco.
 
 ## État du branchement sur l'API
 
 | Écran | Source des données |
 |---|---|
-| Connexion | API (`POST /auth/login`) |
-| Passation QCM, question ouverte, code | API : démarrage, sauvegarde automatique, soumission |
-| Quiz chronométré | API : ordre et temps de chaque question imposés par le serveur |
-| Accueil, liste, résultats et performances de l'étudiant | API (`GET /etudiant/evaluations`, `GET /etudiant/performances`, `GET /soumissions/{id}/resultats`) |
+| Connexion, session (`/auth/me`) | API |
+| Espace étudiant : accueil, liste et détail des évaluations | API (`GET /etudiant/evaluations`, `GET /etudiant/performances`) |
+| Passation : QCM, question ouverte, code, épreuve mixte (écran unique) | API : démarrage, sauvegarde automatique, anti-triche, remise |
+| Quiz chronométré | API : question en cours et temps imposés par le serveur (`POST /soumissions/{id}/quiz/suivante`) |
+| Résultats d'une copie, tableau de bord des performances | API (`GET /soumissions/{id}/resultats`, `GET /etudiant/performances`) |
+| Notifications, profil | simulés (à brancher, voir DS-15) |
 | Enseignant : assistant de création et de modification d'une évaluation, choix des promotions | API (`GET /promotions`, `POST` / `PUT /enseignant/evaluations`, `GET /enseignant/evaluations/{id}`) |
 | Enseignant : « Mes évaluations » (publier, repasser en brouillon, supprimer) | API (`GET /enseignant/evaluations`, `POST …/publier`, `POST …/depublier`, `DELETE`) |
 | Enseignant : publication des résultats | API (`POST /enseignant/evaluations/{id}/resultats/publier`) |
-| Enseignant : tableau de bord, supervision, statistiques, validation IA, export ; espace admin ; notifications et profil | mocks (`src/mocks`) |
+| Enseignant : tableau de bord, supervision, statistiques, validation IA, export ; espace administrateur | simulés (`src/mocks`) |
 
 Les dates et durées d'une évaluation sont vérifiées par le serveur à la publication : la plage d'ouverture doit être au
 moins aussi longue que la durée de l'épreuve, tiers-temps compris. L'assistant le signale dès l'étape 1 quand on choisit

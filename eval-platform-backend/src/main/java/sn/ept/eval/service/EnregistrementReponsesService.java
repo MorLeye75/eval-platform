@@ -36,11 +36,23 @@ public class EnregistrementReponsesService {
         if (items == null || items.isEmpty()) {
             return 0;
         }
+        return enregistrer(soumission, items,
+                questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId()));
+    }
+
+    /**
+     * Variante pour un appelant qui a déjà lu les questions de l'évaluation (la sauvegarde les lit pour le quiz).
+     *
+     * @return le nombre de réponses enregistrées
+     */
+    public int enregistrer(Soumission soumission, List<ReponseItemDto> items, List<Question> questions) {
+        if (items == null || items.isEmpty()) {
+            return 0;
+        }
         refuserQuestionsEnDouble(items);
 
-        // Questions de l'évaluation et réponses existantes chargées en une requête chacune (pas de N+1)
-        Map<Long, Question> questionsEvaluation = questionRepository
-                .findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId()).stream()
+        // Réponses existantes chargées en une requête (pas de N+1)
+        Map<Long, Question> questionsEvaluation = questions.stream()
                 .collect(Collectors.toMap(Question::getId, q -> (Question) Hibernate.unproxy(q)));
         Map<Long, ReponseEtudiant> reponsesExistantes = reponseEtudiantRepository.findBySoumissionId(soumission.getId()).stream()
                 .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));

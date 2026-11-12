@@ -2,6 +2,7 @@ package sn.ept.eval.service;
 
 import org.springframework.stereotype.Service;
 import sn.ept.eval.model.AmenagementTemps;
+import sn.ept.eval.model.QuestionQuiz;
 import sn.ept.eval.model.Soumission;
 import sn.ept.eval.repository.AmenagementTempsRepository;
 
@@ -10,13 +11,14 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
  * Règles de temps d'une épreuve : durée effective (aménagement inclus), fin plafonnée par la fermeture
- * de l'évaluation, marge de tolérance et temps restant. Source unique pour la passation, la clôture
+ * de l'évaluation et par la fin du quiz chronométré, marge de tolérance et temps restant. Source unique pour la passation, la clôture
  * automatique des copies et, à terme, la supervision enseignant.
  */
 @Service
@@ -45,16 +47,26 @@ public class TempsEpreuveService {
                 .orElse(soumission.getEvaluation().getDureeStandard());
     }
 
-    /** Fin de l'épreuve : début + durée effective, plafonnée par la fermeture de l'évaluation. */
-    public LocalDateTime finEpreuve(Soumission soumission) {
-        return finEpreuve(soumission, dureeEffectiveMinutes(soumission));
+    /**
+     * Fin de l'épreuve : début + durée effective, plafonnée par la fermeture de l'évaluation et, pour un quiz
+     * chronométré, par la fin de sa dernière question (un quiz abandonné n'attend pas la durée standard).
+     *
+     * @param questionsQuiz questions du quiz ({@link QuizService#questionsQuiz}), vide si l'évaluation n'en est pas un
+     */
+    public LocalDateTime finEpreuve(Soumission soumission, List<QuestionQuiz> questionsQuiz) {
+        return finEpreuve(soumission, dureeEffectiveMinutes(soumission), questionsQuiz);
     }
 
     /** Variante pour un appelant qui connaît déjà la durée effective (évite de relire l'aménagement). */
-    public LocalDateTime finEpreuve(Soumission soumission, int dureeEffectiveMinutes) {
+    public LocalDateTime finEpreuve(Soumission soumission, int dureeEffectiveMinutes, List<QuestionQuiz> questionsQuiz) {
         LocalDateTime fin = soumission.getDateDebut().plusMinutes(dureeEffectiveMinutes);
         LocalDateTime fermeture = soumission.getEvaluation().getDateFermeture();
-        return (fermeture != null && fermeture.isBefore(fin)) ? fermeture : fin;
+        if (fermeture != null && fermeture.isBefore(fin)) fin = fermeture;
+        if (!questionsQuiz.isEmpty()) {
+            LocalDateTime finQuiz = QuizService.finQuiz(soumission, questionsQuiz);
+            if (finQuiz.isBefore(fin)) fin = finQuiz;
+        }
+        return fin;
     }
 
     /**
@@ -80,21 +92,13 @@ public class TempsEpreuveService {
         return etudiantId + ":" + evaluationId;
     }
 
-    /** Vrai si la fin de l'épreuve, marge de tolérance comprise, est dépassée. */
-    public boolean estExpiree(Soumission soumission) {
-        return estExpiree(soumission, dureeEffectiveMinutes(soumission));
+    /** Vrai si cette fin d'épreuve ({@link #finEpreuve}), marge de tolérance comprise, est dépassée. */
+    public boolean estDepassee(LocalDateTime finEpreuve) {
+        return maintenant().isAfter(finEpreuve.plusMinutes(MARGE_TOLERANCE_MINUTES));
     }
 
-    /** Variante pour un appelant qui connaît déjà la durée effective (évite de relire l'aménagement). */
-    public boolean estExpiree(Soumission soumission, int dureeEffectiveMinutes) {
-        return maintenant().isAfter(finEpreuve(soumission, dureeEffectiveMinutes).plusMinutes(MARGE_TOLERANCE_MINUTES));
-    }
-
-    public long tempsRestantSecondes(Soumission soumission) {
-        return tempsRestantSecondes(soumission, dureeEffectiveMinutes(soumission));
-    }
-
-    public long tempsRestantSecondes(Soumission soumission, int dureeEffectiveMinutes) {
-        return Math.max(0, Duration.between(maintenant(), finEpreuve(soumission, dureeEffectiveMinutes)).getSeconds());
+    /** Secondes restantes jusqu'à cette fin d'épreuve (0 si elle est passée). */
+    public long tempsRestantSecondes(LocalDateTime finEpreuve) {
+        return Math.max(0, Duration.between(maintenant(), finEpreuve).getSeconds());
     }
 }

@@ -10,6 +10,7 @@ import {
   soumettreCopie,
   signalerChangementOnglet,
   estCopieVerrouillee,
+  memesReponses,
   messageErreur,
 } from "@/lib/passation"
 import { cleTamponCopie } from "@/lib/session"
@@ -64,6 +65,8 @@ export function usePassation<T>({
   const [erreurSoumission, setErreurSoumission] = useState<string | null>(null)
   const [avertissement, setAvertissement] = useState<string | null>(null)
   const termine = useRef(false)
+  // Refus du serveur déjà expliqué à l'étudiant : une nouvelle demande de remise part sans ces réponses
+  const refusAnnonce = useRef(false)
   // Copie dont les réponses ont été chargées dans le formulaire (rechargée après un conflit de version)
   const copieInitialisee = useRef<typeof copie>(undefined)
 
@@ -97,11 +100,19 @@ export function usePassation<T>({
     })
   }
 
-  const { derniereSauvegarde, erreurSauvegarde, sauvegarderMaintenant, marquerSauvegarde } =
+  const { tempsRestant, tempsRestantFormate, recaler } = useExamTimer({
+    dureeSecondes: copie?.tempsRestantSecondes ?? 0,
+    onExpire: () => void finDuChrono(),
+    enabled: pret && enCours,
+  })
+
+  const { derniereSauvegarde, erreurSauvegarde, refusSauvegarde, sauvegarderMaintenant, marquerSauvegarde } =
     useAutoSave({
       data: reponses,
       onSave: async (donnees, versionAttendue) => {
         const r = await sauvegarderReponses(copie!.id, versReponsesRef.current(donnees), versionAttendue)
+        // Le serveur fait foi : tiers-temps accordé pendant l'épreuve, horloge du PC décalée
+        if (typeof r.tempsRestantSecondes === "number") recaler(r.tempsRestantSecondes)
         return { dateSauvegarde: r.dateSauvegarde, version: r.versionReponses }
       },
       cleTampon,
@@ -114,8 +125,23 @@ export function usePassation<T>({
         )
         refetch()
       },
+      // Sauvegarde enregistrée dont la réponse s'est perdue (délai dépassé, coupure) : le 409 qui suit n'est pas
+      // un conflit si le serveur contient l'un de ces envois. Relue par la reprise, qui ne modifie pas la copie.
+      verifierEnvoiPerdu: async (envois) => {
+        const serveur = await demarrerEpreuve(evaluationId!)
+        if (serveur.statut !== "EN_COURS") return null
+        const ids = new Set(serveur.questions.map((q) => q.id))
+        const reponsesServeur = versReponsesRef.current(depuisCopie(serveur.questions))
+        const index = envois.findIndex((e) => memesReponses(versReponsesRef.current(e), reponsesServeur, ids))
+        return index < 0 ? null : { version: serveur.versionReponses, index }
+      },
       enabled: pret && enCours,
     })
+
+  // Refus levé (contenu corrigé et enregistré) : un nouveau refus sera de nouveau expliqué avant la remise
+  useEffect(() => {
+    if (refusSauvegarde === null) refusAnnonce.current = false
+  }, [refusSauvegarde])
 
   // Réponses de départ : celles du serveur (source de vérité), ou le tampon local s'il reste des réponses
   // non confirmées saisies sur cette même version (coupure réseau puis rechargement de la page)
@@ -126,11 +152,34 @@ export function usePassation<T>({
     // Copie remise : plus rien à synchroniser
     if (!enCours) viderTampon(cle)
     const serveur = depuisCopie(copie.questions)
-    const tampon = enCours ? lireTampon<T>(cle, copie.versionReponses) : null
+    // Version du serveur plus récente que le tampon : vient-elle d'un envoi de ce navigateur resté sans réponse ?
+    const ids = new Set(copie.questions.map((q) => q.id))
+    const reponsesServeur = versReponsesRef.current(serveur)
+    const estNotreEnvoi = (envoi: T) => memesReponses(versReponsesRef.current(envoi), reponsesServeur, ids)
+    const tampon = enCours ? lireTampon<T>(cle, copie.versionReponses, estNotreEnvoi) : null
     setReponses(tampon ?? serveur)
     marquerSauvegarde(serveur, copie.versionReponses)
     setPret(true)
   }, [copie, enCours, depuisCopie, marquerSauvegarde])
+
+  /**
+   * Fin du chrono du navigateur : le serveur confirme avant la remise. Sans cela, un tiers-temps accordé depuis le
+   * chargement de la page, ou une horloge du PC en avance, faisait remettre la copie avant l'heure.
+   * Lecture par la reprise, qui ne modifie pas une copie dans les temps (et clôture une copie expirée).
+   */
+  async function finDuChrono() {
+    if (!copie || termine.current) return
+    try {
+      const serveur = await demarrerEpreuve(evaluationId!)
+      if (serveur.statut === "EN_COURS" && serveur.tempsRestantSecondes > 0) {
+        recaler(serveur.tempsRestantSecondes)
+        return
+      }
+    } catch {
+      // Serveur injoignable : remise quand même, il clôturera la copie à l'état de la dernière sauvegarde
+    }
+    await soumettre("expiration")
+  }
 
   /** DS-01 : soumission de la copie (bouton « Soumettre » ou fin du chrono). */
   async function soumettre(fin: Fin = "confirmation") {
@@ -145,6 +194,15 @@ export function usePassation<T>({
       // La copie vient d'être rechargée : l'étudiant vérifie ses réponses avant de soumettre
       setErreurSoumission(
         "Votre copie a été modifiée ailleurs et vient d'être rechargée. Vérifiez vos réponses puis soumettez à nouveau."
+      )
+      setSoumissionEnCours(false)
+      return
+    }
+    if (sauvegarde === "refusee" && fin === "confirmation" && !refusAnnonce.current) {
+      // Le renvoyer ne servirait à rien ; bloquer la remise laisserait l'étudiant sans issue jusqu'à la fin du chrono
+      refusAnnonce.current = true
+      setErreurSoumission(
+        "Le serveur a refusé vos dernières réponses (voir le message de sauvegarde). Corrigez-les, ou soumettez de nouveau pour remettre la copie sans elles."
       )
       setSoumissionEnCours(false)
       return
@@ -178,12 +236,6 @@ export function usePassation<T>({
     }
   }
 
-  const { tempsRestant, tempsRestantFormate } = useExamTimer({
-    dureeSecondes: copie?.tempsRestantSecondes ?? 0,
-    onExpire: () => soumettre("expiration"),
-    enabled: pret && enCours,
-  })
-
   // Anti-triche : compteur repris du serveur, chaque nouvelle sortie lui est signalée (il fait foi)
   const { changementsOnglet, setChangementsOnglet } = useAntiCheat({
     initialCount: copie?.nbChangementsOnglet ?? 0,
@@ -214,6 +266,7 @@ export function usePassation<T>({
     tempsRestantFormate,
     derniereSauvegarde,
     erreurSauvegarde,
+    refusSauvegarde,
     soumettre,
     soumissionEnCours,
     erreurSoumission,

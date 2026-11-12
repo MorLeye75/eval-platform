@@ -5,10 +5,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.support.TransactionTemplate;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
@@ -19,7 +17,6 @@ import sn.ept.eval.repository.*;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -86,8 +83,7 @@ class CorrectionIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    @Qualifier("correctionTaskExecutor")
-    private Executor correctionTaskExecutor;
+    private CorrectionsEnFile enFile;
 
     @AfterEach
     void desarmer() {
@@ -95,13 +91,16 @@ class CorrectionIntegrationTest {
         PanneSimulee.DECLENCHEE.set(false);
     }
 
-    /** Attend que les corrections en file et en cours soient terminées. */
-    private void attendreCorrections() throws InterruptedException {
-        ThreadPoolTaskExecutor executor = (ThreadPoolTaskExecutor) correctionTaskExecutor;
+    /**
+     * Attend la fin de la correction de cette copie. La copie entre dans CorrectionsEnFile avant que la remise
+     * rende la main et n'en sort qu'une fois la correction terminée, échec enregistré compris. Les compteurs du
+     * pool ne suffisent pas : une tâche retirée de la file mais pas encore démarrée n'y apparaît nulle part.
+     */
+    private void attendreCorrection(Long soumissionId) throws InterruptedException {
         long limite = System.currentTimeMillis() + 10_000;
-        while (System.currentTimeMillis() < limite
-                && (executor.getActiveCount() > 0 || !executor.getThreadPoolExecutor().getQueue().isEmpty())) {
-            TimeUnit.MILLISECONDS.sleep(50);
+        while (enFile.contient(soumissionId)) {
+            assertThat(System.currentTimeMillis()).as("correction toujours en cours après 10 s").isLessThan(limite);
+            TimeUnit.MILLISECONDS.sleep(20);
         }
     }
 
@@ -124,7 +123,7 @@ class CorrectionIntegrationTest {
 
         PanneSimulee.ARMEE.set(true);
         soumissionService.soumettreCopie(soumissionId, email);
-        attendreCorrections();
+        attendreCorrection(soumissionId);
 
         assertThat(PanneSimulee.DECLENCHEE).isTrue();
         assertThat(soumissionRepository.findById(soumissionId).orElseThrow().getStatut()).isEqualTo(StatutSoumission.SOUMIS);

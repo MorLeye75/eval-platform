@@ -70,6 +70,9 @@ class MigrationPostgresIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
+
+    @Autowired
     private ResultatsService resultatsService;
 
     @Autowired
@@ -82,10 +85,54 @@ class MigrationPostgresIntegrationTest {
     @DisplayName("Toutes les migrations Flyway sont appliquées et le schéma correspond aux entités")
     void migrationAppliquee() {
         // Le contexte ne démarre que si Hibernate valide le schéma créé par Flyway
-        var info = flyway.info();
-        var derniere = info.all()[info.all().length - 1];
-        assertThat(info.pending()).isEmpty();
-        assertThat(info.current().getVersion()).isEqualTo(derniere.getVersion());
+        assertThat(flyway.info().pending()).isEmpty();
+        // Version courante = la plus haute des migrations du projet, quel que soit son numéro (pas de « 8 » en dur
+        // qui casse à chaque nouvelle migration)
+        org.flywaydb.core.api.MigrationVersion derniere = java.util.Arrays.stream(flyway.info().all())
+                .map(org.flywaydb.core.api.MigrationInfo::getVersion)
+                .max(Comparable::compareTo).orElseThrow();
+        assertThat(flyway.info().current().getVersion()).isEqualTo(derniere);
+    }
+
+    @Test
+    @DisplayName("Choix d'un QCM et cas de test relus dans l'ordre de leur identifiant, quel que soit l'ordre physique des lignes")
+    void choixEtCasDansLOrdre() {
+        Long qcmId = jdbcTemplate.queryForObject(
+                "select min(question_id) from choix_reponses", Long.class);
+        Long codeId = jdbcTemplate.queryForObject(
+                "select min(question_id) from cas_de_tests", Long.class);
+        // Insérées dans l'ordre inverse de leur identifiant : sans ORDER BY, PostgreSQL les rend dans l'ordre physique
+        jdbcTemplate.update("insert into choix_reponses (id, question_id, texte, est_correct) values (900002, ?, 'Z', false)", qcmId);
+        jdbcTemplate.update("insert into choix_reponses (id, question_id, texte, est_correct) values (900001, ?, 'Y', false)", qcmId);
+        jdbcTemplate.update("insert into cas_de_tests (id, question_id, entree, sortie_attendue, est_masque) values (900002, ?, 'b', 'b', false)", codeId);
+        jdbcTemplate.update("insert into cas_de_tests (id, question_id, entree, sortie_attendue, est_masque) values (900001, ?, 'a', 'a', false)", codeId);
+        try {
+            java.util.List<Long> choix = transactionTemplate.execute(tx -> ((sn.ept.eval.model.QuestionQCM)
+                    org.hibernate.Hibernate.unproxy(questionRepository.findById(qcmId).orElseThrow()))
+                    .getChoix().stream().map(sn.ept.eval.model.ChoixReponse::getId).toList());
+            java.util.List<Long> cas = transactionTemplate.execute(tx -> ((sn.ept.eval.model.QuestionCode)
+                    org.hibernate.Hibernate.unproxy(questionRepository.findById(codeId).orElseThrow()))
+                    .getCasTests().stream().map(sn.ept.eval.model.CasDeTest::getId).toList());
+
+            assertThat(choix).isSorted();
+            assertThat(cas).isSorted();
+        } finally {
+            jdbcTemplate.update("delete from choix_reponses where id in (900001, 900002)");
+            jdbcTemplate.update("delete from cas_de_tests where id in (900001, 900002)");
+        }
+    }
+
+    @Test
+    @DisplayName("V11 : un email en majuscules ou avec des espaces, écrit hors de l'application, est refusé par la base")
+    void emailNormaliseParLaBase() {
+        Long id = jdbcTemplate.queryForObject("select id from utilisateurs where email = 'prof@ept.sn'", Long.class);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> jdbcTemplate.update("update utilisateurs set email = 'PROF@ept.sn' where id = ?", id))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                        () -> jdbcTemplate.update("update utilisateurs set email = ' prof@ept.sn' where id = ?", id))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
     }
 
     @Test

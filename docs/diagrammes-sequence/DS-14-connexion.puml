@@ -13,15 +13,18 @@ database "BDD" as D
 U -> F : saisit email et mot de passe, « Se connecter »
 activate F
 F -> B ++ : POST /api/auth/login { email, motDePasse }
-B -> TC : verifierNonBloque(email, ip)
+note right of B : email normalisé dès la réception\n(minuscules, sans espaces autour) : un téléphone\nqui met une majuscule ne fait pas échouer la connexion
+B -> TC : reserverTentative(email, ip)
 note right of TC
-  deux compteurs d'échecs sur 15 min :
-  couple (email, IP) : blocage à 5 échecs ;
-  IP seule, tous comptes : blocage à 100 (password spraying,
-  seuil haut à cause du NAT du campus). IP réelle derrière
-  un proxy : FORWARD_HEADERS_STRATEGY=native
+  essai compté AVANT la vérification du mot de passe, en une
+  opération atomique (contrôle du blocage + incrément) : des
+  requêtes simultanées ne passent pas toutes avant le blocage.
+  Couple (email, IP) sur 15 min : blocage à 5 essais.
+  Pas de blocage par IP seule : derrière le NAT du campus, il
+  bloquerait toute l'école. IP réelle derrière un proxy :
+  FORWARD_HEADERS_STRATEGY=native
 end note
-alt couple ou IP bloqué
+alt couple bloqué
   B --> F : 429 TROP_DE_TENTATIVES + en-tête Retry-After
   F --> U : message du serveur (délai avant le prochain essai)
 else
@@ -29,8 +32,7 @@ else
   AM -> D : SELECT Utilisateur WHERE email = :email
   D --> AM : compte (mot de passe haché, rôle, actif)
   alt email inconnu, mot de passe faux ou compte désactivé
-    AM --> B : AuthenticationException
-    B -> TC : enregistrerEchec(email, ip)
+    AM --> B : AuthenticationException (essai déjà compté par la réservation)
     B --> F : 401 AUTHENTIFICATION_ECHOUEE\n« Identifiants invalides ou compte désactivé. »
     note right of F : même message dans tous les cas : on ne révèle pas\nsi le compte existe. Un 401 sur /auth/login ne vide pas\nla session et ne recharge pas la page
     F --> U : « Email ou mot de passe incorrect. »
@@ -56,7 +58,7 @@ alt jeton valide
   D --> B : compte
   note right of B : rôle et état relus en base à chaque requête :\nun compte désactivé ou un rôle changé après\nl'émission du jeton s'applique aussitôt
 end
-alt jeton absent, invalide, expiré, ou compte désactivé
+alt jeton absent, invalide, expiré, révoqué (déconnexion), ou compte désactivé
   B --> F : 401 NON_AUTHENTIFIE (AuthEntryPointJwt)
   F -> F : intercepteur : viderSession (réponses d'examen non envoyées\ngardées pour le même compte), retour à /login
 else rôle insuffisant (@PreAuthorize)
@@ -84,13 +86,19 @@ deactivate F
 == Déconnexion ==
 U -> F : « Se déconnecter »
 activate F
+F -> B ++ : POST /api/auth/logout (Authorization: Bearer jeton)\nenvoyé avant d'effacer le jeton, sans attendre la réponse
+B -> D : INSERT jetons_revoques (jti du jeton, expire_le, revoque_le)
+B --> F -- : 204 (401 si déjà révoqué ou expiré : ignoré,\nl'intercepteur ne vide pas la session d'un compte suivant)
 F -> F : viderSession : jeton, utilisateur, brouillon d'évaluation,\nréponses locales des copies ; cache des requêtes vidé
 F --> U : page de connexion
 deactivate F
-note right of F
-  Aucun appel au serveur : le jeton JWT est sans état.
-  **Limite connue** : un jeton copié avant la déconnexion
-  reste valable jusqu'à son expiration (24 h au plus).
+note right of B
+  Chaque jeton porte un identifiant unique (jti). Seule la session
+  fermée est révoquée : se déconnecter sur son téléphone ne coupe pas
+  l'épreuve en cours sur le PC. Chaque requête vérifie que son jti
+  n'est pas révoqué (recherche par clé primaire). Révocations en base
+  (V10) : elles survivent à un redémarrage ; purge horaire des jetons
+  expirés. Hors ligne, la session locale est vidée quand même.
 end note
 
 note over F, D

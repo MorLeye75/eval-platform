@@ -6,7 +6,7 @@ import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from "axios
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { usePassation } from "@/hooks/usePassation"
 import { demarrerEpreuve, sauvegarderReponses, signalerChangementOnglet, soumettreCopie } from "@/lib/passation"
-import type { CopieEnCours } from "@/types"
+import type { CopieEnCours, QuestionExamen, ReponseItem } from "@/types"
 
 const navigate = vi.fn()
 vi.mock("react-router-dom", async (original) => ({
@@ -119,5 +119,207 @@ describe("usePassation : soumission (DS-01)", () => {
 
     expect(signalerChangementOnglet).toHaveBeenCalledWith(12)
     await waitFor(() => expect(result.current.changementsOnglet).toBe(3)) // valeur du serveur
+  })
+})
+
+describe("usePassation : rechargement après une sauvegarde dont la réponse s'est perdue (DS-02)", () => {
+  type Textes = Record<number, string>
+  const question = (texte: string | null): QuestionExamen => ({
+    id: 5,
+    enonce: "Expliquez le tas binaire",
+    ordre: 1,
+    points: 4,
+    type: "OUVERTE",
+    estChoixMultiple: null,
+    choixPossibles: [],
+    casDeTestsVisibles: [],
+    reponseActuelle: texte === null ? null : { questionId: 5, texteSoumis: texte },
+  })
+  const depuisCopieTextes = (questions: QuestionExamen[]): Textes =>
+    Object.fromEntries(questions.flatMap((q) => (q.reponseActuelle?.texteSoumis ? [[q.id, q.reponseActuelle.texteSoumis]] : [])))
+  const versReponsesTextes = (r: Textes): ReponseItem[] =>
+    Object.entries(r).map(([id, texte]) => ({ questionId: Number(id), texteSoumis: texte }))
+
+  function monterTextes() {
+    const queryClient = new QueryClient()
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    return renderHook(
+      () =>
+        usePassation<Textes>({
+          evaluationId: "7",
+          depuisCopie: depuisCopieTextes,
+          versReponses: versReponsesTextes,
+          compterTraitees: (r) => Object.keys(r).length,
+        }),
+      { wrapper }
+    )
+  }
+
+  beforeEach(() => {
+    localStorage.clear()
+    vi.mocked(sauvegarderReponses).mockReset()
+  })
+
+  afterEach(() => cleanup())
+
+  it("les réponses tapées après l'envoi perdu sont restaurées, puis envoyées sur la version du serveur", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue({ ...COPIE, questions: [question(null)] })
+    // Le serveur enregistre la sauvegarde (version 0 → 1), mais sa réponse n'arrive jamais
+    vi.mocked(sauvegarderReponses).mockRejectedValueOnce(delaiDepasse())
+    const premier = monterTextes()
+    await waitFor(() => expect(premier.result.current.chargement).toBe(false))
+
+    act(() => premier.result.current.setReponses({ 5: "Un arbre" }))
+    await act(async () => {
+      await premier.result.current.sauvegarderMaintenant()
+    })
+    act(() => premier.result.current.setReponses({ 5: "Un arbre binaire presque complet" }))
+    premier.unmount()
+
+    // F5 : la copie du serveur contient l'envoi resté sans réponse, en version 1
+    vi.mocked(demarrerEpreuve).mockResolvedValue({ ...COPIE, versionReponses: 1, questions: [question("Un arbre")] })
+    vi.mocked(sauvegarderReponses).mockResolvedValue({ dateSauvegarde: "2026-11-07T10:05:00", versionReponses: 2 } as never)
+    const second = monterTextes()
+    await waitFor(() => expect(second.result.current.chargement).toBe(false))
+
+    expect(second.result.current.reponses).toEqual({ 5: "Un arbre binaire presque complet" })
+    await act(async () => {
+      await second.result.current.sauvegarderMaintenant()
+    })
+    expect(sauvegarderReponses).toHaveBeenLastCalledWith(
+      12,
+      [{ questionId: 5, texteSoumis: "Un arbre binaire presque complet" }],
+      1
+    )
+  })
+
+  it("copie enregistrée ailleurs entre-temps (contenu différent) : les réponses du serveur font foi", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue({ ...COPIE, questions: [question(null)] })
+    vi.mocked(sauvegarderReponses).mockRejectedValueOnce(delaiDepasse())
+    const premier = monterTextes()
+    await waitFor(() => expect(premier.result.current.chargement).toBe(false))
+
+    act(() => premier.result.current.setReponses({ 5: "Un arbre" }))
+    await act(async () => {
+      await premier.result.current.sauvegarderMaintenant()
+    })
+    act(() => premier.result.current.setReponses({ 5: "Un arbre binaire" }))
+    premier.unmount()
+
+    // Version 1 venue d'un autre appareil : ce n'est pas notre envoi
+    vi.mocked(demarrerEpreuve).mockResolvedValue({ ...COPIE, versionReponses: 1, questions: [question("Autre appareil")] })
+    const second = monterTextes()
+    await waitFor(() => expect(second.result.current.chargement).toBe(false))
+
+    expect(second.result.current.reponses).toEqual({ 5: "Autre appareil" })
+    expect(localStorage.getItem("passation-copie-12-conflit")).not.toBeNull() // mis de côté, pas détruit
+  })
+})
+
+describe("usePassation : chrono recalé sur le serveur (DS-01)", () => {
+  beforeEach(() => {
+    localStorage.clear()
+    navigate.mockReset()
+    vi.mocked(demarrerEpreuve).mockReset()
+    vi.mocked(sauvegarderReponses).mockReset()
+    vi.mocked(soumettreCopie).mockReset()
+  })
+
+  afterEach(() => cleanup())
+
+  it("fin du chrono du navigateur alors que le serveur accorde encore du temps : pas de remise, chrono recalé", async () => {
+    // Horloge du PC en avance, ou tiers-temps accordé depuis le chargement de la page
+    vi.mocked(demarrerEpreuve)
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 600 })
+    const { result } = monter()
+
+    await waitFor(() => expect(result.current.tempsRestantFormate).toBe("10:00"))
+    expect(soumettreCopie).not.toHaveBeenCalled()
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  it("fin du chrono confirmée par le serveur : la copie est remise", async () => {
+    vi.mocked(demarrerEpreuve)
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+    vi.mocked(soumettreCopie).mockResolvedValue("2026-11-07T10:30:00")
+    monter()
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/examen/7/expiration", expect.anything()))
+    expect(soumettreCopie).toHaveBeenCalledTimes(1)
+  })
+
+  it("serveur injoignable à la fin du chrono : la remise part quand même (comportement d'avant)", async () => {
+    vi.mocked(demarrerEpreuve)
+      .mockResolvedValueOnce({ ...COPIE, tempsRestantSecondes: 0 })
+      .mockRejectedValueOnce(delaiDepasse())
+    vi.mocked(soumettreCopie).mockResolvedValue("2026-11-07T10:30:00")
+    monter()
+
+    await waitFor(() => expect(soumettreCopie).toHaveBeenCalledTimes(1))
+  })
+
+  it("chaque sauvegarde recale le chrono sur le temps restant du serveur", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue(COPIE) // 30:00
+    vi.mocked(sauvegarderReponses).mockResolvedValue({
+      dateSauvegarde: "2026-11-07T10:05:00",
+      message: "ok",
+      nbReponses: 0,
+      versionReponses: 1,
+      tempsRestantSecondes: 2700, // tiers-temps accordé : 45 min restantes
+    })
+    const { result } = monter()
+    await waitFor(() => expect(result.current.chargement).toBe(false))
+
+    act(() => result.current.setReponses({ modifie: true } as never))
+    await act(async () => {
+      await result.current.sauvegarderMaintenant()
+    })
+
+    expect(result.current.tempsRestantFormate).toBe("45:00")
+  })
+})
+
+describe("usePassation : remise avec des réponses refusées par le serveur (400)", () => {
+  const refus = () =>
+    new AxiosError("refus", "ERR_BAD_REQUEST", config, null, {
+      status: 400,
+      statusText: "",
+      headers: {},
+      config,
+      data: { detail: "Langage non pris en charge" },
+    })
+
+  beforeEach(() => {
+    localStorage.clear()
+    navigate.mockReset()
+    vi.mocked(demarrerEpreuve).mockReset().mockResolvedValue(COPIE)
+    vi.mocked(sauvegarderReponses).mockReset().mockRejectedValue(refus())
+    vi.mocked(soumettreCopie).mockReset().mockResolvedValue("2026-11-07T10:20:00")
+  })
+
+  afterEach(() => cleanup())
+
+  it("premier clic : explication (pas « vérifiez votre connexion ») ; second clic : la copie est remise sans elles", async () => {
+    const { result } = monter()
+    await waitFor(() => expect(result.current.chargement).toBe(false))
+    act(() => result.current.setReponses({ modifie: true } as never))
+
+    await act(async () => {
+      await result.current.soumettre()
+    })
+    expect(soumettreCopie).not.toHaveBeenCalled()
+    expect(result.current.erreurSoumission).toContain("refusé")
+    expect(result.current.erreurSoumission).not.toContain("connexion")
+    expect(result.current.soumissionEnCours).toBe(false)
+
+    await act(async () => {
+      await result.current.soumettre()
+    })
+    expect(soumettreCopie).toHaveBeenCalledTimes(1)
+    expect(navigate).toHaveBeenCalledWith("/examen/7/confirmation", expect.anything())
   })
 })

@@ -13,9 +13,11 @@ import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutEvaluation;
+import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.*;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
@@ -47,6 +49,12 @@ class QuizIntegrationTest {
 
     @Autowired
     private ReponseEtudiantRepository reponseEtudiantRepository;
+
+    @Autowired
+    private ClotureCopiesService clotureCopiesService;
+
+    @Autowired
+    private SoumissionRepository soumissionRepository;
 
     @Autowired
     private TransactionTemplate transactionTemplate;
@@ -211,5 +219,115 @@ class QuizIntegrationTest {
         assertThat(copie.getQuiz().indexQuestion()).isZero();
         assertThat(copie.getQuiz().dureeQuestion()).isEqualTo(30);
         assertThat(copie.getQuestions()).hasSize(1); // seule la question en cours est envoyée
+    }
+
+    /** Fin du quiz de setUp : 3 questions de 30 s. Bien avant la fin de la durée standard (10 min). */
+    private static final int DUREE_QUIZ = 3 * DUREE_QUESTION;
+
+    private Soumission copie(Long soumissionId) {
+        return transactionTemplate.execute(tx -> soumissionRepository.findById(soumissionId).orElseThrow());
+    }
+
+    @Test
+    @DisplayName("Quiz abandonné : la copie est clôturée à la fin du quiz + 2 min, pas à la fin de la durée standard")
+    void quizAbandonne_ClotureALaFinDuQuiz() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+        reculer(soumissionId, DUREE_QUIZ + TempsEpreuveService.MARGE_TOLERANCE_MINUTES * 60 + 5);
+
+        clotureCopiesService.cloturerCopiesExpirees();
+
+        Soumission copie = copie(soumissionId);
+        assertThat(copie.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        // Remise datée de la fin réelle du quiz (début + 90 s), comme une remise à l'heure
+        assertThat(copie.getDateRemise()).isCloseTo(copie.getDateDebut().plusSeconds(DUREE_QUIZ),
+                org.assertj.core.api.Assertions.within(1, ChronoUnit.SECONDS));
+    }
+
+    @Test
+    @DisplayName("Quiz abandonné encore dans la marge de 2 min après sa fin : la copie reste ouverte")
+    void quizAbandonne_DansLaMarge_PasCloture() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+        reculer(soumissionId, DUREE_QUIZ + 60);
+
+        clotureCopiesService.cloturerCopiesExpirees();
+
+        assertThat(copie(soumissionId).getStatut()).isEqualTo(StatutSoumission.EN_COURS);
+    }
+
+    @Test
+    @DisplayName("Questions passées en avance puis page fermée : la fin du quiz est avancée d'autant")
+    void questionsPasseesEnAvance_FinAvancee() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+        soumissionService.passerQuestionSuivante(soumissionId, 0, email);
+        soumissionService.passerQuestionSuivante(soumissionId, 1, email);
+        soumissionService.passerQuestionSuivante(soumissionId, 2, email); // quiz terminé, remise jamais reçue
+        jdbcTemplate.update("update soumissions set date_debut = ?, debut_question_quiz = ? where id = ?",
+                LocalDateTime.now().minusMinutes(3), LocalDateTime.now().minusMinutes(3), soumissionId);
+
+        clotureCopiesService.cloturerCopiesExpirees();
+
+        Soumission copie = copie(soumissionId);
+        assertThat(copie.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(copie.getDateRemise()).isEqualTo(copie.getDebutQuestionQuiz());
+    }
+
+    @Test
+    @DisplayName("Retour après la fin du quiz et la marge : la copie est clôturée à la reprise, sans questions")
+    void retourApresLaFinDuQuiz_ClotureALaReprise() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+        reculer(soumissionId, DUREE_QUIZ + TempsEpreuveService.MARGE_TOLERANCE_MINUTES * 60 + 5);
+
+        SoumissionDetailResponse reprise = soumissionService.demarrerOuReprendre(evaluationId, email);
+
+        assertThat(reprise.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(reprise.getQuestions()).isNullOrEmpty();
+    }
+
+    @Test
+    @DisplayName("Temps total affiché : celui qui reste jusqu'à la fin du quiz, pas jusqu'à la fin de la durée standard")
+    void tempsTotal_FinDuQuiz() {
+        SoumissionDetailResponse copie = soumissionService.demarrerOuReprendre(evaluationId, email);
+
+        assertThat(copie.getTempsRestantSecondes()).isBetween((long) DUREE_QUIZ - 5, (long) DUREE_QUIZ);
+    }
+
+    @Test
+    @DisplayName("Durée standard plus courte que le quiz : elle reste le plafond")
+    void dureeStandardPlusCourte_ResteLePlafond() {
+        jdbcTemplate.update("update evaluations set duree_standard = 1 where id = ?", evaluationId);
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+        reculer(soumissionId, 60 + TempsEpreuveService.MARGE_TOLERANCE_MINUTES * 60 + 5);
+
+        clotureCopiesService.cloturerCopiesExpirees();
+
+        Soumission copie = copie(soumissionId);
+        assertThat(copie.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(copie.getDateRemise()).isEqualTo(copie.getDateDebut().plusMinutes(1));
+    }
+
+    @Test
+    @DisplayName("Enseignant : la copie de quiz remise lui arrive complète (toutes les questions et réponses), pas réduite à la question en cours")
+    void enseignant_CopieDeQuizComplete() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+        repondre(soumissionId, 0);
+        soumissionService.passerQuestionSuivante(soumissionId, 0, email);
+        soumissionService.passerQuestionSuivante(soumissionId, 1, email);
+        soumissionService.passerQuestionSuivante(soumissionId, 2, email);
+        soumissionService.soumettreCopie(soumissionId, email);
+
+        SoumissionDetailResponse copie = soumissionService.getDetail(soumissionId, "prof@ept.sn");
+
+        assertThat(copie.getQuestions()).extracting(QuestionExamenDto::getId).containsExactlyElementsOf(questionIds);
+        assertThat(copie.getQuestions().get(0).getReponseActuelle().getChoixIds()).containsExactly(choix.get(0));
+        assertThat(copie.getQuestions().get(1).getReponseActuelle()).isNull();
+    }
+
+    @Test
+    @DisplayName("Étudiant en composition : toujours la seule question en cours (la règle du quiz ne change pas pour lui)")
+    void etudiant_ToujoursLaQuestionEnCours() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evaluationId, email).getId();
+
+        assertThat(soumissionService.getDetail(soumissionId, email).getQuestions())
+                .extracting(QuestionExamenDto::getId).containsExactly(questionIds.get(0));
     }
 }

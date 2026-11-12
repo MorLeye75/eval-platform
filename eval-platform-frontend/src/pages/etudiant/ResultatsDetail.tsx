@@ -69,14 +69,19 @@ function BlocTexte({ titre, children }: { titre: string; children: ReactNode }) 
 
 function CasTestLigne({ cas, numero }: { cas: CasTestResultat; numero: number }) {
   const temps = cas.tempsExecution !== null ? ` · ${formatNote(cas.tempsExecution)} s` : ""
+  // Cas masqué avant la fermeture + 2 min : ni réussi ni échoué, son verdict n'est pas encore communiqué
+  const enAttente = cas.reussi === null
+  const style = enAttente
+    ? "border-border/60 bg-muted/40"
+    : cas.reussi
+      ? "border-primary/30 bg-primary/5"
+      : "border-destructive/30 bg-destructive/5"
   return (
-    <div
-      className={`flex flex-col gap-2 rounded-xl border p-3 ${
-        cas.reussi ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"
-      }`}
-    >
+    <div className={`flex flex-col gap-2 rounded-xl border p-3 ${style}`}>
       <div className="flex items-center gap-2 text-sm">
-        {cas.reussi ? (
+        {enAttente ? (
+          <Hourglass className="size-4 shrink-0 text-muted-foreground" />
+        ) : cas.reussi ? (
           <CircleCheck className="size-4 shrink-0 text-primary" />
         ) : (
           <CircleX className="size-4 shrink-0 text-destructive" />
@@ -93,7 +98,9 @@ function CasTestLigne({ cas, numero }: { cas: CasTestResultat; numero: number })
       {cas.masque ? (
         <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <EyeOff className="size-3.5" />
-          Cas caché par l'enseignant : seul le verdict est communiqué.
+          {enAttente
+            ? "Cas caché par l'enseignant : son verdict sera communiqué après la fermeture de l'évaluation."
+            : "Cas caché par l'enseignant : seul le verdict est communiqué."}
         </p>
       ) : (
         <div className="grid gap-2 md:grid-cols-3">
@@ -111,7 +118,9 @@ function CasTestLigne({ cas, numero }: { cas: CasTestResultat; numero: number })
   )
 }
 
-function QuestionResultat({ q, index }: { q: ResultatQuestion; index: number }) {
+function QuestionResultat({ q, index, corrigeVisible }: { q: ResultatQuestion; index: number; corrigeVisible: boolean }) {
+  // QCM avant le corrigé : le serveur ne donne pas les points (ils révéleraient les bonnes réponses)
+  const pointsMasques = !corrigeVisible && (q.type === "QCM" || q.type === "QUIZ_CHRONOMETREE")
   const points = q.noteObtenue ?? 0
   const reussie = q.noteObtenue !== null && q.noteObtenue === q.points
 
@@ -121,13 +130,16 @@ function QuestionResultat({ q, index }: { q: ResultatQuestion; index: number }) 
         <CardTitle className="text-base font-bold">Question {index + 1}</CardTitle>
         <Badge
           variant="outline"
+          title={pointsMasques ? "Points affichés avec le corrigé, après la fermeture de l'évaluation" : undefined}
           className={`rounded-full px-3 py-1 text-xs font-semibold ${
-            reussie
-              ? "border-primary/20 bg-primary/10 text-primary"
-              : "border-destructive/20 bg-destructive/10 text-destructive"
+            pointsMasques
+              ? "border-border/60 bg-muted text-muted-foreground"
+              : reussie
+                ? "border-primary/20 bg-primary/10 text-primary"
+                : "border-destructive/20 bg-destructive/10 text-destructive"
           }`}
         >
-          {formatNote(points)} / {formatNote(q.points)} pts
+          {pointsMasques ? "—" : formatNote(points)} / {formatNote(q.points)} pts
         </Badge>
       </CardHeader>
 
@@ -258,7 +270,9 @@ function Publies({ r }: { r: ResultatsCopie }) {
         <div className="flex items-start gap-2 rounded-xl border border-border/60 bg-muted/40 p-3 text-sm text-muted-foreground">
           <Info className="mt-0.5 size-4 shrink-0" />
           <span>
-            Les bonnes réponses seront affichées après la fermeture de l'évaluation, quand plus personne ne compose.
+            Les bonnes réponses et les points de chaque question à choix, ainsi que les verdicts des cas de test
+            masqués, seront affichés après la fermeture de l'évaluation, quand plus personne ne compose. Votre note
+            totale est déjà définitive.
           </span>
         </div>
       )}
@@ -278,7 +292,7 @@ function Publies({ r }: { r: ResultatsCopie }) {
       <div className="flex flex-col gap-4">
         <h2 className="text-lg font-bold">Détail des réponses</h2>
         {r.questions.map((q, index) => (
-          <QuestionResultat key={q.questionId} q={q} index={index} />
+          <QuestionResultat key={q.questionId} q={q} index={index} corrigeVisible={r.corrigeVisible} />
         ))}
       </div>
     </>

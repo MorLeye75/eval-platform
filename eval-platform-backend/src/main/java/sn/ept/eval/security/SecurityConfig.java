@@ -21,6 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import sn.ept.eval.security.jwt.AuthEntryPointJwt;
 import sn.ept.eval.security.jwt.AuthTokenFilter;
 import sn.ept.eval.security.jwt.JwtUtils;
+import sn.ept.eval.security.services.RevocationJetonsService;
 import sn.ept.eval.security.services.UserDetailsServiceImpl;
 
 import java.util.List;
@@ -33,6 +34,7 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthEntryPointJwt unauthorizedHandler;
     private final JwtUtils jwtUtils;
+    private final RevocationJetonsService revocationJetonsService;
 
     /** Origines du front autorisées (cors.allowed-origins, variable CORS_ALLOWED_ORIGINS). */
     @Value("${cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
@@ -42,7 +44,9 @@ public class SecurityConfig {
     @Value("${spring.h2.console.enabled:false}")
     private boolean h2ConsoleEnabled;
 
-    public SecurityConfig(UserDetailsServiceImpl userDetailsService, AuthEntryPointJwt unauthorizedHandler, JwtUtils jwtUtils) {
+    public SecurityConfig(UserDetailsServiceImpl userDetailsService, AuthEntryPointJwt unauthorizedHandler, JwtUtils jwtUtils,
+                          RevocationJetonsService revocationJetonsService) {
+        this.revocationJetonsService = revocationJetonsService;
         this.userDetailsService = userDetailsService;
         this.unauthorizedHandler = unauthorizedHandler;
         this.jwtUtils = jwtUtils;
@@ -89,7 +93,8 @@ public class SecurityConfig {
 
         http.authenticationProvider(authenticationProvider());
         // Instancié ici (pas en @Bean) pour éviter son enregistrement en double comme filtre servlet
-        http.addFilterBefore(new AuthTokenFilter(jwtUtils, userDetailsService), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new AuthTokenFilter(jwtUtils, userDetailsService, revocationJetonsService),
+                UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

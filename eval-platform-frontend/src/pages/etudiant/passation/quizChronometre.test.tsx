@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { demarrerEpreuve, questionQuizSuivante, soumettreCopie } from "@/lib/passation"
+import { demarrerEpreuve, questionQuizSuivante, sauvegarderReponses, soumettreCopie } from "@/lib/passation"
 import type { CopieEnCours, QuestionExamen } from "@/types"
 import PassationQuiz from "./PassationQuiz"
 import ExpirationScreen from "./ExpirationScreen"
@@ -91,6 +91,26 @@ describe("quiz chronométré branché sur le serveur", () => {
     expect(screen.getByRole("button", { name: /Terminer le quiz/ })).toBeTruthy()
   })
 
+  it("réponse non enregistrée (réseau) : on reste sur la question, avec un message, sans la perdre", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue(copieQuiz(0))
+    vi.mocked(questionQuizSuivante).mockResolvedValue(copieQuiz(1))
+    vi.mocked(sauvegarderReponses).mockRejectedValueOnce(new Error("Network Error"))
+    afficher()
+
+    fireEvent.click(await screen.findByText("Choix 1"))
+    fireEvent.click(screen.getByRole("button", { name: /Question suivante/ }))
+
+    expect(await screen.findByText(/Votre réponse n'a pas pu être enregistrée/)).toBeTruthy()
+    expect(questionQuizSuivante).not.toHaveBeenCalled() // le serveur n'avance pas : la réponse reste modifiable
+    expect(screen.getByText("Question numéro 1")).toBeTruthy()
+
+    // Le réseau revient : nouvel essai, la réponse part puis la copie avance
+    fireEvent.click(screen.getByRole("button", { name: /Question suivante/ }))
+    expect(await screen.findByText("Question numéro 2")).toBeTruthy()
+    expect(sauvegarderReponses).toHaveBeenLastCalledWith(12,
+      [expect.objectContaining({ questionId: 11, choixIds: [110] })], expect.anything())
+  })
+
   it("dernière question : « Terminer le quiz » remet la copie", async () => {
     vi.mocked(demarrerEpreuve).mockResolvedValue(copieQuiz(1))
     afficher()
@@ -119,6 +139,22 @@ describe("quiz chronométré branché sur le serveur", () => {
     afficher()
 
     await waitFor(() => expect(soumettreCopie).toHaveBeenCalledWith(12))
+  })
+
+  it("quiz terminé et remise en échec (réseau) : message et bouton pour réessayer, pas d'attente sans fin", async () => {
+    vi.mocked(demarrerEpreuve).mockResolvedValue(copieQuiz(2, 0))
+    vi.mocked(soumettreCopie).mockRejectedValueOnce(new Error("Network Error"))
+    afficher()
+
+    expect(await screen.findByText(/La soumission a échoué/)).toBeTruthy()
+    expect(navigate).not.toHaveBeenCalled()
+
+    // Le réseau revient : nouvel essai, la copie est remise
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Réessayer la remise/ }))
+    })
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/examen/7/confirmation", expect.anything()))
+    expect(soumettreCopie).toHaveBeenCalledTimes(2)
   })
 })
 

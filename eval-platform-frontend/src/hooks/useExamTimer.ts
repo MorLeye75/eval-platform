@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 
 interface UseExamTimerOptions {
   dureeSecondes: number
@@ -18,7 +18,8 @@ export function formatTemps(secondesTotal: number) {
  *
  * Le temps restant est calculé à partir d'une heure de fin (pas de dérive si l'onglet est en
  * arrière-plan), fixée au démarrage et recalée si le serveur renvoie un autre temps restant
- * (copie rechargée). `onExpire` est lu via une ref (l'intervalle n'est pas recréé à chaque rendu).
+ * (copie rechargée), ou par `recaler` (temps restant renvoyé par le serveur pendant l'épreuve : tiers-temps
+ * accordé depuis le chargement, horloge du PC qui a sauté). `onExpire` est lu via une ref (l'intervalle n'est pas recréé à chaque rendu).
  *
  * L'expiration est détectée dans le tick, à partir du temps calculé, et jamais à partir de l'état
  * `tempsRestant` : celui-ci vaut encore sa valeur initiale (0 tant que la copie n'est pas chargée)
@@ -43,8 +44,10 @@ export function useExamTimer({
   const tempsAffiche = dureeChangee ? Math.max(0, dureeSecondes) : tempsRestant
   const expirationDeclenchee = useRef(false)
   const onExpireRef = useRef(onExpire)
+  const enabledRef = useRef(enabled)
   useEffect(() => {
     onExpireRef.current = onExpire
+    enabledRef.current = enabled
   })
 
   useEffect(() => {
@@ -71,8 +74,18 @@ export function useExamTimer({
     return () => clearInterval(timer)
   }, [finA])
 
+  /** Nouvelle heure de fin d'après le temps restant du serveur ; l'expiration peut de nouveau se déclencher. */
+  const recaler = useCallback((secondes: number) => {
+    if (!enabledRef.current) return
+    const restant = Math.max(0, Math.round(secondes))
+    expirationDeclenchee.current = false
+    setTempsRestant(restant)
+    setFinA(Date.now() + restant * 1000)
+  }, [])
+
   return {
     tempsRestant: tempsAffiche,
     tempsRestantFormate: formatTemps(tempsAffiche),
+    recaler,
   }
 }

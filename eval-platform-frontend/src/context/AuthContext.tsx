@@ -88,6 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * des copies et cache des requêtes (copies, évaluations…) sont effacés.
    */
   function logout() {
+    // Révocation côté serveur (DS-14) : le jeton part avec la requête avant d'être effacé ici. Sans attendre la
+    // réponse : hors ligne, la session locale est vidée quand même (le jeton expirera de lui-même)
+    const token = localStorage.getItem("token")
+    if (token) {
+      api.post("/auth/logout", null, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {})
+    }
     viderSession()
     queryClient.clear()
     setUser(null)

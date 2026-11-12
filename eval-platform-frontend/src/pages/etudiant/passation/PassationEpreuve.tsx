@@ -1,11 +1,12 @@
-import { useState } from "react"
+import { lazy, Suspense, useState } from "react"
 import { useParams } from "react-router-dom"
 import { usePassation } from "@/hooks/usePassation"
 import EtatPassation from "./EtatPassation"
 import PassationShell from "./PassationShell"
 import SaisieChoix from "./SaisieChoix"
 import SaisieTexte from "./SaisieTexte"
-import SaisieCode from "./SaisieCode"
+// Chargée à la demande : elle embarque l'éditeur Monaco (plusieurs Mo), inutile pour un QCM ou une question ouverte
+const SaisieCode = lazy(() => import("./SaisieCode"))
 import {
   compterTraitees,
   depuisCopie,
@@ -66,12 +67,14 @@ export default function PassationEpreuve() {
         <SaisieTexte texte={reponse.texte} onChange={(texte) => modifier({ type: "texte", texte })} />
       )}
       {reponse.type === "code" && (
-        <SaisieCode
-          question={question}
-          code={reponse.code}
-          langage={reponse.langage}
-          onChange={(patch) => modifier({ ...reponse, ...patch })}
-        />
+        <Suspense fallback={<p className="py-10 text-center text-sm text-muted-foreground">Chargement de l'éditeur de code…</p>}>
+          <SaisieCode
+            question={question}
+            code={reponse.code}
+            langage={reponse.langage}
+            onChange={(patch) => modifier({ ...reponse, ...patch })}
+          />
+        </Suspense>
       )}
     </PassationShell>
   )

@@ -35,23 +35,42 @@ public class SoumissionMapper {
         this.tempsEpreuveService = tempsEpreuveService;
     }
 
-    /** Copie complète : temps restant, questions ordonnées et réponses déjà enregistrées. */
+    /**
+     * Copie pour son étudiant en composition : temps restant, questions ordonnées et réponses déjà enregistrées.
+     * Quiz chronométré : seule la question en cours.
+     */
     public SoumissionDetailResponse versDetail(Soumission soumission) {
+        return versDetail(soumission, false);
+    }
+
+    /**
+     * Copie pour l'enseignant de l'évaluation ou l'administrateur : toutes les questions et réponses, même d'un quiz
+     * (dont la copie remise n'a plus de question en cours). Toujours sans les bonnes réponses ni les cas masqués.
+     */
+    public SoumissionDetailResponse versDetailComplet(Soumission soumission) {
+        return versDetail(soumission, true);
+    }
+
+    private SoumissionDetailResponse versDetail(Soumission soumission, boolean toutesLesQuestions) {
         SoumissionDetailResponse resp = versDetailSansQuestions(soumission);
-        // Durée effective déjà calculée : l'aménagement n'est lu qu'une fois
-        resp.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(soumission, resp.getDureeMinutes()));
 
         List<Question> questions = questionRepository.findByEvaluationIdOrderByOrdreAsc(soumission.getEvaluation().getId());
         Map<Long, ReponseEtudiant> reponsesParQuestion = reponseEtudiantRepository.findBySoumissionId(soumission.getId()).stream()
                 .collect(Collectors.toMap(r -> r.getQuestion().getId(), r -> r, (r1, r2) -> r1));
+        List<QuestionQuiz> questionsQuiz = QuizService.questionsQuiz(questions);
 
-        // Quiz chronométré : seule la question en cours part vers le navigateur
-        List<QuestionQuiz> questionsQuiz = quizService.questionsQuiz(questions);
+        // Durée effective déjà calculée et questions déjà lues : ni l'aménagement ni les questions ne sont relus
+        resp.setTempsRestantSecondes(tempsEpreuveService.tempsRestantSecondes(
+                tempsEpreuveService.finEpreuve(soumission, resp.getDureeMinutes(), questionsQuiz)));
+
+        // Quiz chronométré : seule la question en cours part vers le navigateur de l'étudiant
         if (!questionsQuiz.isEmpty()) {
             QuizService.EtatQuiz etat = quizService.etat(soumission, questionsQuiz);
             resp.setQuiz(new EtatQuizDto(etat.index(), etat.nbQuestions(), etat.dureeQuestion(),
                     quizService.tempsRestantQuestionSecondes(etat)));
-            questions = etat.termine() ? List.of() : List.of(questionsQuiz.get(etat.index()));
+            if (!toutesLesQuestions) {
+                questions = etat.termine() ? List.of() : List.of(questionsQuiz.get(etat.index()));
+            }
         }
 
         List<QuestionExamenDto> questionsDtos = new ArrayList<>();

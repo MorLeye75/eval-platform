@@ -9,6 +9,7 @@ import org.springframework.http.client.BufferingClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.HttpServerErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -34,9 +35,9 @@ import java.util.stream.Collectors;
  * Les cas restants partent par lots de 20. Les résultats sont interrogés à intervalle croissant
  * (0,5 s, puis ×1,5 jusqu'à 5 s) pour ne pas submerger Judge0.
  *
- * Judge0 indisponible (réseau, délai HTTP, 5xx, statuts 13 et 14, durée maximale dépassée) :
- * {@link Judge0IndisponibleException}, la copie sera recorrigée plus tard. Toute autre anomalie
- * (4xx, réponse illisible) remonte en exception d'exécution : c'est un bug ou une mauvaise configuration.
+ * Judge0 indisponible (réseau, délai HTTP, 5xx, 429 trop de requêtes, statuts 13 et 14, durée maximale
+ * dépassée) : {@link Judge0IndisponibleException}, la copie sera recorrigée plus tard. Toute autre anomalie
+ * (autre 4xx, réponse illisible) remonte en exception d'exécution : c'est un bug ou une mauvaise configuration.
  */
 @Component
 public class Judge0Client {
@@ -146,8 +147,9 @@ public class Judge0Client {
                 resultats.addAll(executerLot(code, languageId, lot, echeance));
             }
             return resultats;
-        } catch (ResourceAccessException | HttpServerErrorException e) {
-            throw new Judge0IndisponibleException("Judge0 injoignable ou en erreur : " + e.getMessage(), e);
+        } catch (ResourceAccessException | HttpServerErrorException | HttpClientErrorException.TooManyRequests e) {
+            // 429 : Judge0 (ou le proxy devant lui) est saturé, comme pour un 503 la copie est recorrigée plus tard
+            throw new Judge0IndisponibleException("Judge0 injoignable, saturé ou en erreur : " + e.getMessage(), e);
         }
     }
 

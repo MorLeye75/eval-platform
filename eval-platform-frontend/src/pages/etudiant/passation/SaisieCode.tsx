@@ -1,4 +1,6 @@
 import Editor from "@monaco-editor/react"
+// Monaco livré avec l'application, pas chargé depuis un CDN pendant l'examen
+import "@/lib/monaco"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { LANGAGES, LANGAGES_LABELS } from "@/lib/langages"

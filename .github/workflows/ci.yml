@@ -67,8 +67,116 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
+      # Erreurs bloquantes ; les avertissements sont affichés sans faire échouer
+      - name: Lint (oxlint)
+        run: npm run lint
+
       - name: Run Unit Tests (Vitest)
         run: npm test
 
       - name: Build Frontend Application
         run: npm run build
+
+  api-tests:
+    name: API Contract Tests (collection Postman)
+    runs-on: ubuntu-24.04
+    needs: [backend-tests]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build Backend Jar
+        working-directory: ./eval-platform-backend
+        run: mvn package -DskipTests --batch-mode
+
+      # Base neuve (profil h2-dev, comptes de démonstration) : la collection se joue d'un bout à l'autre
+      - name: Start Backend
+        working-directory: ./eval-platform-backend
+        env:
+          SPRING_PROFILES_ACTIVE: h2-dev
+          SERVER_PORT: '18083'
+          # Judge0 injoignable : la remise n'en dépend pas, la correction du code est retentée plus tard
+          JUDGE0_URL: http://127.0.0.1:2399
+        run: |
+          nohup java -jar target/backend-0.0.1-SNAPSHOT.jar > backend.log 2>&1 &
+          # 401 sur /auth/me sans jeton : le serveur est prêt
+          for i in $(seq 1 120); do
+            [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18083/api/auth/me)" = "401" ] && exit 0
+            sleep 1
+          done
+          echo "::error::Le backend n'a pas démarré en 120 s"; cat backend.log; exit 1
+
+      - name: Install Postman CLI
+        run: curl -o- "https://dl-cli.pstmn.io/install/linux64.sh" | sh
+
+      # Contrat de l'API vu par l'étudiant : connexion, passation, épreuve de code, résultats (DS-01 à DS-14)
+      - name: Run Postman Collection
+        run: >
+          postman collection run docs/Plateforme_Evaluation_Postman_Collection.json
+          --env-var "baseUrl=http://localhost:18083/api"
+
+      - name: Upload Backend Log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-log-api-tests
+          path: eval-platform-backend/backend.log
+          retention-days: 7
+
+  e2e-tests:
+    name: End-to-End Tests (Playwright, sans simulation)
+    runs-on: ubuntu-24.04
+    # Seulement si les tests unitaires passent : inutile de lancer le parcours complet sur une base cassée
+    needs: [backend-tests, frontend-build]
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Setup Java 21 (Temurin)
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'maven'
+
+      # Le jar que Playwright démarre (profil h2-dev, base neuve, port 18082)
+      - name: Build Backend Jar
+        working-directory: ./eval-platform-backend
+        run: mvn package -DskipTests --batch-mode
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: eval-platform-frontend/package-lock.json
+
+      - name: Install Dependencies
+        working-directory: ./eval-platform-frontend
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        working-directory: ./eval-platform-frontend
+        run: npx playwright install --with-deps chromium
+
+      # Démarre le vrai backend et la version de production du front, puis joue le parcours étudiant
+      - name: Run End-to-End Tests
+        working-directory: ./eval-platform-frontend
+        run: npm run test:e2e
+
+      - name: Upload Playwright Traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces
+          path: eval-platform-frontend/test-results/
+          retention-days: 7

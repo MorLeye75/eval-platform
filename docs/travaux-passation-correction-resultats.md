@@ -23,7 +23,7 @@ Toutes les corrections sont couvertes par un test écrit pour reproduire le déf
 | Passation | Plus de copie vide soumise à l'ouverture (chrono à 0 au premier rendu). Une seule réponse par question et par copie (V3). Plus d'énoncés renvoyés après la remise. Réponses gardées localement à chaque frappe, délai maximal de 15 s par requête. Fenêtre de remise verrouillée pendant l'envoi, heure de remise fixée par le serveur. Une modification annulée n'est plus restaurée au rechargement. |
 | Correction | Plus de notes partielles en cas d'erreur (transaction annulée). Une file de correction pleine ne provoque plus d'erreur 500. |
 | Sécurité et configuration | Plus de profil `dev` par défaut. Démarrage refusé sans `DB_PASSWORD` ni `JWT_SECRET`. Origines CORS configurables, Swagger désactivé hors développement. |
-| Authentification | Session vidée à la déconnexion, rôle revalidé par le serveur (`/auth/me`). Limite de tentatives par IP en plus du couple email + IP, avec 429 affiché. Session d'un autre compte effacée sur un poste partagé. Connexion sans modifier l'audit du compte. |
+| Authentification | Session vidée à la déconnexion, rôle revalidé par le serveur (`/auth/me`). Limite de tentatives par couple email + IP, avec 429 affiché (le blocage par IP seule a été retiré le 11 novembre : derrière le NAT du campus, il bloquait toute l'école). Session d'un autre compte effacée sur un poste partagé. Connexion sans modifier l'audit du compte. |
 | Erreurs | Champ `code` sur toutes les erreurs ; 409 `CONFLIT_DONNEES` / `VERROU_INDISPONIBLE`. |
 | Performances | Clôture des copies en lot, une transaction courte par copie. Tables de liaison avec clé primaire (V4), proposition IA chargée à la demande. |
 | Accessibilité | Vrais liens et boutons nommés, accordéons accessibles. |
@@ -59,7 +59,7 @@ Une question sans cas de test est laissée à l'enseignant.
 
 **Pannes.**
 
-- *Judge0 indisponible* (réseau, erreur 5xx, statuts 13 et 14, délai dépassé) : nouvel essai 1, 2, 4 puis 8 min
+- *Judge0 indisponible* (réseau, erreur 5xx, 429 trop de requêtes, statuts 13 et 14, délai dépassé) : nouvel essai 1, 2, 4 puis 8 min
   plus tard. À la 5e tentative, la copie passe en correction manuelle avec ses QCM notés.
 - *Erreur imprévue* : elle compte de la même façon.
 - *Relance planifiée* : elle reprend les copies dont `prochaine_tentative_le` est passée, 50 par minute au plus.
@@ -123,8 +123,11 @@ Diagramme : [`DS-13-consultation-resultats.puml`](diagrammes-sequence/DS-13-cons
 - Les bonnes réponses des QCM ne sont visibles qu'**après la fermeture + 2 min**. Plus personne ne compose
   alors, puisque chaque épreuve est plafonnée à la fermeture, tiers-temps compris.
 - Les **cas de test masqués** sont réduits à leur verdict (réussi, mauvaise réponse, temps dépassé, erreur de
-  compilation ou d'exécution) et à leur temps. Le verdict est enregistré par la correction (V8). Les cas
-  visibles sont affichés en entier : l'étudiant les voyait déjà pendant l'épreuve.
+  compilation ou d'exécution) et à leur temps. Le verdict est enregistré par la correction (V8). Comme le
+  corrigé des QCM, il n'est affiché qu'**après la fermeture + 2 min** (décision de Mor du 11 novembre) :
+  « cas masqué n° 3 échoué » dirait à un camarade en tiers-temps où est le piège. Cette règle est vérifiée par
+  l'écran de résultats lui-même, sans compter seulement sur la règle de publication (DS-07). Les cas visibles
+  sont affichés en entier : l'étudiant les voyait déjà pendant l'épreuve.
 - La **moyenne de la promotion** n'est communiquée qu'à partir de 5 copies notées.
 - **Pas de rang** dans la promotion, seulement l'écart à la moyenne, comme le demande le cahier des charges.
 - La **proposition de l'IA** n'est jamais renvoyée : l'étudiant ne voit que la note et le commentaire validés
@@ -137,13 +140,19 @@ l'identifiant de la **copie**.
 
 Diagramme : [`DS-14-connexion.puml`](diagrammes-sequence/DS-14-connexion.puml). Il documente le code existant :
 
-- limite des tentatives (5 échecs par couple email + IP, 100 par IP, sur 15 min ; réponse 429) ;
+- limite des tentatives (5 échecs par couple email + IP sur 15 min ; réponse 429 ; pas de blocage par IP seule).
+  Depuis la revue d'Aminou (12 novembre), chaque essai est réservé avant la vérification, de façon atomique :
+  40 essais simultanés n'en laissent plus passer que 5 ;
+- email insensible à la casse (12 novembre) : enregistré et recherché en minuscules, sans espaces autour ;
+  contrainte en base (V11), qui rend aussi l'unicité insensible à la casse ;
 - même message 401 que le compte existe ou non ;
 - jeton de 24 h, avec rôle et état du compte relus en base à chaque requête ;
-- revalidation au démarrage par `/auth/me`, et effacement de la session à la déconnexion.
+- revalidation au démarrage par `/auth/me`, et effacement de la session à la déconnexion ;
+- révocation à la déconnexion (11 novembre) : `POST /auth/logout` révoque le jeton de cette session seulement
+  (identifiant `jti`, table `jetons_revoques`, V10). Les sessions ouvertes sur d'autres appareils restent valides.
 
-**Limite connue.** La déconnexion n'appelle pas le serveur : un jeton copié reste valable jusqu'à son
-expiration, 24 h au plus.
+**Limite connue.** Un changement de mot de passe ne ferme pas les autres sessions : leurs jetons restent
+valables jusqu'à leur expiration, 24 h au plus.
 
 ## 7. Migrations Flyway ajoutées
 
@@ -155,6 +164,8 @@ expiration, 24 h au plus.
 | V6 | Langage de la réponse de code |
 | V7 | Suivi de la correction : `correction_demarree_le`, `tentatives_correction`, `prochaine_tentative_le`, index partiel de relance |
 | V8 | Verdict des cas de test |
+| V10 | Jetons révoqués à la déconnexion (`jetons_revoques`). V9 est celle d'Aminou (version des évaluations) |
+| V11 | Emails en minuscules, sans espaces autour, et contrainte qui l'impose (unicité insensible à la casse) |
 
 Toutes sont vérifiées sur un vrai PostgreSQL par `MigrationPostgresIntegrationTest` : le schéma est validé contre
 les entités, avec un parcours de passation, la relance des corrections et les statistiques de résultats.
@@ -172,16 +183,17 @@ cd eval-platform-frontend && npm test && npx tsc -b --noEmit && npm run lint
 `mvn clean test` plutôt qu'une compilation incrémentale : celle-ci a déjà produit des `NoClassDefFoundError`.
 
 **Collection Postman** (`docs/Plateforme_Evaluation_Postman_Collection.json`). Elle couvre la connexion et
-`/auth/me`, la passation QCM, le quiz, l'épreuve de code et les résultats. Parcours étudiant, à lancer sur une
-base neuve (profil `h2-dev`) :
+`/auth/me`, la passation QCM, le quiz, l'épreuve de code et les résultats (16 requêtes, 17 assertions). Chaque
+login range son propre jeton : `{{token}}` pour l'étudiant (dossiers 02 à 04), `{{tokenEnseignant}}` et
+`{{tokenAdmin}}`. Elle se joue d'un bout à l'autre sur une base neuve (profil `h2-dev`), et la CI le fait à chaque
+push (tâche `api-tests`) :
 
 ```bash
 postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
-  --env-var "baseUrl=http://localhost:8080/api" \
-  -i "1.1 Login Étudiant (Aminou Niang)" -i "1.4 Profil de l'utilisateur connecté (/auth/me)" \
-  -i "02 - Passation & Soumission (DS-01, DS-02, DS-10)" -i "03 - Épreuve de code (DS-12)" \
-  -i "04 - Résultats de l'étudiant (DS-13)"
+  --env-var "baseUrl=http://localhost:8080/api"
 ```
+
+Rejouée sur la même base, elle échoue : les copies sont déjà remises.
 
 ## 9. Reste à faire
 
@@ -190,11 +202,12 @@ postman collection run docs/Plateforme_Evaluation_Postman_Collection.json \
 - Faire tourner un **vrai Judge0** : le Docker Compose est prêt (`deploy/judge0/`, avec `verifier.sh`). Il faut un
   hôte Linux en cgroups v1 (Ubuntu 20.04, ou paramètre de démarrage `systemd.unified_cgroup_hierarchy=0`) : ce
   n'est pas possible sur le poste de Mor (WSL 2.7.3 ne propose plus les cgroups v1).
-- La page des notifications et le profil étudiant sont encore simulés (Aminou a des branches `feature/notifications`
-  et `feature/profil` : répartition à confirmer).
+- La page des notifications est encore simulée (répartition confirmée : écrans étudiant pour Mor, enseignant et
+  admin pour Aminou). Le profil est branché (11 novembre) : `GET /profil` (identité en lecture seule, gérée par
+  l'administrateur ; matricule et promotion pour un étudiant) et `PUT /profil/mot-de-passe` (mot de passe actuel
+  exigé, échecs comptés avec ceux de la connexion). La page est commune aux trois rôles.
 - **Service de notifications** côté serveur (`NotificationService`), laissé à Mor par Aminou dans son DS-05 :
   diagramme DS-15 à écrire avec lui (événements, contenu), puis la page des notifications étudiant.
-- Révocation des jetons à la déconnexion (liste de révocation ou jetons plus courts), si on la juge utile.
 - Fait le 9 novembre : verrou partagé sur l'évaluation au démarrage d'une copie (point ouvert du DS-04 d'Aminou,
   test de concurrence sur PostgreSQL) ; accueil étudiant branché sur `/etudiant/evaluations` et
   `/etudiant/performances`.

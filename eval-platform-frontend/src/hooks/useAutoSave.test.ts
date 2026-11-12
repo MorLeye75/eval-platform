@@ -42,6 +42,20 @@ describe("tampon localStorage de la copie (DS-02, DS-10)", () => {
     expect(JSON.parse(localStorage.getItem(`${CLE}-conflit`)!)).toEqual({ version: 2, donnees: { 7: [2] } })
   })
 
+  it("version plus récente venue d'un envoi de ce navigateur resté sans réponse : le tampon est restauré", () => {
+    localStorage.setItem(CLE, JSON.stringify({ version: 2, donnees: { 7: "suite" }, envois: [{ 7: "début" }] }))
+
+    expect(lireTampon(CLE, 3, (envoi: { 7: string }) => envoi[7] === "début")).toEqual({ 7: "suite" })
+    expect(localStorage.getItem(`${CLE}-conflit`)).toBeNull()
+  })
+
+  it("version plus récente sans aucun de nos envois : mise de côté, même avec des envois en attente", () => {
+    localStorage.setItem(CLE, JSON.stringify({ version: 2, donnees: { 7: "suite" }, envois: [{ 7: "début" }] }))
+
+    expect(lireTampon(CLE, 3, () => false)).toBeNull()
+    expect(localStorage.getItem(`${CLE}-conflit`)).not.toBeNull()
+  })
+
   it("un tampon saisi avant toute sauvegarde (version 0) est restauré si le serveur n'a rien reçu depuis", () => {
     localStorage.setItem(CLE, tampon(0, { 7: "brouillon" }))
 

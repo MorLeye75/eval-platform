@@ -2,7 +2,7 @@
   "info": {
     "name": "Plateforme d'Évaluation EPT — API Collection",
     "_postman_id": "c1f7b889-8d54-4362-9e90-eval-ept-2026",
-    "description": "Collection des endpoints de la Plateforme d'Évaluation EPT (DIC1-GIT), avec authentification JWT automatique.\nDiagrammes de séquence couverts : DS-01 et DS-02 (passation et remise), DS-10 (liste et démarrage), DS-12 (épreuve de code corrigée par Judge0), DS-13 (résultats), DS-14 (connexion, /auth/me).\nLes logins 1.2 et 1.3 remplacent le jeton : pour le parcours étudiant, lancer 1.1 puis les dossiers 02 à 04.",
+    "description": "Collection des endpoints de la Plateforme d'Évaluation EPT (DIC1-GIT), avec authentification JWT automatique.\nDiagrammes de séquence couverts : DS-01 et DS-02 (passation et remise), DS-10 (liste et démarrage), DS-12 (épreuve de code corrigée par Judge0), DS-13 (résultats), DS-14 (connexion, /auth/me).\nChaque login range son jeton : {{token}} (étudiant, utilisé par les dossiers 02 à 04), {{tokenEnseignant}}, {{tokenAdmin}}. La collection se joue d'un bout à l'autre sur une base neuve (profil h2-dev), comme en CI.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -52,6 +52,20 @@
       "type": "string"
     },
     {
+      "key": "tokenEnseignant",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenAdmin",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenDeconnexion",
+      "value": ""
+    },
+    {
       "key": "evaluationEnseignantId",
       "value": "1",
       "type": "string"
@@ -79,11 +93,13 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('token', jsonData.token);",
-                  "    console.log('Token JWT étudiant enregistré avec succès.');",
-                  "}"
+                  "pm.test('200 : jeton étudiant', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string');",
+                  "    pm.expect(pm.response.json().role).to.equal('ETUDIANT');",
+                  "});",
+                  "pm.collectionVariables.set('token', pm.response.json().token);",
+                  "pm.collectionVariables.set('etudiantId', pm.response.json().id);"
                 ],
                 "type": "text/javascript"
               }
@@ -120,11 +136,12 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('token', jsonData.token);",
-                  "    console.log('Token JWT enseignant enregistré.');",
-                  "}"
+                  "pm.test('200 : jeton enseignant', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string');",
+                  "    pm.expect(pm.response.json().role).to.equal('ENSEIGNANT');",
+                  "});",
+                  "pm.collectionVariables.set('tokenEnseignant', pm.response.json().token);"
                 ],
                 "type": "text/javascript"
               }
@@ -161,11 +178,12 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('token', jsonData.token);",
-                  "    console.log('Token JWT admin enregistré.');",
-                  "}"
+                  "pm.test('200 : jeton administrateur', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string');",
+                  "    pm.expect(pm.response.json().role).to.equal('ADMIN');",
+                  "});",
+                  "pm.collectionVariables.set('tokenAdmin', pm.response.json().token);"
                 ],
                 "type": "text/javascript"
               }
@@ -228,6 +246,102 @@
               ]
             },
             "description": "Revalide la session au démarrage du front (DS-14) : l'utilisateur gardé dans le navigateur n'est qu'un cache. 401 NON_AUTHENTIFIE si le jeton est absent, invalide ou expiré, ou si le compte a été désactivé.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.5 Mon profil (lecture seule)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : identité, matricule et promotion de l'étudiant, sans mot de passe\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.role).to.equal('ETUDIANT');",
+                  "    pm.expect(p.numEtudiant).to.be.a('string');",
+                  "    pm.expect(p.promotion).to.be.a('string');",
+                  "    pm.expect(p).to.not.have.property('motDePasse');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profil"
+              ]
+            },
+            "description": "Profil de l'utilisateur connecté, tous rôles. Identité en lecture seule : elle est gérée par l'administrateur. numEtudiant et promotion pour un étudiant seulement.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.6 Changer son mot de passe : mot de passe actuel faux",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 (pas 401, qui déconnecterait le front) avec un message', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().detail).to.include('actuel');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motDePasseActuel\": \"pas-le-bon\",\n  \"nouveauMotDePasse\": \"nouveauMotDePasse\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profil/mot-de-passe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profil",
+                "mot-de-passe"
+              ]
+            },
+            "description": "Changement de son mot de passe : 204 si le mot de passe actuel est bon. Nouveau : 8 caractères au moins, 72 octets au plus (BCrypt), différent de l'actuel. Les échecs comptent avec ceux de la connexion : 429 après 5 échecs en 15 min.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -348,6 +462,21 @@
         },
         {
           "name": "2.2 Consulter le Sujet et l'état de la Copie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie encore en cours', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('soumissionId')));",
+                  "    pm.expect(pm.response.json().statut).to.equal('EN_COURS');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -414,6 +543,11 @@
               "listen": "test",
               "script": {
                 "exec": [
+                  "pm.test('200 : sauvegarde acceptée, nouvelle version', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().versionReponses).to.be.above(Number(pm.collectionVariables.get('versionReponses')));",
+                  "    pm.expect(pm.response.json().dateSauvegarde).to.be.a('string');",
+                  "});",
                   "var jsonData = pm.response.json();",
                   "if (jsonData.versionReponses !== undefined) {",
                   "    pm.collectionVariables.set('versionReponses', jsonData.versionReponses);",
@@ -428,6 +562,20 @@
         },
         {
           "name": "2.4 Anti-Triche: Signaler Changement d'Onglet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : sortie comptée par le serveur', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().nbChangementsOnglet).to.be.at.least(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -455,6 +603,21 @@
         },
         {
           "name": "2.5 DS-01: Soumission Finale de la Copie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie remise', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().statut).to.equal('SOUMIS');",
+                  "    pm.expect(pm.response.json().dateRemise).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -796,7 +959,7 @@
     },
     {
       "name": "05 - Évaluations enseignant (DS-03 à DS-07)",
-      "description": "Se connecter d'abord avec 1.2 (enseignant). Parcours : promotions → création → détail → modification → publication → dépublication → tiers-temps → publication des résultats (évaluation terminée uniquement). Les refus attendus sont des requêtes à part (409, 400). Dates de 2030 : ajuster pour tester la publication.",
+      "description": "Lancer d'abord 1.2 (jeton enseignant, variable tokenEnseignant) ; la requête 5.11 utilise le jeton étudiant (1.1). Parcours : promotions → création → détail → modification → publication → dépublication → tiers-temps → publication des résultats (évaluation terminée uniquement). Les refus attendus sont des requêtes à part (409, 400). Dates de 2030 : ajuster pour tester la publication.",
       "item": [
         {
           "name": "5.1 DS-03: Promotions (assistant de création)",
@@ -809,12 +972,23 @@
                   "pm.test('200 : 5.1 DS-03: Promotions (assistant de création)', function () { pm.response.to.have.status(200); });",
                   "var l = pm.response.json();",
                   "pm.test('au moins une promotion avec effectif', function () { pm.expect(l.length).to.be.above(0); pm.expect(l[0]).to.have.property('nbEtudiants'); });",
-                  "pm.collectionVariables.set('promotionId', l[0].id);"
+                  "var dic2 = l.find(function (p) { return p.nom === 'DIC2 Informatique'; }) || l[0];",
+                  "pm.collectionVariables.set('promotionId', dic2.id);"
                 ]
               }
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [
               {
@@ -851,6 +1025,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "POST",
             "header": [
               {
@@ -870,7 +1054,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
             }
           }
         },
@@ -888,6 +1072,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "POST",
             "header": [
               {
@@ -907,7 +1101,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"titre\": \"Refusée\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Q\",\n      \"points\": 1,\n      \"casTests\": [\n        {\n          \"entree\": \"1\",\n          \"sortieAttendue\": \"\",\n          \"estMasque\": false\n        }\n      ]\n    }\n  ]\n}"
+              "raw": "{\n  \"titre\": \"Refusée\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Q\",\n      \"points\": 1,\n      \"casTests\": [\n        {\n          \"entree\": \"1\",\n          \"sortieAttendue\": \"\",\n          \"estMasque\": false\n        }\n      ]\n    }\n  ]\n}"
             }
           }
         },
@@ -926,6 +1120,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [
               {
@@ -959,6 +1163,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [
               {
@@ -993,6 +1207,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "PUT",
             "header": [
               {
@@ -1013,7 +1237,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"titre\": \"Réseaux — contrôle (modifié)\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle (modifié)\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
             }
           }
         },
@@ -1031,6 +1255,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "PUT",
             "header": [
               {
@@ -1072,6 +1306,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "PUT",
             "header": [
               {
@@ -1113,6 +1357,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "POST",
             "header": [
               {
@@ -1149,6 +1403,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "PUT",
             "header": [
               {
@@ -1169,7 +1433,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [\n    1\n  ],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
             }
           }
         },
@@ -1187,6 +1451,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "GET",
             "header": [
               {
@@ -1205,7 +1479,7 @@
                 "{{evaluationEnseignantId}}"
               ]
             },
-            "description": "À lancer avec le jeton d'un étudiant (1.1). 404 tant que l'évaluation est un brouillon."
+            "description": "Jeton étudiant (1.1). 404 tant que l'évaluation est un brouillon."
           }
         },
         {
@@ -1222,6 +1496,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "POST",
             "header": [
               {
@@ -1257,6 +1541,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "POST",
             "header": [
               {
@@ -1294,6 +1588,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "DELETE",
             "header": [
               {
@@ -1330,6 +1634,16 @@
             }
           ],
           "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
             "method": "DELETE",
             "header": [
               {
@@ -1346,6 +1660,134 @@
                 "enseignant",
                 "evaluations",
                 "{{evaluationEnseignantId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Déconnexion (DS-14)",
+      "description": "Révocation du jeton à la déconnexion. Session à part : le jeton {{token}} des autres dossiers reste valide.",
+      "item": [
+        {
+          "name": "6.1 Connexion d'une session à fermer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : jeton d'une session à part (les autres dossiers gardent {{token}})\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.collectionVariables.set('tokenDeconnexion', pm.response.json().token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"etudiant@ept.sn\",\n  \"motDePasse\": \"etudiant123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.2 Se déconnecter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 : jeton de cette session révoqué\", () => {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Révoque le jeton de cette session jusqu'à son expiration (table jetons_revoques). Les autres sessions du compte restent valides.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDeconnexion}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.3 Jeton révoqué refusé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"401 : le jeton de la session fermée n'est plus accepté\", () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Le même jeton, encore loin de son expiration, est refusé après la déconnexion.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDeconnexion}}",
+                  "type": "string"
+                }
               ]
             }
           }

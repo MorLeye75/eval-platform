@@ -101,6 +101,17 @@ export default function PassationQuiz() {
   if (erreur || !copie) return <EtatPassation message={erreur ?? "Évaluation introuvable."} />
   if (!quiz) return <EtatPassation message="Cette évaluation n'est pas un quiz chronométré." />
   if (termine || questions.length === 0) {
+    // Remise automatique en échec (réseau…) : sans ce bouton, l'écran attendait sans fin
+    if (erreurSoumission && !soumissionEnCours) {
+      return (
+        <EtatPassation message={erreurSoumission} retour={false} erreur>
+          <Button size="lg" onClick={() => soumettre("confirmation")}>
+            <Send className="mr-1 size-4" />
+            Réessayer la remise
+          </Button>
+        </EtatPassation>
+      )
+    }
     return <EtatPassation message="Quiz terminé : remise de votre copie..." retour={false} />
   }
 
@@ -109,8 +120,12 @@ export default function PassationQuiz() {
   const derniere = etat.indexQuestion >= etat.nbQuestions - 1
   const cochees = reponses[question.id] ?? []
 
-  /** Passe à la question suivante (ou remet la copie après la dernière), réponse en cours envoyée avant. */
-  async function avancer() {
+  /**
+   * Passe à la question suivante (ou remet la copie après la dernière), réponse en cours envoyée avant.
+   * Réponse non enregistrée : on reste sur la question (le serveur refuserait ensuite toute réponse à une question
+   * passée). Seul le temps écoulé fait avancer quand même : le serveur refuse alors déjà une réponse hors délai.
+   */
+  async function avancer(tempsEcoule = false) {
     if (!copie || avancement || soumissionEnCours) return
     if (derniere) {
       soumettre("confirmation") // la remise envoie d'abord la dernière réponse
@@ -119,7 +134,16 @@ export default function PassationQuiz() {
     setAvancement(true)
     setErreurAvance(null)
     try {
-      await sauvegarderMaintenant()
+      const sauvegarde = await sauvegarderMaintenant()
+      if (sauvegarde === "verrouillee") return // copie figée par le serveur : l'écran d'expiration prend le relais
+      if (sauvegarde === "refusee" && !tempsEcoule) {
+        setErreurAvance("Votre réponse a été refusée par le serveur : modifiez-la puis réessayez.")
+        return
+      }
+      if ((sauvegarde === "echec" || sauvegarde === "conflit") && !tempsEcoule) {
+        setErreurAvance("Votre réponse n'a pas pu être enregistrée. Vérifiez votre connexion puis réessayez.")
+        return
+      }
       remplacerCopie(await questionQuizSuivante(copie.id, etat.indexQuestion))
     } catch (err) {
       if (estCopieVerrouillee(err)) soumettre("expiration")
@@ -152,7 +176,7 @@ export default function PassationQuiz() {
               key={etat.indexQuestion}
               secondes={etat.tempsRestantQuestionSecondes}
               duree={etat.dureeQuestion ?? etat.tempsRestantQuestionSecondes}
-              onExpire={avancer}
+              onExpire={() => avancer(true)}
             />
           </div>
           <div className="flex flex-col items-end gap-1 text-xs text-muted-foreground">
@@ -237,7 +261,7 @@ export default function PassationQuiz() {
 
       {/* Une seule action : avancer. Pas de retour possible. */}
       <div className="flex flex-col items-center gap-2">
-        <Button size="lg" className="w-full shadow-md" disabled={avancement || soumissionEnCours} onClick={avancer}>
+        <Button size="lg" className="w-full shadow-md" disabled={avancement || soumissionEnCours} onClick={() => avancer()}>
           {derniere ? (
             <>
               <Send className="mr-1 size-4" />

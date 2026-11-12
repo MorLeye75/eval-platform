@@ -35,8 +35,9 @@ export const LIBELLES_VERDICT: Record<VerdictCas, string> = {
 }
 
 /** Verdict d'un cas ; une correction antérieure au verdict n'a que réussi / échoué. */
-export function libelleVerdict(verdict: VerdictCas | null, reussi: boolean) {
+export function libelleVerdict(verdict: VerdictCas | null, reussi: boolean | null) {
   if (verdict) return LIBELLES_VERDICT[verdict]
+  if (reussi === null) return "Verdict après la fermeture"
   return reussi ? "Réussi" : "Échoué"
 }
 

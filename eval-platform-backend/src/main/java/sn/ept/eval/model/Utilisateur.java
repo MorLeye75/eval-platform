@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import sn.ept.eval.model.enums.Role;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Entity
 @Table(name = "utilisateurs")
@@ -50,7 +51,16 @@ public class Utilisateur extends AuditableEntity {
     public void setPrenom(String prenom) { this.prenom = prenom; }
 
     public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    /** Enregistré en minuscules et sans espaces autour : la connexion et l'unicité ne dépendent pas de la casse. */
+    public void setEmail(String email) { this.email = normaliserEmail(email); }
+
+    /**
+     * Forme unique d'un email (minuscules, sans espaces autour), pour l'enregistrer et pour le rechercher. Un
+     * téléphone qui met une majuscule au début ne doit pas faire échouer la connexion.
+     */
+    public static String normaliserEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
 
     public String getMotDePasse() { return motDePasse; }
     public void setMotDePasse(String motDePasse) { this.motDePasse = motDePasse; }

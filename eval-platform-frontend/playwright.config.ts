@@ -16,7 +16,8 @@ export default defineConfig({
   workers: 1,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  reporter: [["list"]],
+  // En CI, chaque échec devient aussi une annotation du run GitHub (fichier, ligne, message)
+  reporter: process.env.CI ? [["github"], ["list"]] : [["list"]],
   use: {
     baseURL: `http://localhost:${PORT_FRONT}`,
     locale: "fr-FR",

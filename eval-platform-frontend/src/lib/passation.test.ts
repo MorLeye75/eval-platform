@@ -3,8 +3,10 @@ import { AxiosError, type AxiosResponse } from "axios"
 import {
   estCopieVerrouillee,
   estErreurReseau,
+  estRequeteRefusee,
   estVersionObsolete,
   formatHeure,
+  memesReponses,
   messageErreur,
 } from "@/lib/passation"
 
@@ -56,6 +58,17 @@ describe("estErreurReseau", () => {
   })
 })
 
+describe("estRequeteRefusee", () => {
+  it("requête refusée pour son contenu (400, 403, 404, 413, 422) : la renvoyer telle quelle échouerait encore", () => {
+    for (const status of [400, 403, 404, 413, 422]) expect(estRequeteRefusee(erreurHttp(status))).toBe(true)
+  })
+
+  it("pas un refus du contenu : réseau, 5xx, 401 (session), 408 et 429 (réessayer), 409 (traités à part)", () => {
+    expect(estRequeteRefusee(erreurReseau())).toBe(false)
+    for (const status of [401, 408, 409, 429, 500, 503]) expect(estRequeteRefusee(erreurHttp(status))).toBe(false)
+  })
+})
+
 describe("messageErreur", () => {
   it("reprend le champ detail du ProblemDetail (RFC 7807)", () => {
     const err = erreurHttp(400, { detail: "Cette évaluation n'est pas encore ouverte." })
@@ -78,3 +91,34 @@ describe("formatHeure", () => {
     expect(formatHeure()).toMatch(/^\d{2}:\d{2}$/)
   })
 })
+
+describe("memesReponses : le serveur contient-il l'envoi resté sans réponse ?", () => {
+  const ids = new Set([1, 2])
+
+  it("mêmes réponses, choix cochés dans un autre ordre : identiques", () => {
+    expect(memesReponses(
+      [{ questionId: 2, choixIds: [7, 5] }, { questionId: 1, texteSoumis: "Pile" }],
+      [{ questionId: 1, texteSoumis: "Pile" }, { questionId: 2, choixIds: [5, 7] }],
+      ids
+    )).toBe(true)
+  })
+
+  it("un texte, un choix ou un langage différent : pas identiques", () => {
+    expect(memesReponses([{ questionId: 1, texteSoumis: "Pile" }], [{ questionId: 1, texteSoumis: "File" }], ids)).toBe(false)
+    expect(memesReponses([{ questionId: 2, choixIds: [5] }], [{ questionId: 2, choixIds: [5, 7] }], ids)).toBe(false)
+    expect(memesReponses(
+      [{ questionId: 1, codeSoumis: "x", langage: "c" }],
+      [{ questionId: 1, codeSoumis: "x", langage: "python" }],
+      ids
+    )).toBe(false)
+  })
+
+  it("seules les questions renvoyées par le serveur comptent (quiz : la question en cours)", () => {
+    expect(memesReponses(
+      [{ questionId: 1, choixIds: [3] }, { questionId: 9, choixIds: [4] }],
+      [{ questionId: 1, choixIds: [3] }],
+      ids
+    )).toBe(true)
+  })
+})
+

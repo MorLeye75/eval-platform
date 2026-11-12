@@ -42,7 +42,8 @@ else réponse invalide : question hors de l'évaluation, même question en doubl
 else vérifications valides
   B -> D : INSERT / UPDATE ReponseEtudiant (une seule réponse par question et par copie)
   B -> D : UPDATE Soumission SET versionReponses = versionReponses + 1
-  B --> F : 200 OK { dateSauvegarde, nbReponses, versionReponses }
+  B --> F : 200 OK { dateSauvegarde, nbReponses, versionReponses, tempsRestantSecondes }
+  note right of F : le chrono se recale sur tempsRestantSecondes\n(tiers-temps accordé pendant l'épreuve, horloge du PC décalée)
   F -> F : retient la nouvelle version ; vide le tampon local,\nsauf si l'étudiant a modifié ses réponses pendant l'envoi\n(tampon réécrit sur la nouvelle version)
   F --> E : affiche "Sauvegardé à HH:MM"
 end
@@ -52,9 +53,13 @@ deactivate B
 note over F #FFEEEE
   **Si la requête PUT n'aboutit pas (pas de réponse, ou aucune réponse au bout de 15 s) :**
   -> les réponses restent dans le localStorage, avec la version serveur sur laquelle elles ont été saisies
+     et l'envoi resté sans réponse (le serveur a pu l'enregistrer, 3 envois retenus au plus)
   -> "Hors ligne : réponses conservées sur cet appareil"
   -> nouvelle tentative automatique dès que la reconnexion est détectée (événement online)
-  -> au rechargement de la page, le tampon n'est restauré que si sa version = versionReponses (DS-10)
+  -> 409 VERSION_OBSOLETE juste après : si le serveur contient l'un de ces envois, ce n'est pas un conflit,
+     la version du serveur est adoptée et les réponses actuelles repartent aussitôt
+  -> au rechargement de la page, le tampon est restauré si sa version = versionReponses (DS-10),
+     ou si les réponses du serveur sont l'un de ses envois sans réponse ; sinon il est mis de côté
 end note
 
 == Fermeture de la page, session expirée ==
