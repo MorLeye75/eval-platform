@@ -10,7 +10,9 @@ import java.util.List;
 @Table(name = "questions_code")
 public class QuestionCode extends Question {
 
+    // Ordre de création, garanti (voir QuestionQCM.choix) : les cas visibles s'affichent toujours dans le même ordre
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<CasDeTest> casTests = new ArrayList<>();
 
     public QuestionCode() {

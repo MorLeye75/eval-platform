@@ -13,7 +13,10 @@ public class QuestionQCM extends Question {
     @Column(nullable = false)
     private Boolean estChoixMultiple = false;
 
+    // Ordre de création, garanti : sans ORDER BY, la base rend les lignes dans l'ordre qu'elle veut (PostgreSQL :
+    // ordre physique, qui change après une mise à jour), et les choix changeraient de place d'un affichage à l'autre
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OrderBy("id ASC")
     private List<ChoixReponse> choix = new ArrayList<>();
 
     public QuestionQCM() {
