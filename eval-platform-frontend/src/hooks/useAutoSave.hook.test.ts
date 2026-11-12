@@ -313,3 +313,39 @@ describe("useAutoSave : sauvegarde refusée par le serveur (400)", () => {
     expect(result.current.refusSauvegarde).toBeNull()
   })
 })
+
+describe("useAutoSave : une erreur imprévue ne bloque pas les sauvegardes suivantes", () => {
+  const config = { headers: new AxiosHeaders() } as InternalAxiosRequestConfig
+  const copieFigee = () => new AxiosError("conflit", "409", config, null, {
+    status: 409, statusText: "", headers: {}, config, data: { code: "TEMPS_EXPIRE" },
+  })
+
+  beforeEach(() => localStorage.clear())
+  afterEach(() => cleanup())
+
+  it("un rappel qui lève (onVerrouillage) : l'envoi suivant part quand même, la file n'est pas rejetée", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(copieFigee()).mockResolvedValue({ version: 4 })
+    const onVerrouillage = vi.fn(() => {
+      throw new Error("navigation impossible")
+    })
+    const vue = renderHook(
+      ({ data, enabled }: Props) => useAutoSave({ data, onSave, cleTampon: CLE, enabled, onVerrouillage }),
+      { initialProps: { data: {}, enabled: false } }
+    )
+    act(() => vue.result.current.marquerSauvegarde({ 1: "serveur" }, 3))
+    vue.rerender({ data: { 1: "premier envoi" }, enabled: true })
+
+    let premier: unknown
+    await act(async () => {
+      premier = await vue.result.current.sauvegarderMaintenant()
+    })
+    expect(premier).toBe("echec") // pas de rejet remonté à l'appelant (soumission, quiz)
+
+    vue.rerender({ data: { 1: "second envoi" }, enabled: true })
+    await act(async () => {
+      await vue.result.current.sauvegarderMaintenant()
+    })
+    expect(onSave).toHaveBeenCalledTimes(2)
+    expect(onSave).toHaveBeenLastCalledWith({ 1: "second envoi" }, 3)
+  })
+})

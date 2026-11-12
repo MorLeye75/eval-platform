@@ -238,9 +238,17 @@ export function useAutoSave<T>({
     }
   }, [tamponCourant])
 
-  /** Sauvegarde immédiate (ex. avant la soumission), placée dans la file des envois. */
+  /**
+   * Sauvegarde immédiate (ex. avant la soumission), placée dans la file des envois. La file ne peut jamais être
+   * rejetée : une erreur imprévue (un rappel qui lève, un stockage plein) bloquerait sinon, sans bruit, toutes les
+   * sauvegardes suivantes. Elle compte comme un échec : les réponses restent dans le tampon et repartent ensuite.
+   */
   const sauvegarderMaintenant = useCallback(() => {
-    file.current = file.current.then(tenter)
+    file.current = file.current.then(tenter).catch((err: unknown): ResultatSauvegarde => {
+      console.error("Sauvegarde automatique : erreur imprévue", err)
+      setErreurSauvegarde(true)
+      return "echec"
+    })
     return file.current
   }, [tenter])
 
