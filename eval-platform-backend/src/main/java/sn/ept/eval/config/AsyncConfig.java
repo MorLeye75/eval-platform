@@ -21,12 +21,19 @@ public class AsyncConfig {
      */
     private static final int CAPACITE_FILE = 1000;
 
-    /** Copies sans code (QCM, quiz) : quelques millisecondes chacune, elles n'attendent jamais derrière Judge0. */
+    /** Threads de correction des copies sans code : assez pour des corrections de quelques millisecondes. */
+    static final int THREADS_CORRECTION = 4;
+
+    /**
+     * Copies sans code (QCM, quiz) : quelques millisecondes chacune, elles n'attendent jamais derrière Judge0.
+     * Taille fixe : un ThreadPoolExecutor ne dépasse son « core » qu'une fois sa file pleine (1000 copies),
+     * un « max » plus grand ne servirait jamais.
+     */
     @Bean(name = "correctionTaskExecutor")
     public Executor correctionTaskExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(4);
-        executor.setMaxPoolSize(10);
+        executor.setCorePoolSize(THREADS_CORRECTION);
+        executor.setMaxPoolSize(THREADS_CORRECTION);
         executor.setQueueCapacity(CAPACITE_FILE);
         executor.setThreadNamePrefix("CorrectionAsync-");
         executor.initialize();
