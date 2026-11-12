@@ -13,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import sn.ept.eval.dto.auth.LoginRequest;
@@ -79,17 +78,14 @@ public class AuthController {
         // Adresse de la connexion TCP : derrière un reverse proxy, configurer server.forward-headers-strategy
         // IP du client : derrière un reverse proxy, celle transmise par le proxy si FORWARD_HEADERS_STRATEGY=native
         String ip = request.getRemoteAddr();
-        tentativesConnexionService.verifierNonBloque(loginRequest.getEmail(), ip);
+        // Essai compté avant la vérification du mot de passe, atomiquement : des requêtes simultanées ne passent
+        // pas toutes avant le blocage (429 au-delà du seuil)
+        tentativesConnexionService.reserverTentative(loginRequest.getEmail(), ip);
 
-        Authentication authentication;
-        try {
-            authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
-            );
-        } catch (AuthenticationException e) {
-            tentativesConnexionService.enregistrerEchec(loginRequest.getEmail(), ip);
-            throw e;
-        }
+        // Échec : AuthenticationException (401), déjà compté par la réservation ci-dessus
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
+        );
         tentativesConnexionService.reinitialiser(loginRequest.getEmail(), ip);
 
         String jwt = jwtUtils.generateJwtToken(authentication);

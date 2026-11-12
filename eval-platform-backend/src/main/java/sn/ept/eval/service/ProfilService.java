@@ -57,12 +57,14 @@ public class ProfilService {
      */
     @Transactional
     public void changerMotDePasse(String email, ChangementMotDePasseRequest demande, String ip) {
-        tentativesConnexionService.verifierNonBloque(email, ip);
+        // Essai compté avant la vérification, atomiquement (comme la connexion) : pas de rafale simultanée
+        tentativesConnexionService.reserverTentative(email, ip);
         Utilisateur u = utilisateur(email);
         if (!passwordEncoder.matches(demande.motDePasseActuel(), u.getMotDePasse())) {
-            tentativesConnexionService.enregistrerEchec(email, ip);
             throw new IllegalArgumentException("Le mot de passe actuel est incorrect.");
         }
+        // Mot de passe actuel juste : l'essai n'est pas un échec, même si le nouveau est refusé ci-dessous
+        tentativesConnexionService.reinitialiser(email, ip);
         String nouveau = demande.nouveauMotDePasse();
         if (nouveau.getBytes(StandardCharsets.UTF_8).length > OCTETS_MAX_BCRYPT) {
             throw new IllegalArgumentException("Le nouveau mot de passe est trop long (72 octets au plus ; "
@@ -72,7 +74,6 @@ public class ProfilService {
             throw new IllegalArgumentException("Le nouveau mot de passe doit être différent de l'actuel.");
         }
         u.setMotDePasse(passwordEncoder.encode(nouveau));
-        tentativesConnexionService.reinitialiser(email, ip);
         log.info("Mot de passe changé par l'utilisateur ID={}", u.getId());
     }
 

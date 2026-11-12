@@ -140,7 +140,11 @@ l'identifiant de la **copie**.
 
 Diagramme : [`DS-14-connexion.puml`](diagrammes-sequence/DS-14-connexion.puml). Il documente le code existant :
 
-- limite des tentatives (5 échecs par couple email + IP sur 15 min ; réponse 429 ; pas de blocage par IP seule) ;
+- limite des tentatives (5 échecs par couple email + IP sur 15 min ; réponse 429 ; pas de blocage par IP seule).
+  Depuis la revue d'Aminou (12 novembre), chaque essai est réservé avant la vérification, de façon atomique :
+  40 essais simultanés n'en laissent plus passer que 5 ;
+- email insensible à la casse (12 novembre) : enregistré et recherché en minuscules, sans espaces autour ;
+  contrainte en base (V11), qui rend aussi l'unicité insensible à la casse ;
 - même message 401 que le compte existe ou non ;
 - jeton de 24 h, avec rôle et état du compte relus en base à chaque requête ;
 - revalidation au démarrage par `/auth/me`, et effacement de la session à la déconnexion ;
@@ -161,6 +165,7 @@ valables jusqu'à leur expiration, 24 h au plus.
 | V7 | Suivi de la correction : `correction_demarree_le`, `tentatives_correction`, `prochaine_tentative_le`, index partiel de relance |
 | V8 | Verdict des cas de test |
 | V10 | Jetons révoqués à la déconnexion (`jetons_revoques`). V9 est celle d'Aminou (version des évaluations) |
+| V11 | Emails en minuscules, sans espaces autour, et contrainte qui l'impose (unicité insensible à la casse) |
 
 Toutes sont vérifiées sur un vrai PostgreSQL par `MigrationPostgresIntegrationTest` : le schéma est validé contre
 les entités, avec un parcours de passation, la relance des corrections et les statistiques de résultats.

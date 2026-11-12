@@ -44,7 +44,7 @@ class TentativesConnexionServiceTest {
 
     private void echouer(int fois) {
         for (int i = 0; i < fois; i++) {
-            service.enregistrerEchec(EMAIL, IP);
+            service.reserverTentative(EMAIL, IP);
         }
     }
 
@@ -54,7 +54,7 @@ class TentativesConnexionServiceTest {
         echouer(4);
         assertThatCode(() -> service.verifierNonBloque(EMAIL, IP)).doesNotThrowAnyException();
 
-        service.enregistrerEchec(EMAIL, IP);
+        service.reserverTentative(EMAIL, IP);
         assertThatThrownBy(() -> service.verifierNonBloque(EMAIL, IP))
                 .isInstanceOf(TropDeTentativesException.class)
                 .extracting(e -> ((TropDeTentativesException) e).getSecondesAvantNouvelEssai())
@@ -104,7 +104,7 @@ class TentativesConnexionServiceTest {
     @DisplayName("Campus derrière un NAT : beaucoup d'échecs depuis une même IP, sur des comptes différents, ne bloquent pas les autres comptes")
     void memeIpComptesDifferents_PasDeBlocageCollectif() {
         for (int i = 0; i < 200; i++) {
-            service.enregistrerEchec("compte" + i + "@ept.sn", IP); // un seul essai par compte
+            service.reserverTentative("compte" + i + "@ept.sn", IP); // un seul essai par compte
         }
 
         assertThatCode(() -> service.verifierNonBloque("autre@ept.sn", IP)).doesNotThrowAnyException();
@@ -114,10 +114,10 @@ class TentativesConnexionServiceTest {
     @DisplayName("Mémoire bornée : des milliers d'emails inventés ne font pas grossir les compteurs sans limite")
     void memoireBornee() {
         TentativesConnexionService borne = new TentativesConnexionService(horloge, 5, 15, 15, 50);
-        for (int i = 0; i < 5; i++) borne.enregistrerEchec(EMAIL, IP); // couple bloqué, à conserver
+        for (int i = 0; i < 5; i++) borne.reserverTentative(EMAIL, IP); // couple bloqué, à conserver
 
         for (int i = 0; i < 5_000; i++) {
-            borne.enregistrerEchec("invente" + i + "@ept.sn", "10.1." + (i / 250) + "." + (i % 250));
+            borne.reserverTentative("invente" + i + "@ept.sn", "10.1." + (i / 250) + "." + (i % 250));
         }
 
         assertThat(borne.nombreDeCompteurs()).isLessThanOrEqualTo(50);

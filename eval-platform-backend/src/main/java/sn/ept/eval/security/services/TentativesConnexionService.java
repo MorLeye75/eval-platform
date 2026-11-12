@@ -56,13 +56,20 @@ public class TentativesConnexionService {
         return (email == null ? "" : email.trim().toLowerCase(Locale.ROOT)) + "|" + ip;
     }
 
-    /** Lève TropDeTentativesException si le couple (email, IP) est actuellement bloqué. */
+    /** Lève TropDeTentativesException si le couple (email, IP) est actuellement bloqué (lecture seule). */
     public void verifierNonBloque(String email, String ip) {
         parCouple.verifier(couple(email, ip), clock.instant());
     }
 
-    public void enregistrerEchec(String email, String ip) {
-        parCouple.echec(couple(email, ip), clock.instant());
+    /**
+     * Réserve un essai AVANT de vérifier le mot de passe, en une seule opération atomique : lève
+     * TropDeTentativesException si le couple est bloqué, sinon compte l'essai (et bloque les suivants au seuil).
+     * Vérifier, essayer puis compter l'échec en trois temps laissait passer toutes les requêtes simultanées :
+     * chacune voyait le compteur avant que les autres l'aient incrémenté. Un essai réussi rend la main par
+     * {@link #reinitialiser} ; un échec n'a rien d'autre à faire, il est déjà compté.
+     */
+    public void reserverTentative(String email, String ip) {
+        parCouple.reserver(couple(email, ip), clock.instant());
     }
 
     /** Connexion réussie : le compteur du couple repart de zéro. */
@@ -105,11 +112,17 @@ public class TentativesConnexionService {
             throw new TropDeTentativesException(String.format(message, (secondes + 59) / 60), secondes);
         }
 
-        void echec(String cle, Instant maintenant) {
+        /** Atomique (compute) : le contrôle du blocage et l'incrément ne peuvent pas être entrelacés. */
+        void reserver(String cle, Instant maintenant) {
             if (!tentatives.containsKey(cle) && tentatives.size() >= maxEntrees) {
                 faireDeLaPlace(maintenant);
             }
             tentatives.compute(cle, (k, t) -> {
+                if (t != null && t.bloqueJusqua != null && maintenant.isBefore(t.bloqueJusqua)) {
+                    // Levée dans compute : l'entrée reste telle quelle
+                    long secondes = Math.max(1, Duration.between(maintenant, t.bloqueJusqua).toSeconds());
+                    throw new TropDeTentativesException(String.format(message, (secondes + 59) / 60), secondes);
+                }
                 // Nouvelle fenêtre si aucune trace, si la fenêtre précédente est close ou si un blocage vient d'expirer
                 if (t == null || maintenant.isAfter(t.debutFenetre.plus(fenetre))
                         || (t.bloqueJusqua != null && !maintenant.isBefore(t.bloqueJusqua))) {

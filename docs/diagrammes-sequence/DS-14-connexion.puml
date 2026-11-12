@@ -13,12 +13,16 @@ database "BDD" as D
 U -> F : saisit email et mot de passe, « Se connecter »
 activate F
 F -> B ++ : POST /api/auth/login { email, motDePasse }
-B -> TC : verifierNonBloque(email, ip)
+note right of B : email normalisé dès la réception\n(minuscules, sans espaces autour) : un téléphone\nqui met une majuscule ne fait pas échouer la connexion
+B -> TC : reserverTentative(email, ip)
 note right of TC
-  échecs comptés par couple (email, IP) sur 15 min :
-  blocage à 5 échecs. Pas de blocage par IP seule : derrière
-  le NAT du campus, il bloquerait toute l'école. IP réelle
-  derrière un proxy : FORWARD_HEADERS_STRATEGY=native
+  essai compté AVANT la vérification du mot de passe, en une
+  opération atomique (contrôle du blocage + incrément) : des
+  requêtes simultanées ne passent pas toutes avant le blocage.
+  Couple (email, IP) sur 15 min : blocage à 5 essais.
+  Pas de blocage par IP seule : derrière le NAT du campus, il
+  bloquerait toute l'école. IP réelle derrière un proxy :
+  FORWARD_HEADERS_STRATEGY=native
 end note
 alt couple bloqué
   B --> F : 429 TROP_DE_TENTATIVES + en-tête Retry-After
@@ -28,8 +32,7 @@ else
   AM -> D : SELECT Utilisateur WHERE email = :email
   D --> AM : compte (mot de passe haché, rôle, actif)
   alt email inconnu, mot de passe faux ou compte désactivé
-    AM --> B : AuthenticationException
-    B -> TC : enregistrerEchec(email, ip)
+    AM --> B : AuthenticationException (essai déjà compté par la réservation)
     B --> F : 401 AUTHENTIFICATION_ECHOUEE\n« Identifiants invalides ou compte désactivé. »
     note right of F : même message dans tous les cas : on ne révèle pas\nsi le compte existe. Un 401 sur /auth/login ne vide pas\nla session et ne recharge pas la page
     F --> U : « Email ou mot de passe incorrect. »
