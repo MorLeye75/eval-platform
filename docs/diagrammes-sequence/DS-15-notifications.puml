@@ -1,12 +1,12 @@
 @startuml DS-15_notifications
-title DS-15 — Notifications (BROUILLON à valider avec Aminou)
+title DS-15 — Notifications (validé avec Aminou, implémenté le 14 novembre)
 hide footbox
 autonumber
 actor "Étudiant\nou enseignant" as U
 boundary "Frontend React" as F
-control "EvaluationStatutService (DS-05)\npublication des résultats (à définir)\nmodules d'Aminou" as A
-control "NotificationService\n(Mor)" as N
-control "NotificationController\n(Mor)" as C
+control "EvaluationStatutService (DS-05)\nPublicationResultatsService (DS-07)\nCorrectionService (DS-12)" as A
+control "NotificationServiceEnBase\n(Mor)" as N
+control "NotificationController\nMesNotificationsService (Mor)" as C
 database "BDD" as D
 
 note over A, N
@@ -30,7 +30,7 @@ else 0 ligne (déjà ouverte par un autre passage)
   note right of A : aucune notification : pas de doublon\nsi la tâche planifiée repasse
 end
 
-== Production : résultats publiés (route enseignant à définir, Aminou) ==
+== Production : résultats publiés (POST /api/enseignant/evaluations/{id}/resultats/publier, DS-07) ==
 A -> D : UPDATE Evaluation SET resultats_publies = true\nWHERE id = :id AND resultats_publies = false
 alt 1 ligne modifiée
   A -> N : resultatsPublies(evaluation)
@@ -41,7 +41,18 @@ alt 1 ligne modifiée
   note right of N : soumission_id : le front ouvre directement\n/etudiant/resultats/{soumissionId} (DS-13).\nPas de note dans le message : elle peut encore\nchanger (correction de l'enseignant), la page la lit à jour
   deactivate N
 end
-note right of A : **À trancher** : une copie encore EN_CORRECTION au moment de la\npublication passe EVALUE plus tard. Proposition : la notifier à ce moment-là\n(appel resultatPublie(copie) quand l'enseignant valide la dernière note)
+note right of N : copies déjà notifiées exclues (pas de doublon\nsi la publication est signalée deux fois)
+
+== Production : copie notée après la publication ==
+A -> N : resultatPublie(copie)
+note right of A : CorrectionService (correction automatique, DS-12)\net validation de la dernière note par l'enseignant (DS-08)
+activate N
+alt copie EVALUE, résultats publiés, pas encore notifiée
+  N -> D : INSERT notification RESULTAT_PUBLIE (evaluation_id, soumission_id)
+else sinon
+  note right of N : rien : aucune note annoncée avant la publication (DS-13),\npas de doublon si les deux appelants la signalent
+end
+deactivate N
 
 == Consultation ==
 U -> F : ouvre l'application (en-tête : cloche)
@@ -78,9 +89,10 @@ note over F, D
   **Migration V12** (V9 : version des évaluations, V10 : jetons révoqués, V11 : emails en minuscules) : notifications.evaluation_id et
   notifications.soumission_id (nullables, clés étrangères), index (utilisateur_id, lue) pour le compteur et
   (utilisateur_id, date_envoi) pour la liste. date_envoi : Clock de l'application, plus LocalDateTime.now().
-  **Signature proposée à Aminou** : evaluationOuverte(Evaluation), resultatsPublies(Evaluation),
-  resultatPublie(Soumission). **CORRECTION_VALIDEE** (type déjà prévu) : à ne pas envoyer à l'étudiant avant
-  la publication des résultats (DS-13 : aucune note avant) ; le garder pour l'enseignant, ou le supprimer ?
-  Conservation : purge des notifications lues de plus de 6 mois (tâche planifiée), à confirmer.
+  **Interface d'Aminou** : evaluationOuverte(Evaluation), resultatsPublies(Evaluation), resultatPublie(Soumission) ;
+  implémentation par défaut sans effet en @Bean @Fallback, remplacée par NotificationServiceEnBase.
+  Propagation MANDATORY : un appel hors transaction échoue au lieu de créer des notifications orphelines.
+  **CORRECTION_VALIDEE** : réservé à l'enseignant (« propositions IA à valider », DS-08), jamais à l'étudiant.
+  **Conservation** : purge chaque nuit (3 h 30) des notifications lues de plus de 6 mois ; les non lues restent.
 end note
 @enduml

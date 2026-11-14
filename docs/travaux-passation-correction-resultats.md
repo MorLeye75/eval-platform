@@ -166,6 +166,7 @@ valables jusqu'à leur expiration, 24 h au plus.
 | V8 | Verdict des cas de test |
 | V10 | Jetons révoqués à la déconnexion (`jetons_revoques`). V9 est celle d'Aminou (version des évaluations) |
 | V11 | Emails en minuscules, sans espaces autour, et contrainte qui l'impose (unicité insensible à la casse) |
+| V12 | Notifications : lien vers l'évaluation et la copie, index du compteur, de la liste et de la purge |
 
 Toutes sont vérifiées sur un vrai PostgreSQL par `MigrationPostgresIntegrationTest` : le schéma est validé contre
 les entités, avec un parcours de passation, la relance des corrections et les statistiques de résultats.
@@ -202,12 +203,13 @@ Rejouée sur la même base, elle échoue : les copies sont déjà remises.
 - Faire tourner un **vrai Judge0** : le Docker Compose est prêt (`deploy/judge0/`, avec `verifier.sh`). Il faut un
   hôte Linux en cgroups v1 (Ubuntu 20.04, ou paramètre de démarrage `systemd.unified_cgroup_hierarchy=0`) : ce
   n'est pas possible sur le poste de Mor (WSL 2.7.3 ne propose plus les cgroups v1).
-- La page des notifications est encore simulée (répartition confirmée : écrans étudiant pour Mor, enseignant et
-  admin pour Aminou). Le profil est branché (11 novembre) : `GET /profil` (identité en lecture seule, gérée par
+- Les notifications sont branchées (14 novembre, DS-15) : `NotificationServiceEnBase` implémente l'interface
+  d'Aminou (ouverture d'une évaluation, résultats publiés, copie notée après la publication, appelée aussi par
+  `CorrectionService`), routes `GET /notifications`, `GET /notifications/non-lues/nombre`, `PUT …/{id}/lire`,
+  `PUT …/lire-tout`, purge nocturne des lues de plus de 6 mois, V12. Page étudiant branchée et compteur dans la
+  barre latérale (toutes les 60 s). Écrans enseignant et admin : Aminou. Le profil est branché (11 novembre) : `GET /profil` (identité en lecture seule, gérée par
   l'administrateur ; matricule et promotion pour un étudiant) et `PUT /profil/mot-de-passe` (mot de passe actuel
   exigé, échecs comptés avec ceux de la connexion). La page est commune aux trois rôles.
-- **Service de notifications** côté serveur (`NotificationService`), laissé à Mor par Aminou dans son DS-05 :
-  diagramme DS-15 à écrire avec lui (événements, contenu), puis la page des notifications étudiant.
 - Fait le 9 novembre : verrou partagé sur l'évaluation au démarrage d'une copie (point ouvert du DS-04 d'Aminou,
   test de concurrence sur PostgreSQL) ; accueil étudiant branché sur `/etudiant/evaluations` et
   `/etudiant/performances`.

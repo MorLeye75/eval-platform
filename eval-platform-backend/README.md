@@ -225,8 +225,8 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
   fermeture) est écoulée, sinon 409 ; déjà publiés, 409. La bascule `resultatsPublies` est conditionnelle et atomique
   (deux clics ne notifient pas deux fois). Les copies pas encore notées ne bloquent pas : elles sont comptées « en
   attente » et leur étudiant est notifié à la validation de leur dernière note (`NotificationService.resultatPublie`).
-- **Notifications** : les services appellent l'interface `NotificationService` (3 événements). Tant que le module de
-  notifications n'est pas branché, `NotificationParDefautConfig` fournit une implémentation sans effet, déclarée en
+- **Notifications** : les services appellent l'interface `NotificationService` (3 événements), implémentée par
+  `NotificationServiceEnBase` (DS-15, Mor). Sans elle, `NotificationParDefautConfig` fournirait une implémentation sans effet, déclarée en
   `@Bean @Fallback` : Spring ne l'injecte que si aucune autre implémentation existe, quel que soit l'ordre d'enregistrement
   des beans (`@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration). `NotificationParDefautConfigTest`
   le vérifie dans les deux ordres.
@@ -272,6 +272,8 @@ Côté enseignant (DS-03 à DS-07) :
 | `PublicationResultatsService` | publication des résultats d'une évaluation terminée |
 | `PromotionService` | liste des promotions pour l'assistant de création |
 | `NotificationService` (interface) | événements de notification ; implémentation par défaut sans effet |
+| `NotificationServiceEnBase` | notifications enregistrées en base, dans la transaction de l'événement (DS-15) |
+| `MesNotificationsService` | liste, compteur, marquage comme lues, purge des lues de plus de 6 mois |
 
 Concurrence : sauvegarde, soumission, clôture automatique, reprise et correction verrouillent la copie
 (`SELECT ... FOR UPDATE`) ; une réponse ne peut pas être écrite après le passage à `SOUMIS` et une copie

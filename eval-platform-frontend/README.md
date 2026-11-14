@@ -51,7 +51,7 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 | Passation : QCM, question ouverte, code, épreuve mixte (écran unique) | API : démarrage, sauvegarde automatique, anti-triche, remise |
 | Quiz chronométré | API : question en cours et temps imposés par le serveur (`POST /soumissions/{id}/quiz/suivante`) |
 | Résultats d'une copie, tableau de bord des performances | API (`GET /soumissions/{id}/resultats`, `GET /etudiant/performances`) |
-| Notifications, profil | simulés (à brancher, voir DS-15) |
+| Notifications (page étudiant, compteur de la barre latérale), profil | API (`GET /notifications`, `GET /notifications/non-lues/nombre`, `PUT …/lire`, `GET /profil`, `PUT /profil/mot-de-passe`) |
 | Enseignant : assistant de création et de modification d'une évaluation, choix des promotions | API (`GET /promotions`, `POST` / `PUT /enseignant/evaluations`, `GET /enseignant/evaluations/{id}`) |
 | Enseignant : « Mes évaluations » (publier, repasser en brouillon, supprimer) | API (`GET /enseignant/evaluations`, `POST …/publier`, `POST …/depublier`, `DELETE`) |
 | Enseignant : publication des résultats | API (`POST /enseignant/evaluations/{id}/resultats/publier`) |

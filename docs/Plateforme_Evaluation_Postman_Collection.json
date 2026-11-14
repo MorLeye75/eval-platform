@@ -1793,6 +1793,193 @@
           }
         }
       ]
+    },
+    {
+      "name": "07 - Notifications (DS-15)",
+      "description": "Notifications internes de l'utilisateur connecté (ici l'étudiant, {{token}}). Le destinataire vient toujours du jeton.",
+      "item": [
+        {
+          "name": "7.1 Mes notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : page de notifications, les plus récentes d'abord\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const r = pm.response.json();",
+                  "    pm.expect(r.notifications).to.be.an('array');",
+                  "    pm.expect(r.total).to.be.a('number');",
+                  "    pm.expect(r.taille).to.equal(20);",
+                  "    r.notifications.forEach(n => pm.expect(['RESULTAT_PUBLIE', 'EVALUATION_OUVERTE', 'CORRECTION_VALIDEE']).to.include(n.type));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=0&taille=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "taille",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Taille de 1 à 50 (20 par défaut). Chaque notification porte evaluationId et soumissionId (nuls si sans objet).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.2 Nombre de non lues",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : compteur de la cloche\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().nombre).to.be.a('number');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/non-lues/nombre",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "non-lues",
+                "nombre"
+              ]
+            },
+            "description": "Interrogé toutes les 60 s par le front (pas de WebSocket).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.3 Marquer une notification inexistante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"404 : inexistante, ou notification d'un autre utilisateur (son existence n'est pas révélée)\", () => {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/999999/lire",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "999999",
+                "lire"
+              ]
+            },
+            "description": "204 pour une notification de l'utilisateur, 404 sinon.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.4 Tout marquer comme lu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204, puis plus aucune non lue\", () => {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/lire-tout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "lire-tout"
+              ]
+            },
+            "description": "Seulement les notifications de l'utilisateur connecté.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }
