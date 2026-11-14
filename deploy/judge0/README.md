@@ -31,6 +31,27 @@ JUDGE0_TOKEN=<valeur de AUTHN_TOKEN> ./verifier.sh
 `verifier.sh` contrôle la présence des cinq langages de la plateforme, puis exécute un petit programme Python :
 il doit afficher « statut 3 « Accepted » ». Le premier démarrage télécharge l'image de Judge0 (plusieurs Go).
 
+## Vérifier la correction de bout en bout
+
+`verifier.sh` teste Judge0 seul. `Judge0ReelIntegrationTest` (backend) teste toute la chaîne contre ce Judge0 : remise
+d'une copie de code, exécution des cas de test, verdicts et note, sur six scénarios (Python juste et faux, Java,
+erreur de compilation en C, erreur à l'exécution, boucle infinie). Il est ignoré tant que `JUDGE0_REEL_URL` n'est pas
+défini, donc en CI.
+
+```bash
+cd eval-platform-backend
+JUDGE0_REEL_URL=http://localhost:2358 JUDGE0_REEL_TOKEN=<valeur de AUTHN_TOKEN> \
+  mvn test -Dtest=Judge0ReelIntegrationTest
+```
+
+Sur un hôte lent (machine virtuelle sans accélération matérielle), allonger les délais :
+`JUDGE0_REEL_DELAI_LECTURE=60s JUDGE0_REEL_DUREE_MAX=30m JUDGE0_REEL_ATTENTE_MINUTES=30`.
+
+**Résultat du 14 novembre 2026** : `verifier.sh` et les six scénarios passent contre Judge0 1.13.1, dans une VM
+VirtualBox Ubuntu 20.04 (cgroups v1) créée avec Vagrant sur le poste de développement. Sur ce poste, WSL 2 occupe
+l'hyperviseur : VirtualBox passe par lui et la VM est très lente (une compilation Java a pris jusqu'à 17 minutes au
+premier essai), d'où les délais allongés. Sur un vrai serveur Linux, les délais par défaut suffisent.
+
 ## Brancher le backend
 
 | Variable du backend | Valeur |

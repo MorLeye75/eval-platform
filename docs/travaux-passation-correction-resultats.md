@@ -200,9 +200,10 @@ Rejouée sur la même base, elle échoue : les copies sont déjà remises.
 
 **Pour Mor (fin de projet)**
 
-- Faire tourner un **vrai Judge0** : le Docker Compose est prêt (`deploy/judge0/`, avec `verifier.sh`). Il faut un
-  hôte Linux en cgroups v1 (Ubuntu 20.04, ou paramètre de démarrage `systemd.unified_cgroup_hierarchy=0`) : ce
-  n'est pas possible sur le poste de Mor (WSL 2.7.3 ne propose plus les cgroups v1).
+- **Vrai Judge0 testé (14 novembre)** dans une VM Ubuntu 20.04 en cgroups v1 (VirtualBox et Vagrant) :
+  `verifier.sh` passe, et `Judge0ReelIntegrationTest` corrige de bout en bout six copies (Python juste et faux,
+  Java, erreur de compilation en C, erreur à l'exécution, boucle infinie). À rejouer sur le serveur de l'école au
+  déploiement (voir `deploy/judge0/README.md`).
 - Les notifications sont branchées (14 novembre, DS-15) : `NotificationServiceEnBase` implémente l'interface
   d'Aminou (ouverture d'une évaluation, résultats publiés, copie notée après la publication, appelée aussi par
   `CorrectionService`), routes `GET /notifications`, `GET /notifications/non-lues/nombre`, `PUT …/{id}/lire`,
