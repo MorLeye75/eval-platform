@@ -75,7 +75,7 @@ C --> F -- : 204
 deactivate F
 
 note over F, D
-  **Migration** (numéro fixé à la fusion : V10 si la V3 d'Aminou devient V9) : notifications.evaluation_id et
+  **Migration V12** (V9 : version des évaluations, V10 : jetons révoqués, V11 : emails en minuscules) : notifications.evaluation_id et
   notifications.soumission_id (nullables, clés étrangères), index (utilisateur_id, lue) pour le compteur et
   (utilisateur_id, date_envoi) pour la liste. date_envoi : Clock de l'application, plus LocalDateTime.now().
   **Signature proposée à Aminou** : evaluationOuverte(Evaluation), resultatsPublies(Evaluation),

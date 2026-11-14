@@ -6,8 +6,6 @@ import org.springframework.transaction.annotation.Transactional;
 import sn.ept.eval.dto.etudiant.EvaluationEtudiantResponse;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
-import sn.ept.eval.exception.AccesRefuseException;
-import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
