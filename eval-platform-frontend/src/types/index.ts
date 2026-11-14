@@ -353,3 +353,21 @@ export interface AlerteAntiTriche {
 
 // ---------- Notifications ----------
 export type TypeNotification = "RESULTAT_PUBLIE" | "EVALUATION_OUVERTE" | "CORRECTION_VALIDEE"
+
+/** GET /notifications (DS-15). */
+export interface NotificationItem {
+  id: number
+  type: TypeNotification
+  message: string
+  lue: boolean
+  dateEnvoi: string // ISO 8601
+  evaluationId: number | null
+  soumissionId: number | null // copie concernée : ouvre /etudiant/resultats/{id}
+}
+
+export interface PageNotifications {
+  notifications: NotificationItem[]
+  page: number
+  taille: number
+  total: number
+}

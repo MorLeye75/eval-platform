@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import {
   LayoutDashboard,
   ClipboardList,
@@ -8,6 +9,7 @@ import {
   LogOut,
 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
+import { CLE_NON_LUES, INTERVALLE_COMPTEUR_MS, nombreNonLues } from "@/lib/notifications"
 import {
   Sidebar,
   SidebarContent,
@@ -17,6 +19,7 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
@@ -31,6 +34,13 @@ const menuItems = [
 export function AppSidebar() {
   const location = useLocation()
   const { user, logout } = useAuth()
+  // Compteur de la cloche (DS-15) : relu toutes les 60 s tant que la page est visible, pas de WebSocket
+  const { data: nonLues = 0 } = useQuery({
+    queryKey: CLE_NON_LUES,
+    queryFn: nombreNonLues,
+    refetchInterval: INTERVALLE_COMPTEUR_MS,
+    refetchIntervalInBackground: false,
+  })
 
   const initiales = user
     ? `${user.prenom?.[0] ?? ""}${user.nom?.[0] ?? ""}`.toUpperCase()
@@ -71,6 +81,14 @@ export function AppSidebar() {
                         </Link>
                       }
                     />
+                    {item.url === "/etudiant/notifications" && nonLues > 0 && (
+                      <SidebarMenuBadge
+                        aria-label={`${nonLues} notification${nonLues > 1 ? "s" : ""} non lue${nonLues > 1 ? "s" : ""}`}
+                        className="rounded-full bg-primary text-primary-foreground"
+                      >
+                        {nonLues > 99 ? "99+" : nonLues}
+                      </SidebarMenuBadge>
+                    )}
                   </SidebarMenuItem>
                 )
               })}

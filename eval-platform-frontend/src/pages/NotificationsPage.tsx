@@ -1,50 +1,23 @@
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Bell, CheckCheck, Award, ClipboardList, CheckCircle2 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
-import type { Role, TypeNotification } from "@/types"
-
-// ============================================================
-// Page partagée par l'étudiant et l'enseignant.
-// Données mockées (par rôle) — à remplacer par :
-// const { data } = useQuery({
-//   queryKey: ["notifications"],
-//   queryFn: () => api.get("/notifications")
-// })
-// Marquer lue : PUT /api/notifications/{id}/lire
-// Tout marquer : PUT /api/notifications/lire-tout
-// ============================================================
-
-interface NotificationItem {
-  id: number
-  type: TypeNotification
-  message: string
-  lue: boolean
-  dateEnvoi: string
-}
-
-const MOCK_ETUDIANT: NotificationItem[] = [
-  { id: 1, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Structures de données — QCM\" ont été publiés. Votre note : 15 / 20.",             lue: false, dateEnvoi: "2026-07-13T10:00:00" },
-  { id: 2, type: "EVALUATION_OUVERTE", message: "L'évaluation \"Algorithmique — exercice de code\" est maintenant disponible jusqu'au 15 juil. 23h59.", lue: false, dateEnvoi: "2026-07-12T08:00:00" },
-  { id: 3, type: "CORRECTION_VALIDEE", message: "La correction IA de votre réponse à \"Génie logiciel\" a été validée par l'enseignant.",              lue: false, dateEnvoi: "2026-07-11T14:30:00" },
-  { id: 4, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Réseaux — questions ouvertes\" ont été publiés. Votre note : 16 / 20.",             lue: true,  dateEnvoi: "2026-07-05T16:00:00" },
-  { id: 5, type: "EVALUATION_OUVERTE", message: "L'évaluation \"Bases de données — quiz\" est maintenant disponible jusqu'au 10 juil. 18h00.",         lue: true,  dateEnvoi: "2026-07-08T08:00:00" },
-  { id: 6, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Systèmes d'exploitation — QCM\" ont été publiés. Votre note : 15 / 20.",           lue: true,  dateEnvoi: "2026-06-20T18:00:00" },
-]
-
-const MOCK_ENSEIGNANT: NotificationItem[] = [
-  { id: 1, type: "EVALUATION_OUVERTE", message: "Votre évaluation \"Structures de données — QCM\" est ouverte aux étudiants jusqu'au 12 juil. 23h59.", lue: false, dateEnvoi: "2026-07-10T08:00:00" },
-  { id: 2, type: "CORRECTION_VALIDEE", message: "Toutes les corrections IA de \"Réseaux — questions ouvertes\" ont été validées.",                      lue: false, dateEnvoi: "2026-07-06T11:15:00" },
-  { id: 3, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Réseaux — questions ouvertes\" ont été publiés aux 38 étudiants.",                 lue: true,  dateEnvoi: "2026-07-05T16:00:00" },
-  { id: 4, type: "RESULTAT_PUBLIE",    message: "Les résultats de \"Systèmes d'exploitation — QCM\" ont été publiés aux 42 étudiants.",               lue: true,  dateEnvoi: "2026-06-20T18:00:00" },
-]
-
-function mockPour(role: Role | undefined): NotificationItem[] {
-  return role === "ENSEIGNANT" ? MOCK_ENSEIGNANT : MOCK_ETUDIANT
-}
+import {
+  CLE_LISTE_NOTIFICATIONS,
+  CLE_NON_LUES,
+  CLE_NOTIFICATIONS,
+  destination,
+  listerNotifications,
+  marquerNotificationLue,
+  nombreNonLues,
+  toutMarquerLu,
+} from "@/lib/notifications"
+import type { NotificationItem, TypeNotification } from "@/types"
 
 const TYPE_CONFIG: Record<TypeNotification, { icon: React.ElementType; cls: string; label: string }> = {
   RESULTAT_PUBLIE:    { icon: Award,         cls: "bg-primary/10 text-primary",                                    label: "Résultat"   },
@@ -63,25 +36,54 @@ function formatDate(iso: string) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
 }
 
+/**
+ * Notifications de l'utilisateur connecté (DS-15), page partagée par l'étudiant et l'enseignant. Un clic marque
+ * la notification comme lue et, côté étudiant, ouvre la page concernée (résultats de la copie, évaluation).
+ */
 export default function NotificationsPage() {
   const { user } = useAuth()
-  const [notifs, setNotifs] = useState<NotificationItem[]>(() => mockPour(user?.role))
-  const [tab, setTab]       = useState("toutes")
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [tab, setTab] = useState("toutes")
+  const [toutEnCours, setToutEnCours] = useState(false)
 
-  const nonLues = notifs.filter(n => !n.lue).length
+  const liste = useInfiniteQuery({
+    queryKey: CLE_LISTE_NOTIFICATIONS,
+    queryFn: ({ pageParam }) => listerNotifications(pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (derniere) =>
+      (derniere.page + 1) * derniere.taille < derniere.total ? derniere.page + 1 : undefined,
+  })
+  const { data: nonLues = 0 } = useQuery({ queryKey: CLE_NON_LUES, queryFn: nombreNonLues })
 
-  const filtered = notifs.filter(n =>
-    tab === "toutes" ? true : !n.lue
-  )
+  const notifs = liste.data?.pages.flatMap((p) => p.notifications) ?? []
+  const filtered = notifs.filter((n) => (tab === "toutes" ? true : !n.lue))
 
-  function marquerLue(id: number) {
-    // TODO : await api.put(`/notifications/${id}/lire`)
-    setNotifs(ns => ns.map(n => n.id === id ? { ...n, lue: true } : n))
+  function rafraichir() {
+    return queryClient.invalidateQueries({ queryKey: CLE_NOTIFICATIONS })
   }
 
-  function toutMarquerLu() {
-    // TODO : await api.put("/notifications/lire-tout")
-    setNotifs(ns => ns.map(n => ({ ...n, lue: true })))
+  async function ouvrir(n: NotificationItem) {
+    if (!n.lue) {
+      try {
+        await marquerNotificationLue(n.id)
+      } catch {
+        // Hors ligne : la notification reste non lue, la page s'ouvre quand même
+      }
+      void rafraichir()
+    }
+    const cible = destination(n, user?.role)
+    if (cible) navigate(cible)
+  }
+
+  async function toutLire() {
+    setToutEnCours(true)
+    try {
+      await toutMarquerLu()
+      await rafraichir()
+    } finally {
+      setToutEnCours(false)
+    }
   }
 
   return (
@@ -103,7 +105,7 @@ export default function NotificationsPage() {
           </p>
         </div>
         {nonLues > 0 && (
-          <Button variant="outline" className="rounded-xl" onClick={toutMarquerLu}>
+          <Button variant="outline" className="rounded-xl" onClick={toutLire} disabled={toutEnCours}>
             <CheckCheck className="size-4" /> Tout marquer comme lu
           </Button>
         )}
@@ -120,7 +122,13 @@ export default function NotificationsPage() {
       </Tabs>
 
       {/* Liste */}
-      {filtered.length === 0 ? (
+      {liste.isPending ? (
+        <p className="py-16 text-center text-sm text-muted-foreground">Chargement des notifications...</p>
+      ) : liste.isError ? (
+        <p role="alert" className="py-16 text-center text-sm text-destructive">
+          Impossible de charger vos notifications. Vérifiez votre connexion puis rechargez la page.
+        </p>
+      ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-border py-16 text-center text-muted-foreground">
           <Bell className="size-8" />
           <p className="font-medium">Aucune notification.</p>
@@ -132,11 +140,19 @@ export default function NotificationsPage() {
             return (
               <Card
                 key={n.id}
+                role="button"
+                tabIndex={0}
                 className={[
                   "cursor-pointer rounded-2xl border-border/60 shadow-sm transition-colors hover:bg-muted/30",
                   !n.lue ? "border-l-4 border-l-primary" : "",
                 ].join(" ")}
-                onClick={() => !n.lue && marquerLue(n.id)}
+                onClick={() => void ouvrir(n)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault()
+                    void ouvrir(n)
+                  }
+                }}
               >
                 <CardContent className="flex items-start gap-3 p-4">
                   {/* Icône type */}
@@ -164,12 +180,22 @@ export default function NotificationsPage() {
 
                   {/* Indicateur non lue */}
                   {!n.lue && (
-                    <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" />
+                    <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-label="Non lue" />
                   )}
                 </CardContent>
               </Card>
             )
           })}
+          {liste.hasNextPage && (
+            <Button
+              variant="outline"
+              className="self-center rounded-xl"
+              onClick={() => void liste.fetchNextPage()}
+              disabled={liste.isFetchingNextPage}
+            >
+              {liste.isFetchingNextPage ? "Chargement..." : "Afficher plus"}
+            </Button>
+          )}
         </div>
       )}
     </div>
