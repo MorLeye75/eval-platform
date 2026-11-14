@@ -10,17 +10,24 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.net.URI;
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class GlobalExceptionHandlerTest {
+
+    /** Horloge de l'application figée : l'horodatage des erreurs en vient, comme le reste (n° 11 de la revue). */
+    private static final LocalDateTime MAINTENANT = LocalDateTime.of(2026, 11, 14, 10, 0);
+    private static final Clock HORLOGE = Clock.fixed(MAINTENANT.toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
 
     private GlobalExceptionHandler exceptionHandler;
     private MockHttpServletRequest request;
 
     @BeforeEach
     void setUp() {
-        exceptionHandler = new GlobalExceptionHandler();
+        exceptionHandler = new GlobalExceptionHandler(HORLOGE);
         request = new MockHttpServletRequest();
     }
 
@@ -41,6 +48,16 @@ class GlobalExceptionHandlerTest {
         assertThat(problem.getProperties()).containsKey("code");
         assertThat(problem.getProperties().get("code")).isEqualTo("TEMPS_EXPIRE");
         assertThat(problem.getProperties()).containsKey("timestamp");
+    }
+
+    @Test
+    @DisplayName("Horodatage d'une erreur : celui de l'horloge de l'application (Clock), pas l'heure système")
+    void horodatage_HorlogeDeLApplication() {
+        request.setRequestURI("/api/soumissions/100/soumettre");
+
+        ProblemDetail problem = exceptionHandler.handleTempsEcoule(new TempsEcouleException("Temps écoulé."), request);
+
+        assertThat(problem.getProperties().get("timestamp")).isEqualTo(MAINTENANT);
     }
 
     @Test

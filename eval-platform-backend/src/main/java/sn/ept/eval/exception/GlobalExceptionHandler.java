@@ -24,6 +24,7 @@ import jakarta.persistence.LockTimeoutException;
 import jakarta.persistence.PessimisticLockException;
 
 import java.net.URI;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -39,6 +40,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String ERROR_BASE_URL = "https://eval.ept.sn/errors/";
 
+    /** Horloge de l'application : l'horodatage des erreurs suit la même heure que le reste (testable). */
+    private final Clock clock;
+
+    public GlobalExceptionHandler(Clock clock) {
+        this.clock = clock;
+    }
+
     /**
      * 409 Conflict (et non 403) : l'utilisateur a bien le droit d'agir sur sa copie,
      * c'est l'état de la ressource (temps écoulé, copie verrouillée) qui empêche l'action.
@@ -50,7 +58,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "temps-expire"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "TEMPS_EXPIRE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -61,7 +69,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "soumission-verrouillee"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "SOUMISSION_VERROUILLEE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -73,7 +81,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "evaluation-non-modifiable"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "EVALUATION_NON_MODIFIABLE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -86,7 +94,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "conflit-concurrent"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "CONFLIT_CONCURRENT");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -99,7 +107,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "VERSION_OBSOLETE");
         problem.setProperty("versionActuelle", ex.getVersionActuelle());
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -110,7 +118,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "acces-refuse"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "ACCES_REFUSE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -121,7 +129,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "ressource-non-trouvee"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "RESSOURCE_NON_TROUVEE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -132,7 +140,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "requete-incorrecte"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "REQUETE_INCORRECTE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -144,7 +152,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "authentification"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "AUTHENTIFICATION_ECHOUEE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -156,7 +164,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "trop-de-tentatives"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "TROP_DE_TENTATIVES");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getSecondesAvantNouvelEssai()))
                 .body(problem);
@@ -170,7 +178,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "acces-refuse"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "ACCES_REFUSE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -187,7 +195,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "conflit-donnees"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "CONFLIT_DONNEES");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -204,7 +212,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "verrou-indisponible"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "VERROU_INDISPONIBLE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -217,7 +225,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "erreur-interne"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "ERREUR_INTERNE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -265,7 +273,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         );
         problem.setProperty("code", "VALIDATION");
         problem.setProperty("erreursChamps", erreurs);
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 }
