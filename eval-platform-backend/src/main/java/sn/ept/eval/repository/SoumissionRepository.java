@@ -24,6 +24,8 @@ public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
     boolean existsByEvaluationIdAndEtudiantId(Long evaluationId, Long etudiantId);
     long countByEvaluationId(Long evaluationId);
     long countByEvaluationIdAndStatut(Long evaluationId, StatutSoumission statut);
+    /** Copies d'une évaluation dans un statut (notification « résultats publiés » des copies notées, DS-15). */
+    List<Soumission> findByEvaluationIdAndStatut(Long evaluationId, StatutSoumission statut);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Soumission s where s.id = :id")
     Optional<Soumission> findByIdForUpdate(@Param("id") Long id);

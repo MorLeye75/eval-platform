@@ -62,11 +62,13 @@ public class CorrectionService {
     private final Duration dureeMaxExecution;
     /** Une transaction courte par phase : toute erreur l'annule entièrement (pas de notes partielles). */
     private final TransactionTemplate transaction;
+    private final NotificationService notificationService;
 
     public CorrectionService(SoumissionRepository soumissionRepository, Judge0Client judge0, CorrectionsEnFile enFile,
                              Clock clock, Judge0Proprietes judge0Proprietes,
-                             PlatformTransactionManager transactionManager) {
+                             PlatformTransactionManager transactionManager, NotificationService notificationService) {
         this.soumissionRepository = soumissionRepository;
+        this.notificationService = notificationService;
         this.judge0 = judge0;
         this.enFile = enFile;
         this.clock = clock;
@@ -231,6 +233,11 @@ public class CorrectionService {
                     .sum();
             soumission.setNoteFinale(arrondi(note));
             soumission.setStatut(StatutSoumission.EVALUE);
+            // Résultats déjà publiés (copie remise ou corrigée tard) : l'étudiant est prévenu, dans cette
+            // transaction (DS-15 : la notification suit l'événement s'il est annulé)
+            if (Boolean.TRUE.equals(soumission.getEvaluation().getResultatsPublies())) {
+                notificationService.resultatPublie(soumission);
+            }
         } else {
             // Questions ouvertes, code sans cas de test : le reste est corrigé par l'enseignant
             soumission.setStatut(StatutSoumission.EN_CORRECTION);

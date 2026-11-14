@@ -120,7 +120,8 @@ class CorrectionServiceTest {
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         Judge0Proprietes proprietes = new Judge0Proprietes("http://judge0", "", 2, 2, 5, 256000, 60, 1024,
                 Duration.ofSeconds(5), Duration.ofSeconds(15), Duration.ofMinutes(10), null);
-        service = new CorrectionService(soumissionRepository, judge0, enFile, horloge, proprietes, transactionManager);
+        service = new CorrectionService(soumissionRepository, judge0, enFile, horloge, proprietes, transactionManager,
+                new sn.ept.eval.config.NotificationParDefautConfig.NotificationServiceParDefaut());
 
         evaluation = new Evaluation();
         evaluation.setId(10L);
