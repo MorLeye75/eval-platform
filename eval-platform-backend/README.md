@@ -154,6 +154,11 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 
 ### Erreurs
 
+| POST | `/enseignant/evaluations/{id}/corrections-ia/generer` | enseignant (propriétaire) | lance la génération (asynchrone, 202) des propositions IA des questions ouvertes d'une évaluation terminée (DS-08) |
+| GET | `/enseignant/corrections-ia` | enseignant | propositions de l'IA (filtres `evaluationId`, `statut`) et nombre de réponses encore sans proposition (DS-08) |
+| PUT | `/enseignant/corrections-ia/{id}/valider` | enseignant (propriétaire) | retient la note de l'IA, ou `{ note }` ; si c'est la dernière note de la copie, elle passe EVALUE (DS-08) |
+| PUT | `/enseignant/corrections-ia/{id}/rejeter` | enseignant (propriétaire) | rejette ; `{ note }` obligatoire (DS-08) |
+| PUT | `/enseignant/reponses/{id}/note` | enseignant (propriétaire) | note une réponse sans proposition (modèle indisponible, code sans cas de test) (DS-08) |
 Toutes les erreurs suivent la norme **RFC 7807** (`application/problem+json`) avec un champ `code` :
 
 | Statut | Cas |
@@ -233,6 +238,14 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
 - **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
   étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
 
+- **Correction assistée par IA (DS-08)** : l'IA propose, l'enseignant décide. `CorrecteurIA` (interface) renvoie une note et
+  une justification ; la note est toujours ramenée dans [0 ; barème] et aucune identité d'étudiant n'est transmise. Le
+  fournisseur par défaut (`correction.ia.fournisseur = simule`) ne fait aucun appel réseau : c'est une démonstration, pas une
+  correction pédagogique ; un connecteur vers un vrai modèle implémentera la même interface. La génération est asynchrone, en
+  trois phases comme DS-12 (aucune transaction pendant l'appel au modèle) ; une indisponibilité du modèle laisse la réponse à
+  noter à la main. Valider, rejeter et noter à la main verrouillent la copie (`FOR UPDATE`) : la dernière note pose
+  `noteFinale`, passe la copie EVALUE et appelle `NotificationService.resultatPublie(copie)` (sans effet si les résultats ne
+  sont pas publiés, jamais en double). 409 `CORRECTION_NON_MODIFIABLE` si la copie n'est plus en correction ou la proposition déjà traitée.
 ## Architecture
 
 ```
@@ -262,7 +275,7 @@ La passation est répartie en services à responsabilité unique :
 | `CorrectionDeclencheur` | lancement de la correction après validation de la transaction |
 | `ClotureCopiesService` + `PassationScheduler` | clôture des copies abandonnées, relance des corrections bloquées |
 
-Côté enseignant (DS-03 à DS-07) :
+Côté enseignant (DS-03 à DS-08) :
 
 | Service | Responsabilité |
 |---|---|
@@ -279,6 +292,9 @@ Concurrence : sauvegarde, soumission, clôture automatique, reprise et correctio
 (`SELECT ... FOR UPDATE`) ; une réponse ne peut pas être écrite après le passage à `SOUMIS` et une copie
 n'est corrigée qu'une fois.
 
+| `GenerationCorrectionIAService` + `CorrectionIATache` | déclenchement asynchrone des propositions IA d'une évaluation terminée (DS-08) |
+| `CorrectionIAService` | proposition, consultation, validation, rejet et note manuelle ; calcul de la note finale (DS-08) |
+| `CorrecteurIA` / `CorrecteurIASimule` | connecteur du modèle de langage (simulé par défaut) |
 ## Tests
 
 ```bash
