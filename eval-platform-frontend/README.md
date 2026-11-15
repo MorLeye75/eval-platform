@@ -55,7 +55,8 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 | Enseignant : assistant de création et de modification d'une évaluation, choix des promotions | API (`GET /promotions`, `POST` / `PUT /enseignant/evaluations`, `GET /enseignant/evaluations/{id}`) |
 | Enseignant : « Mes évaluations » (publier, repasser en brouillon, supprimer) | API (`GET /enseignant/evaluations`, `POST …/publier`, `POST …/depublier`, `DELETE`) |
 | Enseignant : publication des résultats | API (`POST /enseignant/evaluations/{id}/resultats/publier`) |
-| Enseignant : tableau de bord, supervision, statistiques, validation IA, export ; espace administrateur | simulés (`src/mocks`) |
+| Enseignant : validation des corrections IA | API (`POST …/corrections-ia/generer`, `GET /enseignant/corrections-ia`, `PUT …/valider`, `PUT …/rejeter`) |
+| Enseignant : tableau de bord, supervision, statistiques, export ; espace administrateur | simulés (`src/mocks`) |
 
 Les dates et durées d'une évaluation sont vérifiées par le serveur à la publication : la plage d'ouverture doit être au
 moins aussi longue que la durée de l'épreuve, tiers-temps compris. L'assistant le signale dès l'étape 1 quand on choisit

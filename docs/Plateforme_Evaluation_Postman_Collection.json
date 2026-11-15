@@ -958,7 +958,7 @@
       ]
     },
     {
-      "name": "05 - Évaluations enseignant (DS-03 à DS-07)",
+      "name": "05 - Évaluations enseignant (DS-03 à DS-08)",
       "description": "Lancer d'abord 1.2 (jeton enseignant, variable tokenEnseignant) ; la requête 5.11 utilise le jeton étudiant (1.1). Parcours : promotions → création → détail → modification → publication → dépublication → tiers-temps → publication des résultats (évaluation terminée uniquement). Les refus attendus sont des requêtes à part (409, 400). Dates de 2030 : ajuster pour tester la publication.",
       "item": [
         {
@@ -1572,6 +1572,199 @@
               ]
             },
             "description": "Les résultats ne se publient qu'une fois l'évaluation TERMINEE et la marge de 2 min écoulée. Sur une évaluation terminée : 200 avec { nbCopies, nbCopiesNotees, nbCopiesEnAttente } ; un second appel renvoie 409."
+          }
+        },
+        {
+          "name": "5.13a DS-08: Générer les propositions IA (évaluation non terminée → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 : génération refusée tant que l evaluation n est pas terminée\", function () { pm.response.to.have.status(409); });",
+                  "pm.test('code EVALUATION_NON_MODIFIABLE', function () { pm.expect(pm.response.json().code).to.eql('EVALUATION_NON_MODIFIABLE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/corrections-ia/generer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "corrections-ia",
+                "generer"
+              ]
+            },
+            "description": "Sur une évaluation TERMINEE : 202 avec { nbReponsesAProposer } ; les propositions arrivent ensuite par GET /enseignant/corrections-ia."
+          }
+        },
+        {
+          "name": "5.13b DS-08: Propositions IA de l'enseignant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : propositions listées', function () { pm.response.to.have.status(200); });",
+                  "pm.test('propositions et enCours présents', function () { var r = pm.response.json(); pm.expect(r.propositions).to.be.an('array'); pm.expect(r).to.have.property('enCours'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/corrections-ia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "corrections-ia"
+              ]
+            },
+            "description": "Filtres facultatifs : evaluationId, statut (EN_ATTENTE, VALIDEE, REJETEE). enCours = réponses encore sans proposition."
+          }
+        },
+        {
+          "name": "5.13c DS-08: Valider une proposition inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 : proposition inconnue', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/corrections-ia/999999/valider",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "corrections-ia",
+                "999999",
+                "valider"
+              ]
+            },
+            "description": "Valider sans corps reprend la note de l'IA ; rejeter exige { note }. 409 CORRECTION_NON_MODIFIABLE si la copie n'est plus en correction ou si la proposition est déjà traitée.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "5.13d DS-08: Note manuelle sur une réponse inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 : réponse inconnue', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/reponses/999999/note",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "reponses",
+                "999999",
+                "note"
+              ]
+            },
+            "description": "Pour une réponse sans proposition (modèle indisponible, code sans cas de test). Note entre 0 et le barème.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"note\": 1 }"
+            }
           }
         },
         {

@@ -12,7 +12,8 @@ Les fichiers `.md` contiennent des diagrammes Mermaid, affichés directement par
 | DS-05 Passage automatique des statuts (mise à jour atomique, notification d'ouverture) | `DS-05-statuts-automatiques.puml` | Aminou | aligné sur le code |
 | DS-06 Aménagement de temps (tiers-temps), plage et verrou de l'évaluation | `DS-06-amenagement-temps.puml` | Aminou | aligné sur le code |
 | DS-07 Publication des résultats d'une évaluation | `DS-07-publication-resultats.puml` | Aminou | aligné sur le code |
-| DS-08 à DS-09 Correction assistée par IA et validation enseignant, statistiques et export | — | Aminou | réservés |
+| DS-08 Correction assistée par IA et validation enseignant | `DS-08-correction-ia-validation.puml` | Aminou | aligné sur le code (connecteur IA simulé, vrai modèle à brancher) |
+| DS-09 Statistiques et export | — | Aminou | réservé |
 | DS-10 Liste des épreuves, démarrage et reprise | `DS-10-demarrage.puml` (détaillé), `DS-10-demarrage-simplifie.puml` (présentation) | Mor | aligné sur le code |
 | DS-11 Clôture automatique des copies abandonnées | `DS-11-cloture-automatique.puml` | Mor | aligné sur le code |
 | DS-12 Correction automatique du code via Judge0 | `DS-12-correction-code-judge0.puml` | Mor | aligné sur le code (Judge0 réel non encore testé) |

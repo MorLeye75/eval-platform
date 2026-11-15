@@ -232,7 +232,7 @@ public class EvaluationService {
         return enseignant;
     }
 
-    private void verifierProprietaire(Evaluation evaluation, Enseignant enseignant) {
+    void verifierProprietaire(Evaluation evaluation, Enseignant enseignant) {
         if (!evaluation.getEnseignant().getId().equals(enseignant.getId())) {
             throw new AccesRefuseException("Accès non autorisé : cette évaluation appartient à un autre enseignant.");
         }

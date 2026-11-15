@@ -9,12 +9,18 @@ import PublicationResultats from "./PublicationResultats"
 import BuilderQuestions from "./creation/BuilderQuestions"
 import { CLE_BROUILLON_EVALUATION } from "@/lib/session"
 import { mesEvaluationsEnseignant, type EvaluationEnseignantApi } from "@/lib/evaluationsEnseignant"
+import { listerCorrectionsIA } from "@/lib/correctionsIA"
 
 // La liste lit l'API : on la remplace par quelques évaluations dans chaque état
 vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
   ...(await original<typeof import("@/lib/evaluationsEnseignant")>()),
   mesEvaluationsEnseignant: vi.fn(),
   listerPromotions: vi.fn().mockResolvedValue([]),
+}))
+
+vi.mock("@/lib/correctionsIA", async (original) => ({
+  ...(await original<typeof import("@/lib/correctionsIA")>()),
+  listerCorrectionsIA: vi.fn(),
 }))
 
 const evaluation = (id: number, statut: EvaluationEnseignantApi["statut"], nbCopies: number): EvaluationEnseignantApi => ({
@@ -40,6 +46,13 @@ function afficher(element: React.ReactElement, chemin = "/", motif = "/") {
 describe("accessibilité des écrans enseignant", () => {
   beforeEach(() => {
     sessionStorage.clear()
+    vi.mocked(listerCorrectionsIA).mockResolvedValue({
+      enCours: 0,
+      propositions: [{
+        id: 1, reponseId: 10, evaluationId: 4, evaluation: "Évaluation 4", etudiant: "Moussa Diop", question: "Expliquez TCP en détail.",
+        reponse: "Fiable.", pointsMax: 5, noteProposee: 4, justification: "Correct.", statut: "EN_ATTENTE", noteRetenue: null,
+      }],
+    })
     vi.mocked(mesEvaluationsEnseignant).mockResolvedValue([
       evaluation(1, "BROUILLON", 0), evaluation(2, "PUBLIEE", 0), evaluation(3, "EN_COURS", 12), evaluation(4, "TERMINEE", 40),
     ])
@@ -66,9 +79,9 @@ describe("accessibilité des écrans enseignant", () => {
     expect(screen.getByRole("button", { name: "Publier les résultats : Évaluation 4" })).toBeTruthy()
   })
 
-  it("validation IA : chaque copie s'ouvre par un bouton qui annonce son état (aria-expanded)", () => {
+  it("validation IA : chaque copie s'ouvre par un bouton qui annonce son état (aria-expanded)", async () => {
     afficher(<ValidationIA />)
-    const entete = screen.getAllByRole("button", { expanded: false })[0]
+    const entete = (await screen.findAllByRole("button", { expanded: false }))[0]
 
     fireEvent.click(entete)
 

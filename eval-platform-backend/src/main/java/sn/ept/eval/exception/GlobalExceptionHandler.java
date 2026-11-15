@@ -85,6 +85,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /** 409 : la copie ou la proposition n'est plus dans un état où l'enseignant peut la noter (DS-08). */
+    @ExceptionHandler(CorrectionNonModifiableException.class)
+    public ProblemDetail handleCorrectionNonModifiable(CorrectionNonModifiableException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Correction non modifiable");
+        problem.setType(URI.create(ERROR_BASE_URL + "correction-non-modifiable"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "CORRECTION_NON_MODIFIABLE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
     /** 409 : deux écritures concurrentes sur la même entité versionnée (@Version) ; le front recharge. */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleConflitConcurrent(OptimisticLockingFailureException ex, HttpServletRequest request) {

@@ -22,6 +22,7 @@ Aminou (espace enseignant). Ce document résume ce qui est fait, comment le vér
 | `DS-05-statuts-automatiques.puml` | passage de statut par `UPDATE … WHERE statut = ancien`, notification d'ouverture sans doublon |
 | `DS-06-amenagement-temps.puml` | tiers-temps : plage, verrou de l'évaluation, copie déjà commencée |
 | `DS-07-publication-resultats.puml` | publication des résultats, copies pas encore notées |
+| `DS-08-correction-ia-validation.puml` | propositions IA (asynchrones), validation, rejet, note manuelle, note finale de la copie |
 
 Chaîne « publication et consultation des résultats » : DS-04 publie l'**évaluation**, DS-01 et DS-11 remettent et clôturent
 les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, DS-13 les affiche à l'étudiant.
@@ -43,6 +44,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Publication des résultats | `POST /enseignant/evaluations/{id}/resultats/publier` : évaluation `TERMINEE` et marge de 2 min écoulée ; bascule atomique ; bilan `nbCopiesNotees` / `nbCopiesEnAttente` |
 | Cas de test | **entrée facultative**, **sortie attendue obligatoire et non vide** (Judge0 traite une sortie vide comme absente) |
 | Détail étudiant | `GET /etudiant/evaluations/{id}` (demandé par Mor pour l'écran d'accueil du quiz) |
+| Correction IA (DS-08) | l'IA propose, l'enseignant valide ou rejette ; la dernière note passe la copie EVALUE et notifie l'étudiant si les résultats sont publiés ; note manuelle en repli |
 | Notifications | interface `NotificationService` (3 événements) + implémentation par défaut sans effet (`@Bean @Fallback`), jamais préférée à celle du module de Mor |
 
 ### Frontend
@@ -53,6 +55,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Modification d'une évaluation | questions perdues (mock) | détail chargé depuis l'API ; message si l'évaluation n'est plus un brouillon |
 | Mes évaluations | mocks, boutons sans effet | API ; publier, repasser en brouillon, supprimer, publier les résultats ; actions selon l'état |
 | Publication des résultats | notes d'étudiants inventées, « publication » simulée | évaluations terminées de l'API, vraie route, bilan des copies notifiées |
+| Validation des corrections IA | mocks | API : génération pour une évaluation terminée, relecture automatique tant que des propositions se génèrent, valider / rejeter avec note, erreurs du serveur affichées |
 | Formulaire des cas de test | — | rappel « programme complet : stdin → stdout », entrée facultative |
 
 ## Décisions prises
@@ -65,6 +68,9 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Copies pas encore notées : publication autorisée | elles restent « en attente » ; leur étudiant est notifié à la notation (`resultatPublie`) |
 | Notifications créées dans la transaction de l'événement | jamais « publié sans notification », jamais de notification pour un événement annulé |
 | `NotificationService` en interface + `@Bean @Fallback` | pas de conflit avec le module de Mor : son bean est injecté à la place du mien, dans n'importe quel ordre d'enregistrement ; `@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration |
+| Connecteur IA simulé par défaut | pas de clé ni de fournisseur imposé ; la note de l'IA est une proposition, jamais écrite sans validation ; le vrai modèle se branche derrière `CorrecteurIA` (aucune identité d'étudiant envoyée) |
+| Génération déclenchée par l'enseignant, évaluation terminée | pas de coût d'appels imprévu, relançable sans doublon |
+| Copie `EVALUE` : plus de modification de note | hors périmètre ; à reprendre si l'enseignant doit corriger avant publication |
 | `window.confirm` pour supprimer et publier les résultats | actions destructives ou irréversibles ; un vrai dialogue pourra le remplacer |
 
 ## Vérifier
@@ -108,9 +114,8 @@ Postman : dossier « 05 - Évaluations enseignant (DS-03 à DS-07) » dans `docs
 
 **Module d'Aminou**
 
-- **DS-08 Correction assistée par IA et validation enseignant** : connecteur LLM (ou simulé), `PropositionIA`, validation et
-  ajustement de la note. Dépend de la décision sur `CORRECTION_VALIDEE` (voir questions à Mor). À la validation de la dernière
-  note, appeler `NotificationService.resultatPublie(copie)` si les résultats sont déjà publiés.
+- **DS-08, suite** : connecteur vers un vrai modèle de langage (fournisseur, clé `LLM_API_KEY` et coût à décider avec
+  l'encadrant), écran de notes manuelles (la route `PUT /enseignant/reponses/{id}/note` existe), modification d'une note après coup.
 - **DS-09 Statistiques et export** : `StatistiquesEvaluation` (moyenne, min, max, écart-type, taux de réussite), export CSV.
   Le détail des notes par étudiant de l'écran de publication y sera rattaché.
 - **DS-16 Administration** : CRUD des comptes, import CSV d'étudiants.
