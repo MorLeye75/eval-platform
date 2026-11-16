@@ -159,6 +159,13 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | PUT | `/enseignant/corrections-ia/{id}/valider` | enseignant (propriétaire) | retient la note de l'IA, ou `{ note }` ; si c'est la dernière note de la copie, elle passe EVALUE (DS-08) |
 | PUT | `/enseignant/corrections-ia/{id}/rejeter` | enseignant (propriétaire) | rejette ; `{ note }` obligatoire (DS-08) |
 | PUT | `/enseignant/reponses/{id}/note` | enseignant (propriétaire) | note une réponse sans proposition (modèle indisponible, code sans cas de test) (DS-08) |
+| GET | `/admin/utilisateurs` | admin | liste des comptes (filtres `role`, `actif`, `q`), jamais de mot de passe (DS-16) |
+| POST | `/admin/utilisateurs` | admin | crée un compte ; renvoie un mot de passe provisoire, une seule fois (DS-16) |
+| PUT | `/admin/utilisateurs/{id}` | admin | modifie un compte (jamais son rôle) ; un étudiant qui a des copies ne change plus de promotion (DS-16) |
+| POST | `/admin/utilisateurs/{id}/desactiver` \| `/activer` | admin | désactive (effet immédiat sur ses jetons) ou réactive ; refusé pour son propre compte et le dernier administrateur actif (DS-16) |
+| POST | `/admin/utilisateurs/{id}/reinitialiser-mot-de-passe` | admin | nouveau mot de passe provisoire, une seule fois (DS-16) |
+| POST | `/admin/promotions` | admin | crée une promotion (DS-16) |
+| POST | `/admin/etudiants/import` | admin | import CSV `nom;prenom;email;numEtudiant;promotion`, tout ou rien : 200, ou 422 avec les lignes en erreur (DS-16) |
 Toutes les erreurs suivent la norme **RFC 7807** (`application/problem+json`) avec un champ `code` :
 
 | Statut | Cas |
@@ -230,14 +237,6 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
   fermeture) est écoulée, sinon 409 ; déjà publiés, 409. La bascule `resultatsPublies` est conditionnelle et atomique
   (deux clics ne notifient pas deux fois). Les copies pas encore notées ne bloquent pas : elles sont comptées « en
   attente » et leur étudiant est notifié à la validation de leur dernière note (`NotificationService.resultatPublie`).
-- **Notifications** : les services appellent l'interface `NotificationService` (3 événements), implémentée par
-  `NotificationServiceEnBase` (DS-15, Mor). Sans elle, `NotificationParDefautConfig` fournirait une implémentation sans effet, déclarée en
-  `@Bean @Fallback` : Spring ne l'injecte que si aucune autre implémentation existe, quel que soit l'ordre d'enregistrement
-  des beans (`@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration). `NotificationParDefautConfigTest`
-  le vérifie dans les deux ordres.
-- **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
-  étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
-
 - **Correction assistée par IA (DS-08)** : l'IA propose, l'enseignant décide. `CorrecteurIA` (interface) renvoie une note et
   une justification ; la note est toujours ramenée dans [0 ; barème] et aucune identité d'étudiant n'est transmise. Le
   fournisseur par défaut (`correction.ia.fournisseur = simule`) ne fait aucun appel réseau : c'est une démonstration, pas une
@@ -254,6 +253,21 @@ sn.ept.eval
 ├── service/      Logique métier
 ├── repository/   Accès aux données (Spring Data JPA)
 ├── model/        Entités JPA alignées sur le diagramme de classes UML
+- **Administration (DS-16)** : un compte n'est jamais supprimé (copies, évaluations et notifications y sont rattachées), il est
+  désactivé ; `AuthTokenFilter` relit le compte à chaque requête, donc les jetons d'un compte désactivé sont refusés aussitôt.
+  Mots de passe provisoires : `SecureRandom`, 12 caractères sans ambiguïté, renvoyés une seule fois, stockés hachés, jamais
+  journalisés. Garde-fous : on ne désactive ni son propre compte ni le dernier administrateur actif (les administrateurs actifs
+  sont verrouillés `FOR UPDATE`). Import CSV : 500 lignes au plus, vérifié en entier avant toute création, une seule
+  transaction, mots de passe hachés en parallèle ; les doublons sont cherchés dans le fichier et en base.
+  409 `COMPTE_OPERATION_REFUSEE` pour les doublons et les opérations interdites.
+- **Notifications** : les services appellent l'interface `NotificationService` (3 événements), implémentée par
+  `NotificationServiceEnBase` (DS-15, Mor). Sans elle, `NotificationParDefautConfig` fournirait une implémentation sans effet, déclarée en
+  `@Bean @Fallback` : Spring ne l'injecte que si aucune autre implémentation existe, quel que soit l'ordre d'enregistrement
+  des beans (`@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration). `NotificationParDefautConfigTest`
+  le vérifie dans les deux ordres.
+- **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
+  étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
+
 ├── dto/          Objets échangés avec le frontend
 ├── security/     JWT, Spring Security, limitation des tentatives de connexion
 ├── exception/    Exceptions métier et gestionnaire RFC 7807
@@ -275,7 +289,7 @@ La passation est répartie en services à responsabilité unique :
 | `CorrectionDeclencheur` | lancement de la correction après validation de la transaction |
 | `ClotureCopiesService` + `PassationScheduler` | clôture des copies abandonnées, relance des corrections bloquées |
 
-Côté enseignant (DS-03 à DS-08) :
+Côté enseignant et administrateur (DS-03 à DS-08, DS-16) :
 
 | Service | Responsabilité |
 |---|---|
@@ -295,6 +309,9 @@ n'est corrigée qu'une fois.
 | `GenerationCorrectionIAService` + `CorrectionIATache` | déclenchement asynchrone des propositions IA d'une évaluation terminée (DS-08) |
 | `CorrectionIAService` | proposition, consultation, validation, rejet et note manuelle ; calcul de la note finale (DS-08) |
 | `CorrecteurIA` / `CorrecteurIASimule` | connecteur du modèle de langage (simulé par défaut) |
+| `AdminComptesService` | comptes, promotions, désactivation et mots de passe provisoires (DS-16) |
+| `ImportEtudiantsService` | import CSV d'étudiants, tout ou rien (DS-16) |
+| `GenerateurMotDePasse` | mots de passe provisoires (`SecureRandom`) |
 ## Tests
 
 ```bash
