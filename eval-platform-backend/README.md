@@ -146,14 +146,6 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | PUT | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | tiers-temps ; corps `{ dureeMinutes }` (DS-06) |
 | DELETE | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | supprime un tiers-temps |
 | POST | `/enseignant/evaluations/{id}/resultats/publier` | enseignant (propriétaire) | rend notes et corrigés consultables et notifie les étudiants (DS-07) |
-| POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve (copie expirée clôturée, copie remise sans questions) |
-| PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) ; corps `{ reponses, versionAttendue }` |
-| POST | `/soumissions/{id}/soumettre` | étudiant | soumission finale et correction asynchrone |
-| POST | `/soumissions/{id}/changement-onglet` | étudiant | signalement anti-triche |
-| GET | `/soumissions/{id}` | étudiant (sa copie), enseignant (ses évaluations), admin | détail d'une copie |
-
-### Erreurs
-
 | POST | `/enseignant/evaluations/{id}/corrections-ia/generer` | enseignant (propriétaire) | lance la génération (asynchrone, 202) des propositions IA des questions ouvertes d'une évaluation terminée (DS-08) |
 | GET | `/enseignant/corrections-ia` | enseignant | propositions de l'IA (filtres `evaluationId`, `statut`) et nombre de réponses encore sans proposition (DS-08) |
 | PUT | `/enseignant/corrections-ia/{id}/valider` | enseignant (propriétaire) | retient la note de l'IA, ou `{ note }` ; si c'est la dernière note de la copie, elle passe EVALUE (DS-08) |
@@ -174,6 +166,16 @@ Toutes les erreurs suivent la norme **RFC 7807** (`application/problem+json`) av
 | 401 | jeton absent, invalide ou expiré ; identifiants incorrects |
 | 403 | accès refusé : rôle, promotion, copie d'un autre étudiant |
 | 404 | ressource introuvable |
+| GET | `/enseignant/evaluations/{id}/statistiques` | enseignant (propriétaire) | moyenne, médiane, min, max, écart-type, taux de réussite, distribution et taux par question, sur 20 ; 409 avant l'ouverture (DS-09) |
+| GET | `/enseignant/evaluations/{id}/export/csv` | enseignant (propriétaire) | résultats en CSV (UTF-8 BOM, « ; »), une ligne par étudiant attendu, absents compris (DS-09) |
+| POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve (copie expirée clôturée, copie remise sans questions) |
+| PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) ; corps `{ reponses, versionAttendue }` |
+| POST | `/soumissions/{id}/soumettre` | étudiant | soumission finale et correction asynchrone |
+| POST | `/soumissions/{id}/changement-onglet` | étudiant | signalement anti-triche |
+| GET | `/soumissions/{id}` | étudiant (sa copie), enseignant (ses évaluations), admin | détail d'une copie |
+
+### Erreurs
+
 | 409 | temps d'épreuve écoulé (`TEMPS_EXPIRE`), copie verrouillée (`SOUMISSION_VERROUILLEE`), réponses enregistrées entre-temps depuis un autre onglet ou appareil (`VERSION_OBSOLETE`, avec `versionActuelle`), évaluation qui n'est plus modifiable (`EVALUATION_NON_MODIFIABLE`), modification simultanée (`CONFLIT_CONCURRENT`) |
 | 429 | trop de tentatives de connexion (`TROP_DE_TENTATIVES`, en-tête `Retry-After`) |
 | 500 | erreur interne, sans détail technique exposé |
@@ -245,14 +247,6 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
   noter à la main. Valider, rejeter et noter à la main verrouillent la copie (`FOR UPDATE`) : la dernière note pose
   `noteFinale`, passe la copie EVALUE et appelle `NotificationService.resultatPublie(copie)` (sans effet si les résultats ne
   sont pas publiés, jamais en double). 409 `CORRECTION_NON_MODIFIABLE` si la copie n'est plus en correction ou la proposition déjà traitée.
-## Architecture
-
-```
-sn.ept.eval
-├── controller/   Endpoints REST
-├── service/      Logique métier
-├── repository/   Accès aux données (Spring Data JPA)
-├── model/        Entités JPA alignées sur le diagramme de classes UML
 - **Administration (DS-16)** : un compte n'est jamais supprimé (copies, évaluations et notifications y sont rattachées), il est
   désactivé ; `AuthTokenFilter` relit le compte à chaque requête, donc les jetons d'un compte désactivé sont refusés aussitôt.
   Mots de passe provisoires : `SecureRandom`, 12 caractères sans ambiguïté, renvoyés une seule fois, stockés hachés, jamais
@@ -268,6 +262,11 @@ sn.ept.eval
 - **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
   étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
 
+- **Statistiques et export (DS-09)** : calculés à la demande (aucune table de statistiques), sur les seules copies notées
+  (`EVALUE`), notes ramenées sur 20 (note / barème × 20). Réussite = 10/20 ; écart-type de la population, exigeant 2 copies ;
+  sans copie notée, tout est `null` (jamais 0). Export CSV : cellules commençant par `= + - @` ou une tabulation préfixées d'une
+  apostrophe (injection de formule dans le tableur), décimales à la virgule, `Cache-Control: no-store`, nom de fichier
+  `resultats-{id}.csv` (jamais le titre). Fichier de données personnelles : réservé au propriétaire de l'évaluation.
 ├── dto/          Objets échangés avec le frontend
 ├── security/     JWT, Spring Security, limitation des tentatives de connexion
 ├── exception/    Exceptions métier et gestionnaire RFC 7807
@@ -276,6 +275,14 @@ sn.ept.eval
 
 La passation est répartie en services à responsabilité unique :
 
+## Architecture
+
+```
+sn.ept.eval
+├── controller/   Endpoints REST
+├── service/      Logique métier
+├── repository/   Accès aux données (Spring Data JPA)
+├── model/        Entités JPA alignées sur le diagramme de classes UML
 | Service | Responsabilité |
 |---|---|
 | `SoumissionService` | cycle de vie d'une copie : démarrer, sauvegarder, soumettre, consulter |
@@ -289,7 +296,7 @@ La passation est répartie en services à responsabilité unique :
 | `CorrectionDeclencheur` | lancement de la correction après validation de la transaction |
 | `ClotureCopiesService` + `PassationScheduler` | clôture des copies abandonnées, relance des corrections bloquées |
 
-Côté enseignant et administrateur (DS-03 à DS-08, DS-16) :
+Côté enseignant et administrateur (DS-03 à DS-09, DS-16) :
 
 | Service | Responsabilité |
 |---|---|
@@ -309,6 +316,8 @@ n'est corrigée qu'une fois.
 | `GenerationCorrectionIAService` + `CorrectionIATache` | déclenchement asynchrone des propositions IA d'une évaluation terminée (DS-08) |
 | `CorrectionIAService` | proposition, consultation, validation, rejet et note manuelle ; calcul de la note finale (DS-08) |
 | `CorrecteurIA` / `CorrecteurIASimule` | connecteur du modèle de langage (simulé par défaut) |
+| `StatistiquesEvaluationService` | statistiques d'une évaluation sur 20 (DS-09) |
+| `ExportResultatsService` | export CSV des résultats, cellules protégées contre l'injection de formule (DS-09) |
 | `AdminComptesService` | comptes, promotions, désactivation et mots de passe provisoires (DS-16) |
 | `ImportEtudiantsService` | import CSV d'étudiants, tout ou rien (DS-16) |
 | `GenerateurMotDePasse` | mots de passe provisoires (`SecureRandom`) |
