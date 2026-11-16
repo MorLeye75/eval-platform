@@ -3178,6 +3178,186 @@
           }
         }
       ]
+    },
+    {
+      "name": "11 - Vue d'ensemble admin (DS-18)",
+      "item": [
+        {
+          "name": "11.1 DS-18: Tableau de bord",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : tableau de bord', function () { pm.response.to.have.status(200); });",
+                  "pm.test('no-store et effectifs numériques', function () {",
+                  "  pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.nbUtilisateurs).to.be.at.least(3);",
+                  "  pm.expect(j.parRole.admins).to.be.at.least(1);",
+                  "  pm.expect(j.services.map(function (s) { return s.nom; })).to.include('Base de données');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tableau-de-bord",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tableau-de-bord"
+              ]
+            },
+            "description": "Comptes actifs par rôle, évaluations, activité sur 7 jours, services réellement connus."
+          }
+        },
+        {
+          "name": "11.2 DS-18: Supervision globale",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : supervision globale', function () { pm.response.to.have.status(200); });",
+                  "pm.test('listes présentes, 20 alertes au plus', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.evaluations).to.be.an('array');",
+                  "  pm.expect(j.alertes).to.be.an('array').with.length.of.at.most(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/supervision",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "supervision"
+              ]
+            },
+            "description": "Évaluations en cours de toute la plateforme et 20 dernières alertes."
+          }
+        },
+        {
+          "name": "11.3 DS-18: Statistiques globales",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : statistiques globales', function () { pm.response.to.have.status(200); });",
+                  "pm.test('promotions listées, indicateurs null ou nombres (jamais 0 par défaut)', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.promotions).to.be.an('array');",
+                  "  j.promotions.forEach(function (p) {",
+                  "    if (p.nbCopiesNotees === 0) { pm.expect(p.moyenneSur20).to.equal(null); pm.expect(p.tauxReussite).to.equal(null); }",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "statistiques"
+              ]
+            },
+            "description": "Notes sur 20 des copies notées ; indicateur null sans copie notée."
+          }
+        },
+        {
+          "name": "11.4 DS-18: Un enseignant n'y a pas accès → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 : enseignant refusé', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "statistiques"
+              ]
+            },
+            "description": "Réservé au rôle ADMIN."
+          }
+        }
+      ]
     }
   ]
 }

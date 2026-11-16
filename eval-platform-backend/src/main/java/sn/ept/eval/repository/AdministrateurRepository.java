@@ -11,6 +11,7 @@ import java.util.List;
 
 @Repository
 public interface AdministrateurRepository extends JpaRepository<Administrateur, Long> {
+    long countByActifTrue();
 
     /**
      * Administrateurs actifs, verrouillés (FOR UPDATE) jusqu'à la fin de la transaction : deux désactivations

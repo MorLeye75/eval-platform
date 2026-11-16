@@ -158,6 +158,9 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | POST | `/admin/utilisateurs/{id}/desactiver` \| `/activer` | admin | désactive (effet immédiat sur ses jetons) ou réactive ; refusé pour son propre compte et le dernier administrateur actif (DS-16) |
 | POST | `/admin/utilisateurs/{id}/reinitialiser-mot-de-passe` | admin | nouveau mot de passe provisoire, une seule fois (DS-16) |
 | POST | `/admin/promotions` | admin | crée une promotion (DS-16) |
+| GET | `/admin/tableau-de-bord` | admin | comptes actifs par rôle, évaluations, activité sur 7 jours, services réellement connus (DS-18) |
+| GET | `/admin/supervision` | admin | évaluations en cours de toute la plateforme et 20 dernières alertes ; à relire toutes les 30 s (DS-18) |
+| GET | `/admin/statistiques` | admin | notes sur 20 des copies notées, taux de remise, détail par promotion ; indicateur `null` sans copie notée (DS-18) |
 | POST | `/admin/etudiants/import` | admin | import CSV `nom;prenom;email;numEtudiant;promotion`, tout ou rien : 200, ou 422 avec les lignes en erreur (DS-16) |
 | GET | `/enseignant/evaluations/{id}/statistiques` | enseignant (propriétaire) | moyenne, médiane, min, max, écart-type, taux de réussite, distribution et taux par question, sur 20 ; 409 avant l'ouverture (DS-09) |
 | GET | `/enseignant/evaluations/{id}/export/csv` | enseignant (propriétaire) | résultats en CSV (UTF-8 BOM, « ; »), une ligne par étudiant attendu, absents compris (DS-09) |
@@ -261,6 +264,9 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
   sans copie notée, tout est `null` (jamais 0). Export CSV : cellules commençant par `= + - @` ou une tabulation préfixées d'une
   apostrophe (injection de formule dans le tableur), décimales à la virgule, `Cache-Control: no-store`, nom de fichier
   `resultats-{id}.csv` (jamais le titre). Fichier de données personnelles : réservé au propriétaire de l'évaluation.
+- **Vue d'ensemble admin (DS-18)** : trois lectures seules, sans verrou, calculées à la demande (aucune table de statistiques), donc
+  cohérentes avec les écrans de l'enseignant. `services` ne contient que ce que le serveur sait (base de données, connecteur IA configuré) :
+  aucun état n'est inventé. Indicateurs `null` (jamais 0) sans copie notée.
 - **Supervision (DS-17)** : lecture seule et sans verrou (superviser ne ralentit jamais les étudiants). Le « temps réel » est un
   sondage du frontend. Les réponses données sont comptées en trois requêtes groupées (QCM avec un choix coché, code et texte non
   vides) : une réponse vide enregistrée par la sauvegarde automatique ne compte pas. 409 avant l'ouverture. Aucun contenu de réponse ni note.
@@ -301,7 +307,7 @@ La passation est répartie en services à responsabilité unique :
 | `CorrectionDeclencheur` | lancement de la correction après validation de la transaction |
 | `ClotureCopiesService` + `PassationScheduler` | clôture des copies abandonnées, relance des corrections bloquées |
 
-Côté enseignant et administrateur (DS-03 à DS-09, DS-16, DS-17) :
+Côté enseignant et administrateur (DS-03 à DS-09, DS-16 à DS-18) :
 
 | Service | Responsabilité |
 |---|---|
@@ -313,6 +319,7 @@ Côté enseignant et administrateur (DS-03 à DS-09, DS-16, DS-17) :
 | `GenerationCorrectionIAService` + `CorrectionIATache` | déclenchement asynchrone des propositions IA d'une évaluation terminée (DS-08) |
 | `CorrectionIAService` | proposition, consultation, validation, rejet et note manuelle ; calcul de la note finale (DS-08) |
 | `CorrecteurIA` / `CorrecteurIASimule` | connecteur du modèle de langage (simulé par défaut) |
+| `AdminVueEnsembleService` | tableau de bord, supervision globale et statistiques globales de l'administrateur (DS-18) |
 | `SupervisionService` | avancement et alertes d'une évaluation ouverte (DS-17) |
 | `StatistiquesEvaluationService` | statistiques d'une évaluation sur 20 (DS-09) |
 | `ExportResultatsService` | export CSV des résultats, cellules protégées contre l'injection de formule (DS-09) |

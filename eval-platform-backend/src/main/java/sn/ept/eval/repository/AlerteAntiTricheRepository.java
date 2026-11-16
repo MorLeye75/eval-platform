@@ -10,4 +10,9 @@ import java.util.List;
 public interface AlerteAntiTricheRepository extends JpaRepository<AlerteAntiTriche, Long> {
     List<AlerteAntiTriche> findBySoumissionEvaluationId(Long evaluationId);
     List<AlerteAntiTriche> findBySoumissionId(Long soumissionId);
+
+    long countByDateDetectionGreaterThanEqual(java.time.LocalDateTime depuis);
+
+    /** Les 20 alertes les plus récentes de toute la plateforme (supervision globale, DS-18). */
+    List<AlerteAntiTriche> findTop20ByOrderByDateDetectionDesc();
 }

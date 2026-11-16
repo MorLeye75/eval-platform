@@ -114,4 +114,37 @@ public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
             + " where q.evaluation.id = (select s.evaluation.id from Soumission s where s.id = :id)")
     boolean evaluationContientCode(@Param("id") Long soumissionId);
     List<Soumission> findByEtudiantId(Long etudiantId);
+
+    // ---- vue d'ensemble de l'administrateur (DS-18) : lectures groupées, jamais une requête par ligne
+
+    long countByDateDebutGreaterThanEqual(LocalDateTime depuis);
+    long countByStatut(sn.ept.eval.model.enums.StatutSoumission statut);
+
+    interface NbParEvaluation {
+        Long getEvaluationId();
+        long getNb();
+    }
+
+    /** Copies commencées, par évaluation. */
+    @Query("select s.evaluation.id as evaluationId, count(s) as nb from Soumission s"
+            + " where s.evaluation.id in :ids group by s.evaluation.id")
+    List<NbParEvaluation> copiesParEvaluation(@Param("ids") Collection<Long> evaluationIds);
+
+    /** Copies remises (plus en cours de composition), par évaluation. */
+    @Query("select s.evaluation.id as evaluationId, count(s) as nb from Soumission s"
+            + " where s.evaluation.id in :ids and s.statut <> sn.ept.eval.model.enums.StatutSoumission.EN_COURS"
+            + " group by s.evaluation.id")
+    List<NbParEvaluation> copiesRemisesParEvaluation(@Param("ids") Collection<Long> evaluationIds);
+
+    /** Une copie notée : sa note, le barème de son évaluation et la promotion de l'étudiant. */
+    interface NoteCopie {
+        Long getPromotionId();
+        Double getNote();
+        Double getBareme();
+    }
+
+    @Query("select s.etudiant.promotion.id as promotionId, s.noteFinale as note,"
+            + " (select sum(q.points) from Question q where q.evaluation.id = s.evaluation.id) as bareme"
+            + " from Soumission s where s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE and s.noteFinale is not null")
+    List<NoteCopie> notesDesCopiesNotees();
 }

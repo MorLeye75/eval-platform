@@ -23,6 +23,9 @@ public interface EtudiantRepository extends JpaRepository<Etudiant, Long> {
     /** Effectif d'une promotion (liste des promotions de l'assistant de création, DS-03). */
     long countByPromotionId(Long promotionId);
 
+    /** Comptes actifs (tableau de bord de l'administrateur, DS-18). */
+    long countByActifTrue();
+
     /** Étudiants de plusieurs promotions, en une requête (notification « évaluation ouverte », DS-15). */
     List<Etudiant> findByPromotionIdIn(java.util.Collection<Long> promotionIds);
 

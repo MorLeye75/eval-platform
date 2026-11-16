@@ -61,7 +61,8 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 | Enseignant : tiers-temps d'une évaluation (`/enseignant/evaluations/:id/tiers-temps`) | API (`GET` / `PUT` / `DELETE …/amenagements`) |
 | Enseignant : supervision d'une évaluation en cours | API (`GET /enseignant/supervision/{id}`, relue toutes les 15 s) |
 | Enseignant : tableau de bord | synthèse des API existantes (évaluations, corrections IA), sans route dédiée |
-| Administrateur : tableau de bord, supervision, statistiques, paramètres | simulés (`src/mocks`) |
+| Administrateur : tableau de bord, supervision globale (relue toutes les 30 s), statistiques globales | API (`GET /admin/tableau-de-bord`, `/admin/supervision`, `/admin/statistiques`) |
+| Administrateur : paramètres système | aperçu non branché : bandeau explicite, bouton d'enregistrement désactivé |
 
 Les dates et durées d'une évaluation sont vérifiées par le serveur à la publication : la plage d'ouverture doit être au
 moins aussi longue que la durée de l'épreuve, tiers-temps compris. L'assistant le signale dès l'étape 1 quand on choisit

@@ -75,6 +75,11 @@ export default function ParametresSysteme() {
         <p className="mt-1 text-muted-foreground">Configuration générale de la plateforme d'évaluation.</p>
       </div>
 
+      <p role="status" className="rounded-xl bg-yellow-500/10 px-4 py-2.5 text-sm text-yellow-700 dark:text-yellow-400">
+        Aperçu : ces paramètres ne sont pas encore enregistrés côté serveur. Les valeurs réellement appliquées sont fixées dans la
+        configuration du backend ; cet écran ne les modifie pas.
+      </p>
+
       <div className="grid gap-4 md:grid-cols-2">
         {/* Passation & sécurité */}
         <Card className="rounded-2xl border-border/60 shadow-sm">
@@ -201,7 +206,9 @@ export default function ParametresSysteme() {
           <div className="mt-6 flex gap-2.5">
             <button
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              disabled
+              title="Enregistrement non disponible : paramètres non branchés au serveur"
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CheckCircle2 className="size-4" /> Enregistrer les modifications
             </button>
