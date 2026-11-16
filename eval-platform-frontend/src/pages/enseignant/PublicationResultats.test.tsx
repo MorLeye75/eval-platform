@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AxiosError, type AxiosResponse } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { resultatsEvaluation } from "@/lib/statistiquesEnseignant"
 import {
   mesEvaluationsEnseignant,
   publierResultats,
@@ -10,6 +11,10 @@ import {
 } from "@/lib/evaluationsEnseignant"
 import PublicationResultats from "./PublicationResultats"
 
+vi.mock("@/lib/statistiquesEnseignant", async (original) => ({
+  ...(await original<typeof import("@/lib/statistiquesEnseignant")>()),
+  resultatsEvaluation: vi.fn().mockResolvedValue({ evaluationId: 3, bareme: 20, lignes: [] }),
+}))
 vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
   ...(await original<typeof import("@/lib/evaluationsEnseignant")>()),
   mesEvaluationsEnseignant: vi.fn(),
@@ -50,6 +55,7 @@ describe("publication des résultats (DS-07)", () => {
   beforeEach(() => {
     vi.resetAllMocks()
     vi.mocked(mesEvaluationsEnseignant).mockResolvedValue(TOUTES)
+    vi.mocked(resultatsEvaluation).mockResolvedValue({ evaluationId: 3, bareme: 20, lignes: [] })
     vi.spyOn(window, "confirm").mockReturnValue(true)
   })
 

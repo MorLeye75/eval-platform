@@ -13,11 +13,12 @@ import {
   type ResultatsPublicationApi,
 } from "@/lib/evaluationsEnseignant"
 import { messageErreur } from "@/lib/passation"
+import NotesParEtudiant from "./NotesParEtudiant"
 
 // ============================================================
 // Publication des résultats (DS-07). Les évaluations terminées viennent de l'API ; la publication appelle
-// POST /api/enseignant/evaluations/{id}/resultats/publier. Le détail des notes par étudiant viendra avec
-// les statistiques (DS-09) : aucune note n'est inventée ici.
+// POST /api/enseignant/evaluations/{id}/resultats/publier. Les notes par étudiant viennent du serveur (DS-09, section C)
+// et s'affichent avant la publication : l'enseignant les relit avant de les rendre visibles.
 // ============================================================
 
 function formatDate(iso: string) {
@@ -161,6 +162,8 @@ export default function PublicationResultats() {
                 </p>
               </CardHeader>
               <CardContent className="flex flex-col gap-4">
+
+                <NotesParEtudiant evaluationId={evalSelected.id} />
 
                 {!evalSelected.resultatsPublies && (
                   <>

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import sn.ept.eval.dto.evaluation.ResultatsEvaluationResponse;
 import sn.ept.eval.model.Enseignant;
 import sn.ept.eval.model.Etudiant;
 import sn.ept.eval.model.Evaluation;
@@ -45,8 +46,27 @@ public class ExportResultatsService {
         this.soumissionRepository = soumissionRepository;
     }
 
-    /** Octets du fichier : BOM UTF-8 (Excel) puis le CSV. */
-    public byte[] exporter(Long evaluationId, String email) {
+    /** Une ligne d'étudiant attendu avec sa copie : source commune de l'écran et du CSV. */
+    private record Ligne(Etudiant etudiant, Soumission copie) {}
+
+    private record Donnees(Enseignant enseignant, double bareme, List<Ligne> lignes) {}
+
+    /** Notes par étudiant pour l'écran de l'enseignant (DS-09, section C) : mêmes données et même ordre que le CSV. */
+    public ResultatsEvaluationResponse lignes(Long evaluationId, String email) {
+        Donnees d = charger(evaluationId, email);
+        return new ResultatsEvaluationResponse(evaluationId, d.bareme(), d.lignes().stream().map(l -> {
+            Soumission copie = l.copie();
+            boolean notee = estNotee(copie);
+            return new ResultatsEvaluationResponse.LigneResultat(l.etudiant().getId(), l.etudiant().getNumEtudiant(),
+                    l.etudiant().getNom(), l.etudiant().getPrenom(), etat(copie),
+                    notee ? copie.getNoteFinale() : null,
+                    notee && d.bareme() > 0 ? StatistiquesEvaluationService.arrondi(
+                            StatistiquesEvaluationService.sur20(copie.getNoteFinale(), d.bareme())) : null,
+                    copie == null ? null : copie.getDateRemise());
+        }).toList());
+    }
+
+    private Donnees charger(Long evaluationId, String email) {
         Enseignant enseignant = evaluationService.enseignantConnecte(email);
         Evaluation evaluation = evaluationService.evaluationDeLEnseignant(evaluationId, enseignant);
         StatistiquesEvaluationService.exigerOuverte(evaluation);
@@ -56,12 +76,29 @@ public class ExportResultatsService {
                 evaluation.getPromotions().stream().map(p -> p.getId()).toList());
         Map<Long, Soumission> copies = new HashMap<>();
         for (Soumission s : soumissionRepository.findByEvaluationId(evaluationId)) copies.put(s.getEtudiant().getId(), s);
-
-        StringBuilder csv = new StringBuilder(ENTETE).append('\n');
-        etudiants.stream()
+        List<Ligne> lignes = etudiants.stream()
                 .sorted(Comparator.comparing((Etudiant e) -> e.getNom().toLowerCase(Locale.ROOT))
                         .thenComparing(e -> e.getPrenom().toLowerCase(Locale.ROOT)))
-                .forEach(e -> csv.append(ligne(e, copies.get(e.getId()), bareme)).append('\n'));
+                .map(e -> new Ligne(e, copies.get(e.getId()))).toList();
+        return new Donnees(enseignant, bareme, lignes);
+    }
+
+    private static String etat(Soumission copie) {
+        return copie == null ? "ABSENT" : copie.getStatut().name();
+    }
+
+    private static boolean estNotee(Soumission copie) {
+        return copie != null && copie.getStatut() == StatutSoumission.EVALUE && copie.getNoteFinale() != null;
+    }
+
+    /** Octets du fichier : BOM UTF-8 (Excel) puis le CSV. */
+    public byte[] exporter(Long evaluationId, String email) {
+        Donnees d = charger(evaluationId, email);
+        Enseignant enseignant = d.enseignant();
+        double bareme = d.bareme();
+        StringBuilder csv = new StringBuilder(ENTETE).append('\n');
+        d.lignes().forEach(l -> csv.append(ligne(l.etudiant(), l.copie(), bareme)).append('\n'));
+        List<Etudiant> etudiants = d.lignes().stream().map(Ligne::etudiant).toList();
 
         log.info("[Export] Évaluation ID={} exportée par l'enseignant ID={} ({} lignes)", evaluationId, enseignant.getId(), etudiants.size());
         byte[] contenu = csv.toString().getBytes(StandardCharsets.UTF_8);
@@ -72,8 +109,8 @@ public class ExportResultatsService {
     }
 
     private static String ligne(Etudiant e, Soumission copie, double bareme) {
-        String etat = copie == null ? "ABSENT" : copie.getStatut().name();
-        boolean notee = copie != null && copie.getStatut() == StatutSoumission.EVALUE && copie.getNoteFinale() != null;
+        String etat = etat(copie);
+        boolean notee = estNotee(copie);
         String note = notee ? nombre(copie.getNoteFinale()) : "";
         String sur20 = notee && bareme > 0 ? nombre(StatistiquesEvaluationService.arrondi(
                 StatistiquesEvaluationService.sur20(copie.getNoteFinale(), bareme))) : "";

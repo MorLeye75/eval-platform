@@ -108,7 +108,7 @@ class StatistiquesExportIntegrationTest {
         Long publiee = nouvelleEvaluation(StatutEvaluation.PUBLIEE);
         Long terminee = nouvelleEvaluation(StatutEvaluation.TERMINEE);
 
-        for (String route : new String[]{"/statistiques", "/export/csv"}) {
+        for (String route : new String[]{"/statistiques", "/export/csv", "/resultats"}) {
             mockMvc.perform(get("/enseignant/evaluations/" + brouillon + route).header("Authorization", prof)).andExpect(status().isConflict());
             mockMvc.perform(get("/enseignant/evaluations/" + publiee + route).header("Authorization", prof)).andExpect(status().isConflict());
             mockMvc.perform(get("/enseignant/evaluations/" + terminee + route).header("Authorization", bearer(nouvelEnseignant(), "motDePasse")))
@@ -150,6 +150,28 @@ class StatistiquesExportIntegrationTest {
         // un nom commençant par « = » ne s'exécute pas dans le tableur
         assertThat(lignes).anyMatch(l -> l.contains("'=cmd|' /C calc'!A0") || l.contains("\"'=cmd|' /C calc'!A0\""));
         assertThat(csv).doesNotContain(";=cmd");
+    }
+
+    @Test
+    @DisplayName("Notes par étudiant : mêmes lignes que le CSV, sans e-mail, null (jamais 0) sans note, absent signalé")
+    void notesParEtudiant() throws Exception {
+        Cas cas = evaluationAvecResultats(StatutEvaluation.TERMINEE);
+        long attendus = jdbcTemplate.queryForObject(
+                "select count(*) from etudiants e join promotions p on p.id = e.promotion_id where p.nom = 'DIC2 Informatique'", Long.class);
+
+        String corps = mockMvc.perform(get("/enseignant/evaluations/" + cas.evaluationId() + "/resultats")
+                        .header("Authorization", bearer("prof@ept.sn", "prof123")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.bareme").value(20.0))
+                .andExpect(jsonPath("$.lignes.length()").value((int) attendus))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat((List<Double>) JsonPath.read(corps, "$.lignes[?(@.etat=='EVALUE')].note")).containsExactlyInAnyOrder(14.0, 6.0);
+        assertThat((List<Object>) JsonPath.read(corps, "$.lignes[?(@.etat=='EN_CORRECTION')].note")).containsExactly((Object) null);
+        assertThat((List<Object>) JsonPath.read(corps, "$.lignes[?(@.etat=='EN_CORRECTION')].noteSurVingt")).containsExactly((Object) null);
+        assertThat((List<?>) JsonPath.read(corps, "$.lignes[?(@.etat=='ABSENT')].note")).containsOnlyNulls();
+        assertThat(corps).doesNotContain("@ept.sn").doesNotContain("email");
     }
 
     // ---------------------------------------------------------------- outils

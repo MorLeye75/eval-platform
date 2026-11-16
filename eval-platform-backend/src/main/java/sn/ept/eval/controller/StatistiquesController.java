@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import sn.ept.eval.dto.evaluation.ResultatsEvaluationResponse;
 import sn.ept.eval.dto.evaluation.StatistiquesEvaluationResponse;
 import sn.ept.eval.service.ExportResultatsService;
 import sn.ept.eval.service.StatistiquesEvaluationService;
@@ -37,6 +38,13 @@ public class StatistiquesController {
     @GetMapping("/statistiques")
     public ResponseEntity<StatistiquesEvaluationResponse> statistiques(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok(statistiquesService.statistiques(id, authentication.getName()));
+    }
+
+    @Operation(summary = "Notes par étudiant",
+            description = "Une ligne par étudiant attendu (absents compris), mêmes données que l'export CSV, sans e-mail. 409 avant l'ouverture.")
+    @GetMapping("/resultats")
+    public ResponseEntity<ResultatsEvaluationResponse> resultats(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(exportService.lignes(id, authentication.getName()));
     }
 
     @Operation(summary = "Export CSV des résultats",

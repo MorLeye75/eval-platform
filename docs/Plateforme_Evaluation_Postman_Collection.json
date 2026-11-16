@@ -2970,6 +2970,53 @@
           }
         },
         {
+          "name": "9.2a DS-09: Notes par étudiant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : notes par étudiant', function () { pm.response.to.have.status(200); });",
+                  "pm.test('lignes présentes, sans e-mail, note null (jamais 0) sans copie notée', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.lignes).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(pm.response.text()).to.not.include('@ept.sn');",
+                  "  j.lignes.forEach(function (l) { if (l.etat !== 'EVALUE') { pm.expect(l.note).to.equal(null); } });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/resultats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "resultats"
+              ]
+            },
+            "description": "Une ligne par étudiant attendu, mêmes données que l'export CSV, sans e-mail."
+          }
+        },
+        {
           "name": "9.3 DS-09: Statistiques d'une évaluation inconnue → 404",
           "event": [
             {

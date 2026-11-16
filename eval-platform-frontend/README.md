@@ -57,6 +57,7 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 | Enseignant : publication des résultats | API (`POST /enseignant/evaluations/{id}/resultats/publier`) |
 | Enseignant : validation des corrections IA | API (`POST …/corrections-ia/generer`, `GET /enseignant/corrections-ia`, `PUT …/valider`, `PUT …/rejeter`) ; section « À noter à la main » (`GET /enseignant/corrections-manuelles`, `PUT /enseignant/reponses/{id}/note`) |
 | Administrateur : gestion des comptes (liste, création, modification, désactivation, mot de passe provisoire, promotions, import CSV d'étudiants) | API (`/admin/utilisateurs`, `/admin/promotions`, `/admin/etudiants/import`) |
+| Enseignant : notes par étudiant dans la publication des résultats (`GET …/resultats`) | API |
 | Enseignant : statistiques d'une évaluation, export CSV des résultats | API (`GET /enseignant/evaluations/{id}/statistiques`, `GET …/export/csv`) |
 | Enseignant : tiers-temps d'une évaluation (`/enseignant/evaluations/:id/tiers-temps`) | API (`GET` / `PUT` / `DELETE …/amenagements`) |
 | Enseignant : supervision d'une évaluation en cours | API (`GET /enseignant/supervision/{id}`, relue toutes les 15 s) |

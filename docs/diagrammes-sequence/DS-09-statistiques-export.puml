@@ -69,6 +69,25 @@ else
 end
 deactivate B
 
+== C — Consulter les notes par étudiant ==
+E -> F : ouvre une évaluation terminée dans « Publication des résultats »
+F -> B ++ : GET /api/enseignant/evaluations/{id}/resultats
+B -> X ++ : lignes(id, email) : **mêmes données, même ordre et mêmes règles que l'export (section B)**
+alt évaluation inconnue
+  X --> B : 404 Not Found
+else évaluation d'un autre enseignant
+  X --> B : 403 Forbidden
+else statut = BROUILLON ou PUBLIEE
+  X --> B : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
+else
+  X --> B -- : { evaluationId, bareme, lignes:[{ etudiantId, numEtudiant, nom, prenom, etat, note|null, noteSur20|null, dateRemise|null }] }
+  B --> F -- : 200 OK ; Cache-Control: no-store
+  F --> E : tableau trié par nom ; « Absent » sans copie, « En attente » tant que la copie n'est pas EVALUE ; note « — » (jamais 0) sans note
+end
+deactivate B
+note right of F : l'écran et le fichier CSV sortent de la **même** fabrique de lignes : ils ne peuvent pas diverger.
+Notes visibles de l'enseignant avant la publication ; l'e-mail reste dans le CSV seul (minimisation à l'écran).
+
 note over E, D
   **Confidentialité** : le fichier contient des données personnelles d'étudiants (noms, e-mails, notes) : réservé au propriétaire
   de l'évaluation, jamais mis en cache (no-store), nom de fichier construit à partir de l'identifiant seul (pas du titre).

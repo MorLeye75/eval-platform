@@ -75,3 +75,43 @@ export function questionsDifficiles(questions: QuestionStatApi[]) {
     .sort((a, b) => (a.tauxReussite ?? 0) - (b.tauxReussite ?? 0))
     .slice(0, 5)
 }
+
+export interface LigneResultatApi {
+  etudiantId: number
+  numEtudiant: string | null
+  nom: string
+  prenom: string
+  /** ABSENT sans copie, sinon le statut de la copie (EN_COURS, SOUMIS, EN_CORRECTION, EVALUE). */
+  etat: string
+  /** null (jamais 0) tant que la copie n'est pas notée. */
+  note: number | null
+  noteSurVingt: number | null
+  dateRemise: string | null
+}
+
+export interface ResultatsEvaluationApi {
+  evaluationId: number
+  bareme: number
+  lignes: LigneResultatApi[]
+}
+
+export const cleResultats = (id: string | number) => ["enseignant-resultats", String(id)] as const
+
+/** DS-09 C : notes par étudiant attendu (mêmes lignes que le CSV, sans e-mail). 409 avant l'ouverture. */
+export async function resultatsEvaluation(id: string | number) {
+  const { data } = await api.get<ResultatsEvaluationApi>(`/enseignant/evaluations/${id}/resultats`)
+  return data
+}
+
+const ETATS: Record<string, string> = {
+  ABSENT: "Absent",
+  EN_COURS: "En cours",
+  SOUMIS: "Remise, pas encore corrigée",
+  EN_CORRECTION: "En attente",
+  EVALUE: "Notée",
+}
+
+/** Libellé d'état d'une copie pour l'enseignant. */
+export function libelleEtatCopie(etat: string) {
+  return ETATS[etat] ?? etat
+}
