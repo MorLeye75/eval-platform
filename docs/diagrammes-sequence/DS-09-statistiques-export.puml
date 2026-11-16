@@ -1,0 +1,81 @@
+@startuml DS-09_statistiques_export
+title DS-09 — Statistiques d'une évaluation et export des résultats (Enseignant)
+hide footbox
+autonumber
+actor "Enseignant" as E
+boundary "Frontend React" as F
+control "Backend Spring\n(StatistiquesController)" as B
+control "StatistiquesEvaluationService" as S
+control "ExportResultatsService" as X
+entity "BDD" as D
+
+note over E, D
+  **Périmètre** : une évaluation de l'enseignant connecté (403 sinon). Les statistiques ne portent que sur les copies
+  **EVALUE** (notées) : une copie en cours, remise ou en correction n'a pas de note et n'entre dans aucun calcul.
+  Toutes les notes agrégées sont ramenées **sur 20** (note / barème × 20, barème = somme des points des questions) :
+  des évaluations de barèmes différents restent comparables. Réussite = note ≥ 10/20. Écart-type : population.
+  Les statistiques sont **calculées à la demande** (aucune table de statistiques à tenir à jour) : elles sont toujours
+  celles des notes enregistrées, y compris une note validée il y a une seconde (DS-08).
+end note
+
+== A — Statistiques d'une évaluation ==
+E -> F : ouvre « Statistiques » d'une évaluation
+F -> B ++ : GET /api/enseignant/evaluations/{id}/statistiques
+note right of B : @PreAuthorize("hasRole('ENSEIGNANT')")
+B -> S ++ : statistiques(id, email)
+S -> D ++ : SELECT Evaluation WHERE id = :id (questions, promotions)
+D --> S -- : évaluation
+alt évaluation inconnue
+  S --> B : 404 Not Found
+else évaluation d'un autre enseignant
+  S --> B : 403 Forbidden
+else statut = BROUILLON ou PUBLIEE
+  S --> B : 409 Conflict (code EVALUATION_NON_MODIFIABLE, « aucune copie possible avant l'ouverture »)
+else
+  S -> D ++ : SELECT noteFinale des copies EVALUE de l'évaluation
+  D --> S -- : notes
+  S -> D ++ : SELECT count(copies) par statut ; count(étudiants) des promotions concernées
+  D --> S -- : effectifs
+  S -> D ++ : SELECT questionId, sum(noteObtenue), count(réponses) des copies EVALUE, groupé par question
+  D --> S -- : agrégats par question
+  S -> S : moyenne, médiane, min, max, écart-type, taux de réussite, distribution (10 tranches de 2 points sur 20),\npar question : points moyens et taux = somme des notes / (copies notées × points de la question)
+  note right of S : aucune copie EVALUE : tous les indicateurs sont **null** (jamais 0 : 0 serait une moyenne)\nun écart-type n'est calculé qu'à partir de 2 copies notées
+  S --> B -- : statistiques
+  B --> F -- : 200 OK { evaluationId, titre, statut, bareme, nbAttendus, nbCopies, nbNotees, nbEnCorrection,\nmoyenneSur20, medianeSur20, minSur20, maxSur20, ecartTypeSur20, tauxReussite,\ndistribution [{ de, a, nb }], questions [{ questionId, ordre, enonce, points, moyennePoints, tauxReussite }] }
+  F --> E : indicateurs, histogramme, taux de réussite par question, questions les plus ratées (< 60 %)
+  note right of F : si nbEnCorrection > 0 : « N copies ne sont pas encore notées : les statistiques évolueront »
+end
+deactivate B
+
+== B — Exporter les résultats (CSV) ==
+E -> F : clique « Télécharger (CSV) »
+F -> B ++ : GET /api/enseignant/evaluations/{id}/export/csv
+B -> X ++ : exporter(id, email)
+X -> D ++ : SELECT Evaluation, étudiants des promotions concernées, copies de l'évaluation
+D --> X -- : données
+alt évaluation inconnue
+  X --> B : 404 Not Found
+else évaluation d'un autre enseignant
+  X --> B : 403 Forbidden
+else statut = BROUILLON ou PUBLIEE
+  X --> B : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
+else
+  X -> X : une ligne par **étudiant attendu** : numéro, nom, prénom, e-mail, promotion, état de la copie,\nnote /barème, note /20, date de remise ; sans copie : « ABSENT » ; note vide tant que la copie n'est pas EVALUE
+  note right of X : encodage UTF-8 avec BOM (Excel), séparateur « ; ».\n**Protection contre l'injection de formule** : une cellule qui commence par = + - @ ou une tabulation\nest préfixée d'une apostrophe (un nom d'étudiant « =cmd... » ne s'exécute pas dans le tableur).\nGuillemets doublés, champs contenant ; " ou saut de ligne entre guillemets.
+  X -> X : journalise « export évaluation {id} par enseignant {id} » (INFO, sans donnée personnelle)
+  X --> B -- : fichier
+  B --> F -- : 200 OK (text/csv ; charset=UTF-8)\nContent-Disposition: attachment; filename="resultats-{id}.csv"\nCache-Control: no-store
+  F --> E : téléchargement du fichier
+end
+deactivate B
+
+note over E, D
+  **Confidentialité** : le fichier contient des données personnelles d'étudiants (noms, e-mails, notes) : réservé au propriétaire
+  de l'évaluation, jamais mis en cache (no-store), nom de fichier construit à partir de l'identifiant seul (pas du titre).
+  L'export est disponible dès que l'évaluation est ouverte, **résultats publiés ou non** : l'enseignant voit les notes de
+  ses propres étudiants ; seul l'étudiant attend DS-07.
+  **Hors périmètre** : export PDF et Excel natif (le CSV s'ouvre dans Excel) ; comparaison avec les sessions précédentes
+  (aucune donnée de référence) ; statistiques globales de la plateforme (administrateur).
+  Horodatage : Clock de l'application. **Migration** : aucune.
+end note
+@enduml

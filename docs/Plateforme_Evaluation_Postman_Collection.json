@@ -2779,6 +2779,223 @@
           }
         }
       ]
+    },
+    {
+      "name": "09 - Statistiques et export (DS-09)",
+      "item": [
+        {
+          "name": "9.1 DS-09: Statistiques de l'évaluation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : statistiques calculées\", function () { pm.response.to.have.status(200); });",
+                  "var s = pm.response.json();",
+                  "pm.test('distribution en 10 tranches et effectifs cohérents', function () { pm.expect(s.distribution).to.have.length(10); pm.expect(s.nbNotees).to.be.at.most(s.nbCopies); pm.expect(s.questions).to.be.an('array'); });",
+                  "pm.test('aucune note : indicateurs null, jamais 0', function () { if (s.nbNotees === 0) { pm.expect(s.moyenneSur20).to.eql(null); } });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "statistiques"
+              ]
+            },
+            "description": "Calculées sur les copies notées (EVALUE), ramenées sur 20. 409 avant l'ouverture de l'évaluation."
+          }
+        },
+        {
+          "name": "9.2 DS-09: Export CSV des résultats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : fichier CSV\", function () { pm.response.to.have.status(200); });",
+                  "pm.test('en-têtes : pièce jointe CSV, jamais en cache', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv'); pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment'); pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });",
+                  "pm.test('en-tête du fichier et une ligne par étudiant attendu', function () { var lignes = pm.response.text().replace(/^\\uFEFF/, '').trim().split('\\n'); pm.expect(lignes[0]).to.eql('numEtudiant;nom;prenom;email;promotion;etatCopie;note;bareme;noteSur20;dateRemise'); pm.expect(lignes.length).to.be.at.least(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "csv"
+              ]
+            },
+            "description": "UTF-8 avec BOM, séparateur « ; », une ligne par étudiant attendu (absents compris). Données personnelles : réservé au propriétaire de l'évaluation."
+          }
+        },
+        {
+          "name": "9.3 DS-09: Statistiques d'une évaluation inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 : évaluation inconnue\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/999999/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "999999",
+                "statistiques"
+              ]
+            },
+            "description": "404 pour une évaluation qui n'existe pas."
+          }
+        },
+        {
+          "name": "9.4 DS-09: Statistiques réservées à l'enseignant → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 : étudiant refusé\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "statistiques"
+              ]
+            },
+            "description": "Un étudiant n'a accès ni aux statistiques ni à l'export."
+          }
+        },
+        {
+          "name": "9.5 DS-09: Export réservé à l'enseignant → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 : étudiant refusé\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "csv"
+              ]
+            },
+            "description": "Le fichier contient des données personnelles d'étudiants."
+          }
+        }
+      ]
     }
   ]
 }

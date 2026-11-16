@@ -72,6 +72,10 @@ public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
             + " where s.id = :id and s.statut = sn.ept.eval.model.enums.StatutSoumission.SOUMIS")
     int reporterProchaineTentative(@Param("id") Long id, @Param("date") LocalDateTime date);
 
+    /** Notes finales des copies notées d'une évaluation (statistiques de l'enseignant, DS-09). */
+    @Query("select s.noteFinale from Soumission s where s.evaluation.id = :evaluationId and s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE and s.noteFinale is not null")
+    List<Double> notesFinales(@Param("evaluationId") Long evaluationId);
+
     /** Effectif et moyenne des copies notées d'une évaluation (DS-13). */
     interface StatistiquesNotes {
         Long getEvaluationId();

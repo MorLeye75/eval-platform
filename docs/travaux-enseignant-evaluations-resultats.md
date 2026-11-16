@@ -23,6 +23,7 @@ Aminou (espace enseignant). Ce document résume ce qui est fait, comment le vér
 | `DS-06-amenagement-temps.puml` | tiers-temps : plage, verrou de l'évaluation, copie déjà commencée |
 | `DS-07-publication-resultats.puml` | publication des résultats, copies pas encore notées |
 | `DS-08-correction-ia-validation.puml` | propositions IA (asynchrones), validation, rejet, note manuelle, note finale de la copie |
+| `DS-09-statistiques-export.puml` | statistiques sur 20 d'une évaluation, export CSV et protection du fichier |
 | `DS-16-administration.puml` | comptes, désactivation et garde-fous, mots de passe provisoires, promotions, import CSV tout ou rien |
 
 Chaîne « publication et consultation des résultats » : DS-04 publie l'**évaluation**, DS-01 et DS-11 remettent et clôturent
@@ -46,6 +47,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Cas de test | **entrée facultative**, **sortie attendue obligatoire et non vide** (Judge0 traite une sortie vide comme absente) |
 | Détail étudiant | `GET /etudiant/evaluations/{id}` (demandé par Mor pour l'écran d'accueil du quiz) |
 | Correction IA (DS-08) | l'IA propose, l'enseignant valide ou rejette ; la dernière note passe la copie EVALUE et notifie l'étudiant si les résultats sont publiés ; note manuelle en repli |
+| Statistiques et export (DS-09) | statistiques sur 20 calculées à la demande sur les copies notées ; export CSV d'une ligne par étudiant attendu, absents compris |
 | Administration (DS-16) | comptes (création, modification, désactivation, mot de passe provisoire), promotions, import CSV d'étudiants tout ou rien ; un compte n'est jamais supprimé |
 | Notifications | interface `NotificationService` (3 événements) + implémentation par défaut sans effet (`@Bean @Fallback`), jamais préférée à celle du module de Mor |
 
@@ -58,6 +60,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Mes évaluations | mocks, boutons sans effet | API ; publier, repasser en brouillon, supprimer, publier les résultats ; actions selon l'état |
 | Publication des résultats | notes d'étudiants inventées, « publication » simulée | évaluations terminées de l'API, vraie route, bilan des copies notifiées |
 | Validation des corrections IA | mocks | API : génération pour une évaluation terminée, relecture automatique tant que des propositions se génèrent, valider / rejeter avec note, erreurs du serveur affichées |
+| Statistiques et export | mocks | API : indicateurs, distribution, taux par question, questions difficiles ; CSV téléchargé depuis l'API (le PDF et l'Excel natif sont retirés) |
 | Gestion des comptes (administrateur) | mocks, boutons désactivés | API : liste filtrée, création, modification, désactivation, mot de passe provisoire (affiché une fois), promotions, import CSV avec lignes en erreur |
 | Formulaire des cas de test | — | rappel « programme complet : stdin → stdout », entrée facultative |
 
@@ -71,6 +74,8 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Copies pas encore notées : publication autorisée | elles restent « en attente » ; leur étudiant est notifié à la notation (`resultatPublie`) |
 | Notifications créées dans la transaction de l'événement | jamais « publié sans notification », jamais de notification pour un événement annulé |
 | `NotificationService` en interface + `@Bean @Fallback` | pas de conflit avec le module de Mor : son bean est injecté à la place du mien, dans n'importe quel ordre d'enregistrement ; `@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration |
+| Statistiques sur 20, calculées à la demande | des barèmes différents restent comparables ; aucune table à tenir à jour, donc toujours exactes après une note validée (DS-08) |
+| Export CSV seulement (pas de PDF ni d'Excel natif) | le CSV s'ouvre dans Excel ; un PDF ou un .xlsx exigerait une bibliothèque lourde pour un gain faible |
 | Désactiver plutôt que supprimer un compte | les copies, évaluations, notes et notifications y sont rattachées ; la désactivation est immédiate (jetons refusés à la requête suivante) |
 | Import CSV tout ou rien, 500 lignes | une erreur de saisie ne doit pas laisser un import à moitié fait ; BCrypt est lent (hachage en parallèle) |
 | Connecteur IA simulé par défaut | pas de clé ni de fournisseur imposé ; la note de l'IA est une proposition, jamais écrite sans validation ; le vrai modèle se branche derrière `CorrecteurIA` (aucune identité d'étudiant envoyée) |
@@ -121,10 +126,9 @@ Postman : dossier « 05 - Évaluations enseignant (DS-03 à DS-07) » dans `docs
 
 - **DS-08, suite** : connecteur vers un vrai modèle de langage (fournisseur, clé `LLM_API_KEY` et coût à décider avec
   l'encadrant), écran de notes manuelles (la route `PUT /enseignant/reponses/{id}/note` existe), modification d'une note après coup.
-- **DS-09 Statistiques et export** : `StatistiquesEvaluation` (moyenne, min, max, écart-type, taux de réussite), export CSV.
-  Le détail des notes par étudiant de l'écran de publication y sera rattaché.
+- **DS-09, suite** : détail des notes par étudiant dans l'écran de publication des résultats (l'export CSV le donne déjà), comparaison avec les sessions précédentes (aucune donnée de référence), export PDF / Excel natif si l'encadrant l'exige.
 - **DS-16, suite** : gestion des promotions (modifier, supprimer), révocation des sessions d'un compte dont on réinitialise le mot de passe, changement de mot de passe obligatoire à la première connexion, tableau de bord, supervision, statistiques et paramètres de l'espace administrateur (encore simulés).
-- Écrans encore simulés : tableau de bord enseignant, supervision en temps réel, statistiques, validation IA, export.
+- Écrans encore simulés : tableau de bord enseignant, supervision en temps réel.
 - Gestion du tiers-temps dans l'interface (la route existe, DS-06, aucun écran).
 - Dupliquer une évaluation (bouton retiré faute de route).
 
