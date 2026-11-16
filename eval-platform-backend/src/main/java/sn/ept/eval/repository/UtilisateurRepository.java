@@ -14,6 +14,9 @@ import java.util.Optional;
 @Repository
 public interface UtilisateurRepository extends JpaRepository<Utilisateur, Long> {
     Optional<Utilisateur> findByEmail(String email);
+    /** E-mails déjà pris parmi ceux d'un fichier d'import (déjà normalisés, DS-16). */
+    @Query("select u.email from Utilisateur u where u.email in :emails")
+    java.util.List<String> emailsExistants(@Param("emails") java.util.Collection<String> emails);
     Boolean existsByEmail(String email);
 
     /**

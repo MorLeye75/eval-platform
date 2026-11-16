@@ -1,0 +1,155 @@
+@startuml DS-16_administration
+title DS-16 — Administration : comptes, mots de passe provisoires, import CSV d'étudiants
+hide footbox
+autonumber
+actor "Administrateur" as A
+boundary "Frontend React" as F
+control "Backend Spring\n(AdminComptesController)" as B
+control "AdminComptesService" as S
+control "ImportEtudiantsService" as I
+entity "BDD" as D
+
+note over A, D
+  **Principe** : seul un ADMIN gère les comptes. Un compte n'est **jamais supprimé** (copies, évaluations et notifications
+  y sont rattachées) : il est **désactivé**. Une désactivation prend effet à la requête suivante, sans attendre
+  l'expiration du jeton, car AuthTokenFilter relit le compte (isEnabled) à chaque requête.
+  Le mot de passe provisoire est généré par le serveur (SecureRandom, 12 caractères), renvoyé **une seule fois** dans la
+  réponse, stocké haché (BCrypt) et jamais journalisé. Les e-mails sont normalisés (minuscules, sans espaces, V11).
+end note
+
+== A — Lister les comptes et les promotions ==
+A -> F : ouvre « Gestion des comptes »
+F -> B ++ : GET /api/admin/utilisateurs?role=&actif=&q=
+note right of B : @PreAuthorize("hasRole('ADMIN')")
+B -> S ++ : lister(role, actif, q)
+S -> D ++ : SELECT utilisateurs (filtres, tri nom/prénom) avec leur promotion
+D --> S -- : comptes
+S --> B -- : liste
+B --> F -- : 200 OK [{ id, nom, prenom, email, role, actif, dateCreation, derniereConnexion,\npromotionId, promotion, numEtudiant, matricule }]
+note right of B : jamais de mot de passe ni de haché dans une réponse
+
+A -> F : « Nouvelle promotion »
+F -> B ++ : POST /api/admin/promotions { nom, annee }
+alt nom ou année vide
+  B --> F : 400 Bad Request
+else promotion de même nom et même année existante
+  B --> F : 409 Conflict (code COMPTE_OPERATION_REFUSEE)
+else
+  B -> D : INSERT Promotion
+  B --> F -- : 201 Created { id, nom, annee, nbEtudiants }
+end
+
+== B — Créer un compte ==
+A -> F : remplit le formulaire (rôle, identité, promotion + n° étudiant, ou matricule)
+F -> B ++ : POST /api/admin/utilisateurs { nom, prenom, email, role, promotionId?, numEtudiant?, matricule? }
+B -> S ++ : creer(requête)
+alt champ obligatoire manquant, e-mail invalide, ETUDIANT sans promotion ou sans numéro
+  S --> B : 400 Bad Request (problem+json, champ en cause)
+else promotion inconnue
+  S --> B : 404 Not Found
+else e-mail, numéro d'étudiant ou matricule déjà utilisé
+  S --> B : 409 Conflict (code COMPTE_OPERATION_REFUSEE)
+else
+  S -> S : motDePasseProvisoire = SecureRandom (12 caractères)
+  S -> D : INSERT Utilisateur (Etudiant, Enseignant ou Administrateur), actif = true, mot de passe haché
+  note right of D : course entre deux créations du même e-mail : la contrainte d'unicité\nrefuse la seconde (DataIntegrityViolation -> 409), jamais deux comptes
+  S --> B -- : compte + mot de passe provisoire
+  B --> F : 201 Created { utilisateur, motDePasseProvisoire }
+  F --> A : "Compte créé. Mot de passe provisoire : … (affiché une seule fois)"
+end
+deactivate B
+
+== C — Modifier un compte ==
+A -> F : modifie nom, prénom, e-mail, promotion, numéro ou matricule (le **rôle** ne change pas)
+F -> B ++ : PUT /api/admin/utilisateurs/{id} { nom, prenom, email, promotionId?, numEtudiant?, matricule? }
+B -> S ++ : modifier(id, requête)
+alt compte inconnu
+  S --> B : 404 Not Found
+else données invalides
+  S --> B : 400 Bad Request
+else doublon (e-mail, numéro, matricule d'un autre compte)
+  S --> B : 409 Conflict (code COMPTE_OPERATION_REFUSEE)
+else étudiant ayant déjà des copies et changement de promotion
+  S --> B : 409 Conflict (code COMPTE_OPERATION_REFUSEE, « il a déjà des copies »)
+  note right of S : changer la promotion d'un étudiant qui a composé fausserait les effectifs\net les accès aux évaluations déjà passées
+else
+  S -> D : UPDATE Utilisateur
+  S --> B -- : compte
+  B --> F -- : 200 OK
+end
+
+== D — Désactiver ou réactiver un compte ==
+A -> F : « Désactiver » (ou « Réactiver »)
+F -> B ++ : POST /api/admin/utilisateurs/{id}/desactiver (ou /activer)
+B -> S ++ : changerEtat(id, actif, adminConnecté)
+S -> D : SELECT Utilisateur WHERE id = :id
+alt compte inconnu
+  S --> B : 404 Not Found
+else c'est le compte de l'administrateur connecté (désactiver)
+  S --> B : 409 Conflict (code COMPTE_OPERATION_REFUSEE, « vous ne pouvez pas désactiver votre propre compte »)
+else dernier administrateur actif (désactiver)
+  S --> B : 409 Conflict (code COMPTE_OPERATION_REFUSEE, « il doit rester un administrateur actif »)
+else
+  S -> D : UPDATE Utilisateur SET actif = :actif
+  note right of D : un compte désactivé ne peut plus se connecter, et ses jetons déjà émis\nsont refusés dès la requête suivante (isEnabled = false).\nSes copies, évaluations et notes sont conservées.
+  S --> B -- : compte
+  B --> F -- : 200 OK
+end
+note over S, D
+  Compte « dernier administrateur actif » : décompte et mise à jour dans la même transaction, sous verrou sur les
+  lignes des administrateurs actifs (SELECT … FOR UPDATE) : deux désactivations simultanées des deux derniers
+  administrateurs ne les désactivent pas tous les deux.
+end note
+
+== E — Réinitialiser un mot de passe ==
+A -> F : « Réinitialiser le mot de passe »
+F -> B ++ : POST /api/admin/utilisateurs/{id}/reinitialiser-mot-de-passe
+B -> S ++ : reinitialiser(id)
+alt compte inconnu
+  S --> B : 404 Not Found
+else
+  S -> S : nouveau motDePasseProvisoire (SecureRandom)
+  S -> D : UPDATE Utilisateur SET mot_de_passe = BCrypt(…)
+  S --> B -- : mot de passe provisoire
+  B --> F -- : 200 OK { motDePasseProvisoire }
+  F --> A : "Mot de passe provisoire : … (affiché une seule fois)"
+end
+note right of S : les sessions déjà ouvertes par ce compte ne sont pas coupées (pas de révocation par\nutilisateur) : pour couper un accès tout de suite, désactiver le compte (section D).\nL'utilisateur change ensuite son mot de passe depuis son profil (DS-14).
+
+== F — Importer des étudiants (CSV) ==
+A -> F : choisit un fichier CSV (UTF-8, en-tête : nom;prenom;email;numEtudiant;promotion)
+F -> B ++ : POST /api/admin/etudiants/import (multipart, champ « fichier »)
+B -> I ++ : importer(fichier)
+alt fichier vide, plus de 1 Mo (limite de Spring) ou plus de 500 lignes
+  I --> B : 400 Bad Request
+else en-tête absent ou colonnes manquantes
+  I --> B : 400 Bad Request (colonnes attendues)
+else
+  I -> I : lit toutes les lignes (séparateur « ; » ou « , », BOM toléré) et vérifie chacune
+  I -> D : SELECT e-mails, numéros d'étudiant et promotions existants (une requête chacun)
+  D --> I : références
+  note right of I : par ligne : les 5 champs, e-mail valide, promotion existante (nom exact),\npas de doublon avec la base **ni dans le fichier**
+  alt au moins une ligne en erreur
+    I --> B : aucune création, erreurs [{ ligne, message }]
+    B --> F : 422 Unprocessable Entity { importe = false, nbCrees = 0, erreurs, comptes = [] }
+    F --> A : liste des lignes à corriger (rien n'a été importé)
+  else toutes les lignes valides
+    I -> I : mot de passe provisoire par étudiant, hachage en parallèle (BCrypt est lent : 500 comptes)
+    I -> D : INSERT des étudiants, **une seule transaction** (tout ou rien)
+    note right of D : une erreur imprévue (contrainte, course avec une création simultanée)\nannule tout : jamais d'import partiel
+    I --> B -- : comptes créés
+    B --> F -- : 200 OK { importe = true, nbCrees, erreurs = [], comptes = [{ ligne, email, motDePasseProvisoire }] }
+    F --> A : "N étudiants importés" + bouton « Télécharger les mots de passe provisoires (CSV) »
+  end
+end
+note over F, D
+  Les mots de passe provisoires de l'import ne sont **affichés qu'une fois** : le fichier de comptes est généré dans le
+  navigateur à partir de la réponse, jamais conservé par le serveur ni mis en cache.
+end note
+
+note over A, D
+  **Règles communes** : toutes les routes exigent ADMIN (403 sinon, 401 sans jeton) ; aucune réponse ne contient de haché ;
+  les erreurs sont en problem+json ; 409 COMPTE_OPERATION_REFUSEE pour les doublons et les opérations interdites.
+  Horodatage : Clock de l'application. **Migration** : aucune (utilisateurs.actif existe déjà).
+end note
+@enduml

@@ -20,6 +20,7 @@ import java.util.Optional;
 
 @Repository
 public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
+    boolean existsByEtudiantId(Long etudiantId);
     boolean existsByEvaluationId(Long evaluationId);
     boolean existsByEvaluationIdAndEtudiantId(Long evaluationId, Long etudiantId);
     long countByEvaluationId(Long evaluationId);

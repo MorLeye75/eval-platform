@@ -97,6 +97,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /** 409 : doublon ou opération interdite sur un compte (DS-16). */
+    @ExceptionHandler(OperationCompteRefuseeException.class)
+    public ProblemDetail handleOperationCompteRefusee(OperationCompteRefuseeException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Opération sur le compte refusée");
+        problem.setType(URI.create(ERROR_BASE_URL + "compte-operation-refusee"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "COMPTE_OPERATION_REFUSEE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
     /** 409 : deux écritures concurrentes sur la même entité versionnée (@Version) ; le front recharge. */
     @ExceptionHandler(OptimisticLockingFailureException.class)
     public ProblemDetail handleConflitConcurrent(OptimisticLockingFailureException ex, HttpServletRequest request) {

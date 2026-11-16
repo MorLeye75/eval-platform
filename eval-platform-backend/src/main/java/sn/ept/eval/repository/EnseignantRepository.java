@@ -8,5 +8,6 @@ import java.util.Optional;
 
 @Repository
 public interface EnseignantRepository extends JpaRepository<Enseignant, Long> {
+    boolean existsByMatricule(String matricule);
     Optional<Enseignant> findByMatricule(String matricule);
 }

@@ -20,7 +20,7 @@ Les fichiers `.md` contiennent des diagrammes Mermaid, affichés directement par
 | DS-13 Consultation des résultats (détail d'une copie, tableau de bord) | `DS-13-consultation-resultats.puml` | Mor | aligné sur le code |
 | DS-14 Connexion, requêtes authentifiées et déconnexion (JWT) | `DS-14-connexion.puml` | Mor | aligné sur le code |
 | DS-15 Notifications | `DS-15-notifications.puml` | Mor | brouillon, à valider avec Aminou |
-| DS-16 Administration (comptes, import) | — | Aminou | réservé |
+| DS-16 Administration (comptes, mots de passe provisoires, import CSV) | `DS-16-administration.puml` | Aminou | aligné sur le code |
 
 Numérotation : DS-03 à DS-09 pour les modules d'Aminou, DS-10 à DS-15 pour ceux de Mor, DS-16 réservé à
 l'administration. Les alternatives des diagrammes s'écrivent `alt texte` et non `alt [texte]` : PlantUML ajoute déjà
