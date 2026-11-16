@@ -18,6 +18,7 @@ import {
 } from "@/lib/correctionsIA"
 import { CLE_EVALUATIONS_ENSEIGNANT, mesEvaluationsEnseignant } from "@/lib/evaluationsEnseignant"
 import { messageErreur } from "@/lib/passation"
+import NotesManuelles from "./NotesManuelles"
 
 // ============================================================
 // Validation des corrections IA (DS-08). L'IA propose une note par réponse ouverte ; la note retenue est
@@ -296,6 +297,8 @@ export default function ValidationIA() {
           })}
         </div>
       )}
+
+      <NotesManuelles onBilan={(r) => { setErreur(null); setInfo(bilan(r)) }} />
     </div>
   )
 }

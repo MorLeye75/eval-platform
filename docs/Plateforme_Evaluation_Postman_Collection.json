@@ -1743,6 +1743,50 @@
           }
         },
         {
+          "name": "5.13b2 DS-08: Réponses à noter à la main",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : liste des réponses à noter', function () { pm.response.to.have.status(200); });",
+                  "pm.test('tableau, chaque ligne a un barème et un étudiant', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.be.an('array');",
+                  "  j.forEach(function (r) { pm.expect(r.pointsMax).to.be.above(0); pm.expect(r.etudiant).to.be.a('string'); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/corrections-manuelles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "corrections-manuelles"
+              ]
+            },
+            "description": "Réponses ouvertes sans proposition IA et pas encore notées (même critère que enCours)."
+          }
+        },
+        {
           "name": "5.13c DS-08: Valider une proposition inconnue → 404",
           "event": [
             {

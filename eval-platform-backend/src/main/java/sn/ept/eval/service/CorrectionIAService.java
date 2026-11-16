@@ -12,6 +12,7 @@ import sn.ept.eval.dto.correction.CorrectionsIAResponse;
 import sn.ept.eval.dto.correction.NoteRequest;
 import sn.ept.eval.dto.correction.NoteResponse;
 import sn.ept.eval.dto.correction.PropositionIAResponse;
+import sn.ept.eval.dto.correction.ReponseANoterResponse;
 import sn.ept.eval.exception.CorrectionNonModifiableException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.model.*;
@@ -118,6 +119,19 @@ public class CorrectionIAService {
                 .map(this::versResponse).toList();
         long enCours = reponseOuverteRepository.compterSansProposition(enseignant.getId(), evaluationId);
         return new CorrectionsIAResponse(propositions, enCours);
+    }
+
+    /** Réponses sans proposition à noter à la main : même critère que le compteur « enCours » de {@link #lister}. */
+    @Transactional(readOnly = true)
+    public List<ReponseANoterResponse> aNoterAlaMain(String email, Long evaluationId) {
+        Enseignant enseignant = evaluationService.enseignantConnecte(email);
+        return reponseOuverteRepository.sansProposition(enseignant.getId(), evaluationId).stream().map(r -> {
+            Soumission copie = r.getSoumission();
+            Question question = (Question) Hibernate.unproxy(r.getQuestion());
+            return new ReponseANoterResponse(r.getId(), copie.getEvaluation().getId(), copie.getEvaluation().getTitre(),
+                    copie.getEtudiant().getPrenom() + " " + copie.getEtudiant().getNom(), question.getEnonce(),
+                    r.getTexteSoumis(), question.getPoints());
+        }).toList();
     }
 
     private PropositionIAResponse versResponse(ReponseOuverte r) {

@@ -21,6 +21,7 @@ vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
 vi.mock("@/lib/correctionsIA", async (original) => ({
   ...(await original<typeof import("@/lib/correctionsIA")>()),
   listerCorrectionsIA: vi.fn(),
+  listerANoterAlaMain: vi.fn().mockResolvedValue([]),
 }))
 
 const evaluation = (id: number, statut: EvaluationEnseignantApi["statut"], nbCopies: number): EvaluationEnseignantApi => ({

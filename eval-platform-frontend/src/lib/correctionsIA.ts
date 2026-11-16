@@ -67,3 +67,29 @@ export async function noterReponse(reponseId: number, note: number) {
   const { data } = await api.put<NoteApi>(`/enseignant/reponses/${reponseId}/note`, { note })
   return data
 }
+
+export interface ReponseANoterApi {
+  reponseId: number
+  evaluationId: number
+  evaluation: string
+  etudiant: string
+  question: string
+  reponse: string | null
+  pointsMax: number
+}
+
+export const CLE_NOTES_MANUELLES = ["enseignant-corrections-manuelles"] as const
+
+/** DS-08 E : réponses ouvertes sans proposition IA et pas encore notées, à noter à la main. */
+export async function listerANoterAlaMain() {
+  const { data } = await api.get<ReponseANoterApi[]>("/enseignant/corrections-manuelles")
+  return data
+}
+
+/** Note saisie (virgule ou point) ; null si absente ou hors de [0, barème]. */
+export function lireNoteSaisie(saisie: string, pointsMax: number): number | null {
+  const texte = saisie.trim().replace(",", ".")
+  if (texte === "") return null
+  const note = Number(texte)
+  return Number.isFinite(note) && note >= 0 && note <= pointsMax ? note : null
+}

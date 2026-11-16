@@ -151,6 +151,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | GET | `/enseignant/corrections-ia` | enseignant | propositions de l'IA (filtres `evaluationId`, `statut`) et nombre de réponses encore sans proposition (DS-08) |
 | PUT | `/enseignant/corrections-ia/{id}/valider` | enseignant (propriétaire) | retient la note de l'IA, ou `{ note }` ; si c'est la dernière note de la copie, elle passe EVALUE (DS-08) |
 | PUT | `/enseignant/corrections-ia/{id}/rejeter` | enseignant (propriétaire) | rejette ; `{ note }` obligatoire (DS-08) |
+| GET | `/enseignant/corrections-manuelles` | enseignant | réponses ouvertes sans proposition IA et pas encore notées, à noter à la main (filtre `evaluationId`) ; même critère que `enCours` (DS-08) |
 | PUT | `/enseignant/reponses/{id}/note` | enseignant (propriétaire) | note une réponse sans proposition (modèle indisponible, code sans cas de test) (DS-08) |
 | GET | `/admin/utilisateurs` | admin | liste des comptes (filtres `role`, `actif`, `q`), jamais de mot de passe (DS-16) |
 | POST | `/admin/utilisateurs` | admin | crée un compte ; renvoie un mot de passe provisoire, une seule fois (DS-16) |

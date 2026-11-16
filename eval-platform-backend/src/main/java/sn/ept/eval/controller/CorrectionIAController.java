@@ -9,6 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import sn.ept.eval.dto.correction.*;
+import java.util.List;
 import sn.ept.eval.model.enums.StatutProposition;
 import sn.ept.eval.service.CorrectionIAService;
 import sn.ept.eval.service.GenerationCorrectionIAService;
@@ -41,6 +42,13 @@ public class CorrectionIAController {
                                                         @RequestParam(required = false) StatutProposition statut,
                                                         Authentication authentication) {
         return ResponseEntity.ok(correctionService.lister(authentication.getName(), evaluationId, statut));
+    }
+
+    @Operation(summary = "Réponses à noter à la main", description = "Réponses ouvertes sans proposition IA, pas encore notées. Filtre facultatif : evaluationId.")
+    @GetMapping("/corrections-manuelles")
+    public ResponseEntity<List<ReponseANoterResponse>> aNoter(@RequestParam(required = false) Long evaluationId,
+                                                              Authentication authentication) {
+        return ResponseEntity.ok(correctionService.aNoterAlaMain(authentication.getName(), evaluationId));
     }
 
     @Operation(summary = "Valider une proposition", description = "Note facultative : sans elle, la note de l'IA est retenue.")

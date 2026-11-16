@@ -5,6 +5,7 @@ import { AxiosError, type AxiosResponse } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   genererPropositionsIA,
+  listerANoterAlaMain,
   listerCorrectionsIA,
   rejeterProposition,
   validerProposition,
@@ -17,6 +18,7 @@ vi.mock("@/lib/correctionsIA", async (original) => ({
   ...(await original<typeof import("@/lib/correctionsIA")>()),
   genererPropositionsIA: vi.fn(),
   listerCorrectionsIA: vi.fn(),
+  listerANoterAlaMain: vi.fn(),
   validerProposition: vi.fn(),
   rejeterProposition: vi.fn(),
 }))
@@ -49,6 +51,7 @@ async function ouvrirLaPremiere() {
 
 describe("validation des corrections IA (DS-08)", () => {
   beforeEach(() => {
+    vi.mocked(listerANoterAlaMain).mockResolvedValue([])
     vi.mocked(listerCorrectionsIA).mockResolvedValue({ propositions: [proposition(1), proposition(2, { statut: "VALIDEE", noteRetenue: 4 })], enCours: 0 })
     vi.mocked(mesEvaluationsEnseignant).mockResolvedValue([terminee])
     vi.mocked(validerProposition).mockResolvedValue({ reponseId: 10, noteRetenue: 4.5, copieEvaluee: false, noteFinale: null })

@@ -133,7 +133,7 @@ Postman : dossier « 05 - Évaluations enseignant (DS-03 à DS-07) » dans `docs
 **Module d'Aminou**
 
 - **DS-08, suite** : connecteur vers un vrai modèle de langage (fournisseur, clé `LLM_API_KEY` et coût à décider avec
-  l'encadrant), écran de notes manuelles (la route `PUT /enseignant/reponses/{id}/note` existe), modification d'une note après coup.
+  l'encadrant), modification d'une note après coup. Les notes manuelles ont leur écran (section « À noter à la main » de la validation IA).
 - **DS-09, suite** : détail des notes par étudiant dans l'écran de publication des résultats (l'export CSV le donne déjà), comparaison avec les sessions précédentes (aucune donnée de référence), export PDF / Excel natif si l'encadrant l'exige.
 - **DS-16, suite** : gestion des promotions (modifier, supprimer), révocation des sessions d'un compte dont on réinitialise le mot de passe, changement de mot de passe obligatoire à la première connexion, paramètres système de l'espace administrateur (aperçu non branché : aucune configuration modifiable à chaud n'existe côté serveur).
 - Écran encore simulé : paramètres système de l'administrateur (signalé comme aperçu à l'écran).

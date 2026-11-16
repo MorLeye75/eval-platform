@@ -41,6 +41,17 @@ public interface ReponseOuverteRepository extends JpaRepository<ReponseOuverte, 
                                                    @Param("evaluationId") Long evaluationId,
                                                    @Param("statut") StatutProposition statut);
 
+    /** Réponses à noter à la main : mêmes critères que {@link #compterSansProposition}, avec de quoi les afficher. */
+    @Query("""
+            select r from ReponseOuverte r
+            join fetch r.question join fetch r.soumission s join fetch s.evaluation e join fetch s.etudiant
+            where e.enseignant.id = :enseignantId
+              and s.statut = sn.ept.eval.model.enums.StatutSoumission.EN_CORRECTION
+              and r.propositionIA is null and r.valideeParProf = false
+              and (:evaluationId is null or e.id = :evaluationId)
+            order by e.id, r.id""")
+    List<ReponseOuverte> sansProposition(@Param("enseignantId") Long enseignantId, @Param("evaluationId") Long evaluationId);
+
     @Query("select r from ReponseOuverte r where r.propositionIA.id = :propositionId")
     Optional<ReponseOuverte> findByPropositionId(@Param("propositionId") Long propositionId);
 }

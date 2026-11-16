@@ -129,6 +129,16 @@ note over E, D
   Si la réponse a une proposition EN_ATTENTE, celle-ci passe REJETEE : la note de l'enseignant prévaut.
 end note
 
+note over E, D
+  **Liste des réponses à noter à la main** (écran de l'enseignant) :
+  E -> F -> B : GET /api/enseignant/corrections-manuelles[?evaluationId=]
+  B -> D : réponses ouvertes des évaluations de l'enseignant dont la copie est EN_CORRECTION, sans proposition IA et
+  pas encore notées (même définition que « enCours » de la section C : le compteur et la liste ne peuvent pas diverger).
+  200 OK [{ reponseId, evaluationId, evaluation, etudiant, question, reponse, pointsMax }], triées par évaluation puis par
+  réponse ; lecture seule, sans verrou ; 401 sans jeton, 403 hors rôle ENSEIGNANT. Le filtre evaluationId d'une évaluation
+  d'un autre enseignant ne renvoie rien (la requête est bornée à l'enseignant connecté).
+end note
+
 note over B, D
   **Règles communes** : la note retenue est toujours celle de l'enseignant, bornée à [0 ; barème] ; la proposition de
   l'IA est conservée (audit) ; une copie n'est jamais EVALUE avec une réponse non notée ; aucune note n'est visible

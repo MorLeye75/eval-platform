@@ -222,10 +222,24 @@ class CorrectionIAIntegrationTest {
         mockMvc.perform(get("/enseignant/corrections-ia?evaluationId=" + cas.evaluationId()).header("Authorization", prof))
                 .andExpect(jsonPath("$.propositions").isEmpty())
                 .andExpect(jsonPath("$.enCours").value(2));
+        // La liste à noter à la main contient exactement ces deux réponses (même critère que le compteur « enCours »)
+        mockMvc.perform(get("/enseignant/corrections-manuelles?evaluationId=" + cas.evaluationId()).header("Authorization", prof))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].reponseId").value(cas.reponseIds().get(0)))
+                .andExpect(jsonPath("$[0].pointsMax").value(4.0))
+                .andExpect(jsonPath("$[0].etudiant").isString());
 
         mockMvc.perform(put("/enseignant/reponses/" + cas.reponseIds().get(0) + "/note").header("Authorization", prof)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"note\":2}"))
                 .andExpect(status().isOk());
+        // Une réponse notée quitte la liste
+        mockMvc.perform(get("/enseignant/corrections-manuelles?evaluationId=" + cas.evaluationId()).header("Authorization", prof))
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].reponseId").value(cas.reponseIds().get(1)));
+        mockMvc.perform(get("/enseignant/corrections-manuelles").header("Authorization", bearer("etudiant@ept.sn", "etudiant123")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/enseignant/corrections-manuelles")).andExpect(status().isUnauthorized());
         mockMvc.perform(put("/enseignant/reponses/" + cas.reponseIds().get(0) + "/note").header("Authorization", prof)
                         .contentType(MediaType.APPLICATION_JSON).content("{\"note\":3}"))
                 .andExpect(status().isConflict());
