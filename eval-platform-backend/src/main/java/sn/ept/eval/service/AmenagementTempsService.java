@@ -3,6 +3,8 @@ package sn.ept.eval.service;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.ept.eval.dto.evaluation.AmenagementResponse;
+import sn.ept.eval.dto.evaluation.AmenagementsEvaluationResponse;
+import sn.ept.eval.dto.evaluation.AmenagementsEvaluationResponse.EtudiantAmenage;
 import sn.ept.eval.exception.EvaluationNonModifiableException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.model.AmenagementTemps;
@@ -13,6 +15,14 @@ import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.repository.AmenagementTempsRepository;
 import sn.ept.eval.repository.EtudiantRepository;
 import sn.ept.eval.repository.SoumissionRepository;
+
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Tiers-temps d'un étudiant pour une évaluation (DS-06).
@@ -36,6 +46,30 @@ public class AmenagementTempsService {
         this.etudiantRepository = etudiantRepository;
         this.amenagementTempsRepository = amenagementTempsRepository;
         this.soumissionRepository = soumissionRepository;
+    }
+
+    /** Étudiants attendus et leurs aménagements : trois lectures groupées, sans verrou. */
+    @Transactional(readOnly = true)
+    public AmenagementsEvaluationResponse lister(Long evaluationId, String email) {
+        Enseignant enseignant = evaluationService.enseignantConnecte(email);
+        Evaluation evaluation = evaluationService.evaluationDeLEnseignant(evaluationId, enseignant);
+
+        Map<Long, Integer> durees = new HashMap<>();
+        amenagementTempsRepository.findByEvaluationId(evaluationId)
+                .forEach(a -> durees.put(a.getEtudiant().getId(), a.getDureePersonnalisee()));
+        Set<Long> aCommence = new HashSet<>();
+        soumissionRepository.findByEvaluationId(evaluationId).forEach(s -> aCommence.add(s.getEtudiant().getId()));
+        boolean terminee = evaluation.getStatut() == StatutEvaluation.TERMINEE;
+
+        List<EtudiantAmenage> lignes = etudiantRepository
+                .findByPromotionIdIn(evaluation.getPromotions().stream().map(p -> p.getId()).toList()).stream()
+                .sorted(Comparator.comparing((Etudiant e) -> e.getNom().toLowerCase(Locale.ROOT))
+                        .thenComparing(e -> e.getPrenom().toLowerCase(Locale.ROOT)))
+                .map(e -> new EtudiantAmenage(e.getId(), e.getNom(), e.getPrenom(), e.getNumEtudiant(),
+                        durees.get(e.getId()), !terminee && !aCommence.contains(e.getId())))
+                .toList();
+        return new AmenagementsEvaluationResponse(evaluationId, evaluation.getDureeStandard(),
+                EvaluationService.plageEnMinutes(evaluation), lignes);
     }
 
     public AmenagementResponse definir(Long evaluationId, Long etudiantId, int dureeMinutes, String email) {

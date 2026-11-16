@@ -4,6 +4,7 @@ import {
   actionsDisponibles,
   creerEvaluation,
   definirAmenagement,
+  listerAmenagements,
   depublierEvaluation,
   detailEvaluationEnseignant,
   libelleNbQuestions,
@@ -73,6 +74,13 @@ describe("appels de l'espace enseignant (DS-03 à DS-07)", () => {
     expect(api.post).toHaveBeenCalledWith("/enseignant/evaluations/7/resultats/publier")
   })
 
+  it("tiers-temps : liste des étudiants et de leurs durées", async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: { evaluationId: 7, dureeStandard: 60, plageMinutes: 150, etudiants: [] } })
+    const r = await listerAmenagements(7)
+    expect(api.get).toHaveBeenCalledWith("/enseignant/evaluations/7/amenagements")
+    expect(r.plageMinutes).toBe(150)
+  })
+
   it("tiers-temps : PUT avec la durée, DELETE", async () => {
     await definirAmenagement(7, 42, 80)
     expect(api.put).toHaveBeenCalledWith("/enseignant/evaluations/7/amenagements/42", { dureeMinutes: 80 })
@@ -94,7 +102,7 @@ describe("actionsDisponibles : ce qui est proposé selon l'état de l'évaluatio
   it("brouillon : modifier, publier, supprimer ; rien d'autre", () => {
     expect(e("BROUILLON")).toEqual({
       modifier: true, supprimer: true, publier: true, depublier: false,
-      supervision: false, statistiques: false, publierResultats: false,
+      supervision: false, statistiques: false, publierResultats: false, tiersTemps: true,
     })
   })
 
@@ -104,6 +112,13 @@ describe("actionsDisponibles : ce qui est proposé selon l'état de l'évaluatio
     expect(e("PUBLIEE", null).depublier).toBe(true)
     expect(e("PUBLIEE").modifier).toBe(false)
     expect(e("PUBLIEE").supprimer).toBe(false)
+  })
+
+  it("tiers-temps : proposé tant que l'évaluation n'est pas terminée", () => {
+    expect(e("BROUILLON").tiersTemps).toBe(true)
+    expect(e("PUBLIEE").tiersTemps).toBe(true)
+    expect(e("EN_COURS", 5).tiersTemps).toBe(true)
+    expect(e("TERMINEE", 5).tiersTemps).toBe(false)
   })
 
   it("en cours : supervision, jamais de modification ni de dépublication", () => {

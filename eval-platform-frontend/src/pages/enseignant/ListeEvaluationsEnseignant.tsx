@@ -25,6 +25,7 @@ import {
   Send,
   Undo2,
   Megaphone,
+  Timer,
 } from "lucide-react"
 import type { StatutEvaluation } from "@/types"
 import {
@@ -284,6 +285,16 @@ export default function ListeEvaluationsEnseignant() {
                               className={BOUTON_ICONE}
                             >
                               <Eye className="size-3.5" aria-hidden />
+                            </Link>
+                          )}
+                          {a.tiersTemps && (
+                            <Link
+                              to={`/enseignant/evaluations/${e.id}/tiers-temps`}
+                              aria-label={`Tiers-temps : ${e.titre}`}
+                              title="Tiers-temps"
+                              className={BOUTON_ICONE}
+                            >
+                              <Timer className="size-3.5" aria-hidden />
                             </Link>
                           )}
                           {a.modifier && (

@@ -143,6 +143,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | DELETE | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | supprime un brouillon |
 | POST | `/enseignant/evaluations/{id}/publier` | enseignant (propriétaire) | BROUILLON → PUBLIEE (DS-04) |
 | POST | `/enseignant/evaluations/{id}/depublier` | enseignant (propriétaire) | PUBLIEE → BROUILLON tant qu'aucune copie n'existe (DS-04) |
+| GET | `/enseignant/evaluations/{id}/amenagements` | enseignant (propriétaire) | étudiants attendus, durée standard, plage d'ouverture et tiers-temps de chacun ; `modifiable` = ce que le PUT / DELETE acceptera (DS-06) |
 | PUT | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | tiers-temps ; corps `{ dureeMinutes }` (DS-06) |
 | DELETE | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | supprime un tiers-temps |
 | POST | `/enseignant/evaluations/{id}/resultats/publier` | enseignant (propriétaire) | rend notes et corrigés consultables et notifie les étudiants (DS-07) |
@@ -160,6 +161,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | POST | `/admin/etudiants/import` | admin | import CSV `nom;prenom;email;numEtudiant;promotion`, tout ou rien : 200, ou 422 avec les lignes en erreur (DS-16) |
 | GET | `/enseignant/evaluations/{id}/statistiques` | enseignant (propriétaire) | moyenne, médiane, min, max, écart-type, taux de réussite, distribution et taux par question, sur 20 ; 409 avant l'ouverture (DS-09) |
 | GET | `/enseignant/evaluations/{id}/export/csv` | enseignant (propriétaire) | résultats en CSV (UTF-8 BOM, « ; »), une ligne par étudiant attendu, absents compris (DS-09) |
+| GET | `/enseignant/supervision/{id}` | enseignant (propriétaire) | avancement en lecture seule d'une évaluation ouverte : état de chaque étudiant, réponses données, alertes anti-triche ; à relire toutes les 15 s (DS-17) |
 | POST | `/soumissions/evaluations/{id}/demarrer` | étudiant | démarre ou reprend une épreuve (copie expirée clôturée, copie remise sans questions) |
 | PUT | `/soumissions/{id}/sauvegarder` | étudiant | sauvegarde automatique des réponses (toutes les 30 s) ; corps `{ reponses, versionAttendue }` |
 | POST | `/soumissions/{id}/soumettre` | étudiant | soumission finale et correction asynchrone |
@@ -167,15 +169,6 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | GET | `/soumissions/{id}` | étudiant (sa copie), enseignant (ses évaluations), admin | détail d'une copie |
 
 ### Erreurs
-
-| GET | `/enseignant/supervision/{id}` | enseignant (propriétaire) | avancement en lecture seule d'une évaluation ouverte : état de chaque étudiant, réponses données, alertes anti-triche ; à relire toutes les 15 s (DS-17) |
-| 409 | temps d'épreuve écoulé (`TEMPS_EXPIRE`), copie verrouillée (`SOUMISSION_VERROUILLEE`), réponses enregistrées entre-temps depuis un autre onglet ou appareil (`VERSION_OBSOLETE`, avec `versionActuelle`), évaluation qui n'est plus modifiable (`EVALUATION_NON_MODIFIABLE`), modification simultanée (`CONFLIT_CONCURRENT`) |
-| 429 | trop de tentatives de connexion (`TROP_DE_TENTATIVES`, en-tête `Retry-After`) |
-| 500 | erreur interne, sans détail technique exposé |
-
-## Règles de passation
-
-Les diagrammes de séquence correspondants sont dans [`docs/diagrammes-sequence`](../docs/diagrammes-sequence).
 
 Toutes les erreurs suivent la norme **RFC 7807** (`application/problem+json`) avec un champ `code` :
 
@@ -185,6 +178,14 @@ Toutes les erreurs suivent la norme **RFC 7807** (`application/problem+json`) av
 | 401 | jeton absent, invalide ou expiré ; identifiants incorrects |
 | 403 | accès refusé : rôle, promotion, copie d'un autre étudiant |
 | 404 | ressource introuvable |
+| 409 | temps d'épreuve écoulé (`TEMPS_EXPIRE`), copie verrouillée (`SOUMISSION_VERROUILLEE`), réponses enregistrées entre-temps depuis un autre onglet ou appareil (`VERSION_OBSOLETE`, avec `versionActuelle`), évaluation qui n'est plus modifiable (`EVALUATION_NON_MODIFIABLE`), modification simultanée (`CONFLIT_CONCURRENT`) |
+| 429 | trop de tentatives de connexion (`TROP_DE_TENTATIVES`, en-tête `Retry-After`) |
+| 500 | erreur interne, sans détail technique exposé |
+
+## Règles de passation
+
+Les diagrammes de séquence correspondants sont dans [`docs/diagrammes-sequence`](../docs/diagrammes-sequence).
+
 - **Fin de l'épreuve** : `min(dateDebut + durée effective, dateFermeture)`, la durée effective étant le tiers-temps
   de l'étudiant s'il existe, sinon la durée standard. Une **marge de 2 minutes** s'applique ensuite. Le même calcul
   (`TempsEpreuveService`) sert à la sauvegarde, à la soumission, à la reprise et à la clôture automatique.
@@ -255,14 +256,6 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
   sont verrouillés `FOR UPDATE`). Import CSV : 500 lignes au plus, vérifié en entier avant toute création, une seule
   transaction, mots de passe hachés en parallèle ; les doublons sont cherchés dans le fichier et en base.
   409 `COMPTE_OPERATION_REFUSEE` pour les doublons et les opérations interdites.
-- **Notifications** : les services appellent l'interface `NotificationService` (3 événements), implémentée par
-  `NotificationServiceEnBase` (DS-15, Mor). Sans elle, `NotificationParDefautConfig` fournirait une implémentation sans effet, déclarée en
-  `@Bean @Fallback` : Spring ne l'injecte que si aucune autre implémentation existe, quel que soit l'ordre d'enregistrement
-  des beans (`@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration). `NotificationParDefautConfigTest`
-  le vérifie dans les deux ordres.
-- **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
-  étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
-
 - **Statistiques et export (DS-09)** : calculés à la demande (aucune table de statistiques), sur les seules copies notées
   (`EVALUE`), notes ramenées sur 20 (note / barème × 20). Réussite = 10/20 ; écart-type de la population, exigeant 2 copies ;
   sans copie notée, tout est `null` (jamais 0). Export CSV : cellules commençant par `= + - @` ou une tabulation préfixées d'une
@@ -271,6 +264,14 @@ et DS-07 (publication des résultats), dans [`docs/diagrammes-sequence`](../docs
 - **Supervision (DS-17)** : lecture seule et sans verrou (superviser ne ralentit jamais les étudiants). Le « temps réel » est un
   sondage du frontend. Les réponses données sont comptées en trois requêtes groupées (QCM avec un choix coché, code et texte non
   vides) : une réponse vide enregistrée par la sauvegarde automatique ne compte pas. 409 avant l'ouverture. Aucun contenu de réponse ni note.
+- **Notifications** : les services appellent l'interface `NotificationService` (3 événements), implémentée par
+  `NotificationServiceEnBase` (DS-15, Mor). Sans elle, `NotificationParDefautConfig` fournirait une implémentation sans effet, déclarée en
+  `@Bean @Fallback` : Spring ne l'injecte que si aucune autre implémentation existe, quel que soit l'ordre d'enregistrement
+  des beans (`@ConditionalOnMissingBean` n'est fiable que dans une auto-configuration). `NotificationParDefautConfigTest`
+  le vérifie dans les deux ordres.
+- **Réponses de l'enseignant** : `EvaluationResponse` contient les bonnes réponses ; elle ne doit jamais être servie à un
+  étudiant (l'étudiant reçoit `EvaluationEtudiantResponse`, sans question).
+
 ## Architecture
 
 ```
@@ -279,14 +280,6 @@ sn.ept.eval
 ├── service/      Logique métier
 ├── repository/   Accès aux données (Spring Data JPA)
 ├── model/        Entités JPA alignées sur le diagramme de classes UML
-| Service | Responsabilité |
-|---|---|
-| `SoumissionService` | cycle de vie d'une copie : démarrer, sauvegarder, soumettre, consulter |
-| `EvaluationEtudiantService` | liste des évaluations de l'étudiant, durée effective et état de sa copie |
-| `TempsEpreuveService` | durée effective (aménagements), fin d'épreuve, marge de 2 min, temps restant |
-| `EnregistrementReponsesService` | validation et enregistrement des réponses selon le type de question |
-| `AntiTricheService` | changements d'onglet (alertes au 3e et au 5e) et soumissions tardives |
-| `SoumissionAccesService` | étudiant connecté, propriété des copies, consultation selon le rôle |
 ├── dto/          Objets échangés avec le frontend
 ├── security/     JWT, Spring Security, limitation des tentatives de connexion
 ├── exception/    Exceptions métier et gestionnaire RFC 7807
@@ -295,6 +288,14 @@ sn.ept.eval
 
 La passation est répartie en services à responsabilité unique :
 
+| Service | Responsabilité |
+|---|---|
+| `SoumissionService` | cycle de vie d'une copie : démarrer, sauvegarder, soumettre, consulter |
+| `EvaluationEtudiantService` | liste des évaluations de l'étudiant, durée effective et état de sa copie |
+| `TempsEpreuveService` | durée effective (aménagements), fin d'épreuve, marge de 2 min, temps restant |
+| `EnregistrementReponsesService` | validation et enregistrement des réponses selon le type de question |
+| `AntiTricheService` | changements d'onglet (alertes au 3e et au 5e) et soumissions tardives |
+| `SoumissionAccesService` | étudiant connecté, propriété des copies, consultation selon le rôle |
 | `SoumissionMapper` | conversion en DTO, sans jamais exposer les bonnes réponses |
 | `CorrectionService` | correction automatique asynchrone (QCM et quiz chronométrés), sans effet si la copie n'est plus SOUMIS |
 | `CorrectionDeclencheur` | lancement de la correction après validation de la transaction |
@@ -312,20 +313,12 @@ Côté enseignant et administrateur (DS-03 à DS-09, DS-16, DS-17) :
 | `GenerationCorrectionIAService` + `CorrectionIATache` | déclenchement asynchrone des propositions IA d'une évaluation terminée (DS-08) |
 | `CorrectionIAService` | proposition, consultation, validation, rejet et note manuelle ; calcul de la note finale (DS-08) |
 | `CorrecteurIA` / `CorrecteurIASimule` | connecteur du modèle de langage (simulé par défaut) |
+| `SupervisionService` | avancement et alertes d'une évaluation ouverte (DS-17) |
 | `StatistiquesEvaluationService` | statistiques d'une évaluation sur 20 (DS-09) |
 | `ExportResultatsService` | export CSV des résultats, cellules protégées contre l'injection de formule (DS-09) |
 | `AdminComptesService` | comptes, promotions, désactivation et mots de passe provisoires (DS-16) |
 | `ImportEtudiantsService` | import CSV d'étudiants, tout ou rien (DS-16) |
 | `GenerateurMotDePasse` | mots de passe provisoires (`SecureRandom`) |
-## Tests
-
-```bash
-| `SupervisionService` | avancement et alertes d'une évaluation ouverte (DS-17) |
-mvn test
-```
-
-- **Tests unitaires** (Mockito, horloge figée) : règles de passation (temps, reprise, version des réponses), clôture
-  automatique, liste des évaluations, anti-triche, limitation des connexions, validation des DTO, format des erreurs.
 | `NotificationService` (interface) | événements de notification ; implémentation par défaut sans effet |
 | `NotificationServiceEnBase` | notifications enregistrées en base, dans la transaction de l'événement (DS-15) |
 | `MesNotificationsService` | liste, compteur, marquage comme lues, purge des lues de plus de 6 mois |
@@ -334,6 +327,14 @@ Concurrence : sauvegarde, soumission, clôture automatique, reprise et correctio
 (`SELECT ... FOR UPDATE`) ; une réponse ne peut pas être écrite après le passage à `SOUMIS` et une copie
 n'est corrigée qu'une fois.
 
+## Tests
+
+```bash
+mvn test
+```
+
+- **Tests unitaires** (Mockito, horloge figée) : règles de passation (temps, reprise, version des réponses), clôture
+  automatique, liste des évaluations, anti-triche, limitation des connexions, validation des DTO, format des erreurs.
 - **Tests d'intégration** (H2) : parcours complets de passation et de correction, sécurité HTTP des endpoints, et
   scénarios concurrents (démarrages simultanés, soumissions simultanées, correction relancée, sauvegarde depuis un
   onglet resté sur une ancienne version).

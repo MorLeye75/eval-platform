@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import sn.ept.eval.dto.evaluation.AmenagementRequestDTO;
 import sn.ept.eval.dto.evaluation.AmenagementResponse;
+import sn.ept.eval.dto.evaluation.AmenagementsEvaluationResponse;
 import sn.ept.eval.dto.evaluation.CreateEvaluationRequest;
 import sn.ept.eval.dto.evaluation.EvaluationResponse;
 import sn.ept.eval.dto.evaluation.ResultatsPublicationResponse;
@@ -101,6 +102,13 @@ public class EvaluationController {
     @PostMapping("/{id}/resultats/publier")
     public ResponseEntity<ResultatsPublicationResponse> publierResultats(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok(publicationResultatsService.publier(id, authentication.getName()));
+    }
+
+    @Operation(summary = "Étudiants attendus et leurs aménagements de temps",
+            description = "Lecture seule. `modifiable` indique si le PUT / DELETE de l'étudiant sera accepté (DS-06).")
+    @GetMapping("/{id}/amenagements")
+    public ResponseEntity<AmenagementsEvaluationResponse> listerAmenagements(@PathVariable Long id, Authentication authentication) {
+        return ResponseEntity.ok(amenagementTempsService.lister(id, authentication.getName()));
     }
 
     @Operation(summary = "Définir un aménagement de temps",

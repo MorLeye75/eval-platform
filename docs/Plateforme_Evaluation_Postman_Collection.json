@@ -1364,6 +1364,60 @@
           }
         },
         {
+          "name": "5.8a DS-06: Lister les étudiants et leurs tiers-temps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : liste des tiers-temps\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"durée standard, plage et étudiants présents\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.dureeStandard).to.be.above(0);",
+                  "  pm.expect(j.plageMinutes).to.be.at.least(j.dureeStandard);",
+                  "  pm.expect(j.etudiants).to.be.an(\"array\").that.is.not.empty;",
+                  "});",
+                  "pm.test(\"le tiers-temps défini en 5.8 apparaît pour son étudiant\", function () {",
+                  "  var id = Number(pm.collectionVariables.get(\"etudiantId\"));",
+                  "  var e = pm.response.json().etudiants.filter(function (x) { return x.etudiantId === id; })[0];",
+                  "  pm.expect(e).to.not.equal(undefined);",
+                  "  pm.expect(e.dureeMinutes).to.not.equal(null);",
+                  "  pm.expect(e.modifiable).to.equal(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "amenagements"
+              ]
+            },
+            "description": "Étudiants attendus, durée standard, plage d'ouverture et tiers-temps de chacun (null = durée standard). modifiable = faux si la copie est commencée ou l'évaluation terminée."
+          }
+        },
+        {
           "name": "5.9 DS-04: Publier",
           "event": [
             {

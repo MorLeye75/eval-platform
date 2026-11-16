@@ -161,6 +161,42 @@ export async function supprimerAmenagement(evaluationId: number, etudiantId: num
   await api.delete(`${BASE}/${evaluationId}/amenagements/${etudiantId}`)
 }
 
+export interface EtudiantAmenageApi {
+  etudiantId: number
+  nom: string
+  prenom: string
+  numEtudiant: string | null
+  /** Absente sans tiers-temps : l'étudiant a alors la durée standard. */
+  dureeMinutes: number | null
+  /** Faux si l'évaluation est terminée ou si l'étudiant a déjà commencé : le serveur refuserait la modification. */
+  modifiable: boolean
+}
+
+export interface AmenagementsEvaluationApi {
+  evaluationId: number
+  dureeStandard: number
+  /** Durée de la plage d'ouverture : borne maximale d'un tiers-temps. */
+  plageMinutes: number
+  etudiants: EtudiantAmenageApi[]
+}
+
+export const cleAmenagements = (id: string | number) => ["enseignant-amenagements", String(id)] as const
+
+/** DS-06 : étudiants attendus et tiers-temps de chacun. */
+export async function listerAmenagements(evaluationId: string | number) {
+  const { data } = await api.get<AmenagementsEvaluationApi>(`${BASE}/${evaluationId}/amenagements`)
+  return data
+}
+
+/** Message d'erreur d'une durée saisie, ou null si elle sera proposée au serveur. */
+export function erreurDuree(saisie: string, dureeStandard: number, plageMinutes: number): string | null {
+  const duree = Number(saisie)
+  if (saisie.trim() === "" || !Number.isInteger(duree)) return "Saisissez une durée en minutes (nombre entier)."
+  if (duree < dureeStandard) return `Un tiers-temps ne peut qu'augmenter la durée (minimum : ${dureeStandard} min).`
+  if (duree > plageMinutes) return `La plage d'ouverture ne dure que ${plageMinutes} min : réduisez le tiers-temps ou allongez la fermeture.`
+  return null
+}
+
 export function libelleNbQuestions(nb: number) {
   return `${nb} question${nb > 1 ? "s" : ""}`
 }
@@ -179,6 +215,8 @@ export interface ActionsEvaluation {
   statistiques: boolean
   /** Résultats publiables : évaluation terminée dont les résultats ne sont pas encore publiés (DS-07). */
   publierResultats: boolean
+  /** Tiers-temps (DS-06) : tant que l'évaluation n'est pas terminée. */
+  tiersTemps: boolean
 }
 
 export function actionsDisponibles(e: Pick<EvaluationEnseignantApi, "statut" | "nbCopies" | "resultatsPublies">): ActionsEvaluation {
@@ -191,5 +229,6 @@ export function actionsDisponibles(e: Pick<EvaluationEnseignantApi, "statut" | "
     supervision: e.statut === "EN_COURS",
     statistiques: e.statut === "TERMINEE" || e.statut === "PUBLIEE" || e.statut === "EN_COURS",
     publierResultats: e.statut === "TERMINEE" && !e.resultatsPublies,
+    tiersTemps: e.statut !== "TERMINEE",
   }
 }

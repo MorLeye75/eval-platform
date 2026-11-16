@@ -55,6 +55,28 @@ else valide
 end
 deactivate B
 
+== Liste des étudiants et de leurs aménagements (écran de l'enseignant) ==
+E -> F : ouvre « Tiers-temps » d'une évaluation
+F -> B ++ : GET /api/enseignant/evaluations/{id}/amenagements
+B -> D ++ : SELECT Evaluation (lecture simple, sans verrou)
+D --> B -- : évaluation
+alt évaluation inconnue
+  B --> F : 404 Not Found
+else évaluation d'un autre enseignant
+  B --> F : 403 Forbidden
+else valide
+  B -> D ++ : SELECT Etudiant WHERE promotionId IN promotions de l'évaluation
+  D --> B -- : étudiants attendus
+  B -> D ++ : SELECT AmenagementTemps WHERE evaluationId = :id
+  D --> B -- : aménagements
+  B -> D ++ : SELECT Soumission WHERE evaluationId = :id
+  D --> B -- : copies
+  note right of B : trois lectures groupées, jamais une requête par étudiant.\n**modifiable** par étudiant = évaluation non TERMINEE ET aucune copie\n(mêmes règles que PUT / DELETE : l'écran ne propose que ce qui sera accepté).
+  B --> F : 200 OK { dureeStandard, plageMinutes,\n  etudiants:[{ etudiantId, nom, prenom, numEtudiant, dureeMinutes|null, modifiable }] }
+  F --> E : tableau trié par nom ; durée standard rappelée ; champ de saisie seulement si modifiable
+end
+deactivate B
+
 note over B, D
   Au démarrage et à chaque calcul du temps restant, DS-10 / DS-01 utilisent
   la durée aménagée de l'étudiant si elle existe, sinon dureeStandard.

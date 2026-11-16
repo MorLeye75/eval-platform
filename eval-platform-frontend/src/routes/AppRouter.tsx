@@ -33,6 +33,7 @@ const ListeEvaluationsEnseignant = lazy(() => import("@/pages/enseignant/ListeEv
 const InfosGenerales = lazy(() => import("@/pages/enseignant/creation/InfosGenerales"))
 const BuilderQuestions = lazy(() => import("@/pages/enseignant/creation/BuilderQuestions"))
 const Previsualisation = lazy(() => import("@/pages/enseignant/creation/Previsualisation"))
+const TiersTemps = lazy(() => import("@/pages/enseignant/TiersTemps"))
 const SupervisionTempsReel = lazy(() => import("@/pages/enseignant/SupervisionTempsReel"))
 const ValidationIA = lazy(() => import("@/pages/enseignant/ValidationIA"))
 const StatistiquesEvaluation = lazy(() => import("@/pages/enseignant/StatistiquesEvaluation"))
@@ -129,6 +130,7 @@ export function AppRouter() {
             <Route path="evaluations/:id/edition" element={<InfosGenerales />} />
             <Route path="evaluations/:id/edition/questions" element={<BuilderQuestions />} />
             <Route path="evaluations/:id/edition/previsualisation" element={<Previsualisation />} />
+            <Route path="evaluations/:id/tiers-temps" element={<TiersTemps />} />
             <Route path="supervision/:id?" element={<SupervisionTempsReel />} />
             <Route path="validation-ia" element={<ValidationIA />} />
             <Route path="statistiques/:id?" element={<StatistiquesEvaluation />} />

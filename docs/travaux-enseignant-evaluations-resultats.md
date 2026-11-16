@@ -20,7 +20,7 @@ Aminou (espace enseignant). Ce document résume ce qui est fait, comment le vér
 | `DS-03-creation-evaluation.puml` | promotions, création, modification et suppression d'un brouillon, règles des questions et des cas de test |
 | `DS-04-publication-evaluation.puml` | publication (dont la plage d'ouverture) et dépublication |
 | `DS-05-statuts-automatiques.puml` | passage de statut par `UPDATE … WHERE statut = ancien`, notification d'ouverture sans doublon |
-| `DS-06-amenagement-temps.puml` | tiers-temps : plage, verrou de l'évaluation, copie déjà commencée |
+| `DS-06-amenagement-temps.puml` | tiers-temps : plage, verrou de l'évaluation, copie déjà commencée, liste des étudiants de l'écran |
 | `DS-07-publication-resultats.puml` | publication des résultats, copies pas encore notées |
 | `DS-08-correction-ia-validation.puml` | propositions IA (asynchrones), validation, rejet, note manuelle, note finale de la copie |
 | `DS-17-supervision-temps-reel.puml` | supervision en lecture seule, sondage, réponses réellement données, alertes |
@@ -48,6 +48,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Cas de test | **entrée facultative**, **sortie attendue obligatoire et non vide** (Judge0 traite une sortie vide comme absente) |
 | Détail étudiant | `GET /etudiant/evaluations/{id}` (demandé par Mor pour l'écran d'accueil du quiz) |
 | Correction IA (DS-08) | l'IA propose, l'enseignant valide ou rejette ; la dernière note passe la copie EVALUE et notifie l'étudiant si les résultats sont publiés ; note manuelle en repli |
+| Tiers-temps (DS-06) | écran par évaluation : liste des étudiants attendus avec leur durée ; champ de saisie seulement si le serveur acceptera la modification (`modifiable`), durée contrôlée avant l'envoi |
 | Supervision (DS-17) | avancement d'une évaluation ouverte en lecture seule, relu toutes les 15 s ; réponses réellement données comptées (les réponses vides de la sauvegarde automatique ne comptent pas) |
 | Statistiques et export (DS-09) | statistiques sur 20 calculées à la demande sur les copies notées ; export CSV d'une ligne par étudiant attendu, absents compris |
 | Administration (DS-16) | comptes (création, modification, désactivation, mot de passe provisoire), promotions, import CSV d'étudiants tout ou rien ; un compte n'est jamais supprimé |
@@ -134,7 +135,6 @@ Postman : dossier « 05 - Évaluations enseignant (DS-03 à DS-07) » dans `docs
 - **DS-09, suite** : détail des notes par étudiant dans l'écran de publication des résultats (l'export CSV le donne déjà), comparaison avec les sessions précédentes (aucune donnée de référence), export PDF / Excel natif si l'encadrant l'exige.
 - **DS-16, suite** : gestion des promotions (modifier, supprimer), révocation des sessions d'un compte dont on réinitialise le mot de passe, changement de mot de passe obligatoire à la première connexion, tableau de bord, supervision, statistiques et paramètres de l'espace administrateur (encore simulés).
 - Écrans encore simulés : espace administrateur (tableau de bord, supervision globale, statistiques globales, paramètres).
-- Gestion du tiers-temps dans l'interface (la route existe, DS-06, aucun écran).
 - Dupliquer une évaluation (bouton retiré faute de route).
 
 **Avec Mor**
