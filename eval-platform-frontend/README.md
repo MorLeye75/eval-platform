@@ -58,7 +58,9 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 | Enseignant : validation des corrections IA | API (`POST …/corrections-ia/generer`, `GET /enseignant/corrections-ia`, `PUT …/valider`, `PUT …/rejeter`) |
 | Administrateur : gestion des comptes (liste, création, modification, désactivation, mot de passe provisoire, promotions, import CSV d'étudiants) | API (`/admin/utilisateurs`, `/admin/promotions`, `/admin/etudiants/import`) |
 | Enseignant : statistiques d'une évaluation, export CSV des résultats | API (`GET /enseignant/evaluations/{id}/statistiques`, `GET …/export/csv`) |
-| Enseignant : tableau de bord, supervision ; administrateur : tableau de bord, supervision, statistiques, paramètres | simulés (`src/mocks`) |
+| Enseignant : supervision d'une évaluation en cours | API (`GET /enseignant/supervision/{id}`, relue toutes les 15 s) |
+| Enseignant : tableau de bord | synthèse des API existantes (évaluations, corrections IA), sans route dédiée |
+| Administrateur : tableau de bord, supervision, statistiques, paramètres | simulés (`src/mocks`) |
 
 Les dates et durées d'une évaluation sont vérifiées par le serveur à la publication : la plage d'ouverture doit être au
 moins aussi longue que la durée de l'épreuve, tiers-temps compris. L'assistant le signale dès l'étape 1 quand on choisit

@@ -2996,6 +2996,134 @@
           }
         }
       ]
+    },
+    {
+      "name": "10 - Supervision (DS-17)",
+      "item": [
+        {
+          "name": "10.1 DS-17: Supervision de l'évaluation en cours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : avancement lu\", function () { pm.response.to.have.status(200); });",
+                  "var s = pm.response.json();",
+                  "pm.test('effectifs cohérents, étudiants listés, en lecture seule', function () { pm.expect(s.nbSoumis).to.be.at.most(s.nbCommences); pm.expect(s.nbCommences).to.be.at.most(s.nbAttendus); pm.expect(s.etudiants).to.be.an('array'); pm.expect(pm.response.text()).to.not.include('noteFinale'); });",
+                  "pm.test('jamais mis en cache', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/supervision/{{evaluationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "supervision",
+                "{{evaluationId}}"
+              ]
+            },
+            "description": "Lecture seule : état de chaque étudiant attendu, réponses réellement données, alertes anti-triche. À relire toutes les 15 s. 409 avant l'ouverture."
+          }
+        },
+        {
+          "name": "10.2 DS-17: Supervision d'une évaluation inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 : évaluation inconnue\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/supervision/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "supervision",
+                "999999"
+              ]
+            },
+            "description": "404 pour une évaluation qui n'existe pas."
+          }
+        },
+        {
+          "name": "10.3 DS-17: Supervision réservée à l'enseignant → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 : étudiant refusé\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/supervision/{{evaluationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "supervision",
+                "{{evaluationId}}"
+              ]
+            },
+            "description": "La vue contient l'identité des étudiants : réservée au propriétaire de l'évaluation."
+          }
+        }
+      ]
     }
   ]
 }

@@ -1,0 +1,60 @@
+@startuml DS-17_supervision_temps_reel
+title DS-17 — Supervision d'une évaluation en cours (Enseignant)
+hide footbox
+autonumber
+actor "Enseignant" as E
+boundary "Frontend React" as F
+control "Backend Spring\n(SupervisionController)" as B
+control "SupervisionService" as S
+entity "BDD" as D
+
+note over E, D
+  **Principe** : une vue **en lecture seule** de l'avancement d'une évaluation de l'enseignant connecté : qui a commencé,
+  qui a rendu, combien de réponses données, et les alertes anti-triche déjà journalisées (changements d'onglet,
+  DS-01/DS-02). Aucune action sur une copie n'est possible depuis cet écran.
+  **Temps réel = sondage** : le frontend relit la route toutes les 15 s (refetchInterval) tant que l'évaluation est EN_COURS ;
+  le serveur ne pousse rien (pas de WebSocket) et chaque lecture est une lecture cohérente, sans verrou : superviser ne
+  ralentit jamais les étudiants qui composent.
+end note
+
+E -> F : ouvre « Supervision » (évaluation en cours)
+F -> B ++ : GET /api/enseignant/supervision/{evaluationId}
+note right of B : @PreAuthorize("hasRole('ENSEIGNANT')")
+B -> S ++ : supervision(evaluationId, email)
+S -> D ++ : SELECT Evaluation WHERE id = :id (questions, promotions)
+D --> S -- : évaluation
+alt évaluation inconnue
+  S --> B : 404 Not Found
+else évaluation d'un autre enseignant
+  S --> B : 403 Forbidden
+else statut = BROUILLON ou PUBLIEE
+  S --> B : 409 Conflict (code EVALUATION_NON_MODIFIABLE, « pas encore ouverte »)
+else EN_COURS ou TERMINEE
+  S -> D ++ : SELECT étudiants des promotions concernées\nSELECT copies de l'évaluation (statut, nbChangementsOnglet)
+  D --> S -- : attendus et copies
+  S -> D ++ : SELECT count des **réponses données** par copie, en 3 requêtes groupées :\nQCM avec au moins un choix coché, code non vide, texte non vide
+  D --> S -- : nombre de réponses par copie
+  note right of S : une réponse **vide** enregistrée par la sauvegarde automatique (DS-02) ne compte pas :\nsinon un étudiant qui n'a rien écrit apparaîtrait à 100 %. Une seule requête par type, jamais par copie.
+  S -> D ++ : SELECT alertes des copies de l'évaluation (description, niveau, date)
+  D --> S -- : alertes
+  S -> S : par étudiant attendu : état NON_COMMENCE (aucune copie), EN_COURS, SOUMIS (copie remise, en correction ou notée),\nnbReponses sur nbQuestions, nbChangementsOnglet, nbAlertes\ntotaux : attendus, commencés, soumis, alertes ; alertes triées de la plus récente à la plus ancienne
+  S --> B -- : supervision
+  B --> F -- : 200 OK { evaluationId, titre, statut, dateOuverture, dateFermeture, nbQuestions, nbAttendus, nbCommences, nbSoumis, nbAlertes,\netudiants [{ etudiantId, nom, prenom, etat, nbReponses, nbChangementsOnglet, nbAlertes }],\nalertes [{ id, etudiantId, etudiant, description, niveau, date }] }
+  F --> E : compte à rebours jusqu'à la fermeture, progression globale, progression par étudiant, alertes
+end
+deactivate B
+
+loop toutes les 15 s, tant que l'évaluation est EN_COURS
+  F -> B : GET /api/enseignant/supervision/{evaluationId}
+  B --> F : 200 OK (mêmes données)
+  note right of F : à la fermeture, le statut passe TERMINEE (DS-05) : le sondage s'arrête et l'écran\naffiche « Évaluation terminée » avec les derniers chiffres.\nÉchec réseau : le dernier état reste affiché avec « données non actualisées ».
+end
+
+note over E, D
+  **Confidentialité** : la vue contient l'identité des étudiants ; réservée au propriétaire de l'évaluation. Elle ne montre ni
+  contenu des réponses ni notes. Les alertes sont des **indices**, pas des preuves : l'écran le rappelle, la décision
+  reste à l'enseignant.
+  **Hors périmètre** : arbitrage d'une alerte, blocage d'une copie, message à un étudiant, supervision globale de
+  l'administrateur (vue multi-évaluations). Horodatage : Clock de l'application. **Migration** : aucune.
+end note
+@enduml
