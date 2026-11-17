@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Link } from "react-router-dom"
+import { Link, useNavigate } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -26,6 +26,7 @@ import {
   Undo2,
   Megaphone,
   Timer,
+  Copy,
 } from "lucide-react"
 import type { StatutEvaluation } from "@/types"
 import {
@@ -39,6 +40,7 @@ import {
   supprimerEvaluation,
 } from "@/lib/evaluationsEnseignant"
 import { messageErreur } from "@/lib/passation"
+import { dupliquerEvaluation } from "./creation/apiBrouillon"
 
 // ──────────────────────────────────────────────────────────
 //  Config statuts
@@ -87,6 +89,7 @@ export default function ListeEvaluationsEnseignant() {
   const [erreur, setErreur] = useState<string | null>(null)
   const [info, setInfo]     = useState<string | null>(null)
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   const evaluations = useQuery({
     queryKey: CLE_EVALUATIONS_ENSEIGNANT,
@@ -111,7 +114,12 @@ export default function ListeEvaluationsEnseignant() {
       + (r.nbCopiesEnAttente > 0 ? `, ${r.nbCopiesEnAttente} en attente de notation.` : "."),
     "La publication des résultats a échoué.",
   ))
-  const occupe = publier.isPending || depublier.isPending || supprimer.isPending || resultats.isPending
+  // La copie est un nouveau brouillon : on ouvre directement l'assistant pour en corriger les dates
+  const dupliquer = useMutation({
+    ...action(dupliquerEvaluation, (c) => `Copie créée : « ${c.titre} ».`, "La duplication a échoué."),
+    onSuccess: (c) => navigate(`/enseignant/evaluations/${c.id}/edition`, { state: { nouveau: true } }),
+  })
+  const occupe = publier.isPending || depublier.isPending || supprimer.isPending || resultats.isPending || dupliquer.isPending
 
   const toutes = evaluations.data ?? []
   const filtered = toutes.filter((e) => {
@@ -286,6 +294,18 @@ export default function ListeEvaluationsEnseignant() {
                             >
                               <Eye className="size-3.5" aria-hidden />
                             </Link>
+                          )}
+                          {a.dupliquer && (
+                            <button
+                              type="button"
+                              disabled={occupe}
+                              onClick={() => dupliquer.mutate(e.id)}
+                              aria-label={`Dupliquer : ${e.titre}`}
+                              title="Dupliquer en nouveau brouillon"
+                              className={BOUTON_ICONE}
+                            >
+                              <Copy className="size-3.5" aria-hidden />
+                            </button>
                           )}
                           {a.tiersTemps && (
                             <Link

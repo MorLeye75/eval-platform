@@ -49,6 +49,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Cas de test | **entrée facultative**, **sortie attendue obligatoire et non vide** (Judge0 traite une sortie vide comme absente) |
 | Détail étudiant | `GET /etudiant/evaluations/{id}` (demandé par Mor pour l'écran d'accueil du quiz) |
 | Correction IA (DS-08) | l'IA propose, l'enseignant valide ou rejette ; la dernière note passe la copie EVALUE et notifie l'étudiant si les résultats sont publiés ; note manuelle en repli |
+| Duplication (DS-03) | sans nouvelle route : le détail est relu puis recréé en brouillon « Copie de … » (questions, dates, promotions) ; ni tiers-temps, ni copies, ni notes ; les dates passées sont à corriger avant publication |
 | Tiers-temps (DS-06) | écran par évaluation : liste des étudiants attendus avec leur durée ; champ de saisie seulement si le serveur acceptera la modification (`modifiable`), durée contrôlée avant l'envoi |
 | Vue d'ensemble admin (DS-18) | trois lectures seules calculées à la demande ; services affichés seulement s'ils sont réellement connus ; moyennes sur 20 par promotion, « — » sans copie notée |
 | Supervision (DS-17) | avancement d'une évaluation ouverte en lecture seule, relu toutes les 15 s ; réponses réellement données comptées (les réponses vides de la sauvegarde automatique ne comptent pas) |
@@ -137,7 +138,6 @@ Postman : dossier « 05 - Évaluations enseignant (DS-03 à DS-07) » dans `docs
 - **DS-09, suite** : comparaison avec les sessions précédentes (aucune donnée de référence), export PDF / Excel natif si l'encadrant l'exige.
 - **DS-16, suite** : gestion des promotions (modifier, supprimer), révocation des sessions d'un compte dont on réinitialise le mot de passe, changement de mot de passe obligatoire à la première connexion, paramètres système de l'espace administrateur (aperçu non branché : aucune configuration modifiable à chaud n'existe côté serveur).
 - Écran encore simulé : paramètres système de l'administrateur (signalé comme aperçu à l'écran).
-- Dupliquer une évaluation (bouton retiré faute de route).
 
 **Avec Mor**
 

@@ -1,7 +1,13 @@
-import { describe, expect, it } from "vitest"
-import type { EvaluationEnseignantApi } from "@/lib/evaluationsEnseignant"
-import { versBrouillon, versDateTimeLocal, versRequete } from "./apiBrouillon"
+import { afterEach, describe, expect, it, vi } from "vitest"
+import { creerEvaluation, detailEvaluationEnseignant, type EvaluationEnseignantApi } from "@/lib/evaluationsEnseignant"
+import { dupliquerEvaluation, titreDeCopie, versBrouillon, versDateTimeLocal, versRequete } from "./apiBrouillon"
 import type { BrouillonEvaluation } from "./brouillon"
+
+vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
+  ...(await original<typeof import("@/lib/evaluationsEnseignant")>()),
+  detailEvaluationEnseignant: vi.fn(),
+  creerEvaluation: vi.fn(),
+}))
 
 const BROUILLON: BrouillonEvaluation = {
   evaluationId: null,
@@ -119,5 +125,49 @@ describe("versDateTimeLocal", () => {
   it("garde AAAA-MM-JJTHH:mm, valeur d'un champ datetime-local", () => {
     expect(versDateTimeLocal("2030-01-10T08:00:00")).toBe("2030-01-10T08:00")
     expect(versDateTimeLocal("2030-01-10T08:00")).toBe("2030-01-10T08:00")
+  })
+})
+
+describe("dupliquerEvaluation : nouveau brouillon depuis une évaluation existante (DS-03)", () => {
+  afterEach(() => { vi.clearAllMocks() })
+
+  const ORIGINALE: EvaluationEnseignantApi = {
+    id: 9, titre: "Réseaux — contrôle", description: "Contrôle", dureeStandard: 60, dateOuverture: "2020-01-10T08:00:00",
+    dateFermeture: "2020-01-10T12:00:00", statut: "TERMINEE", resultatsPublies: true, version: 4, promotionIds: [1, 2],
+    nbQuestions: 2, nbCopies: 30, nbAttendus: 45,
+    questions: [
+      { id: 1, type: "QCM", enonce: "Protocole fiable ?", ordre: 1, points: 2, estChoixMultiple: false, dureeQuestion: null,
+        choix: [{ texte: "TCP", estCorrect: true }, { texte: "UDP", estCorrect: false }], casTests: [] },
+      { id: 2, type: "OUVERTE", enonce: "Expliquez le routage", ordre: 2, points: 4, estChoixMultiple: null, dureeQuestion: null, choix: [], casTests: [] },
+    ],
+    amenagements: [{ etudiantId: 5, dureeMinutes: 80 }],
+  }
+
+  it("recrée titre, durée, dates, promotions et questions ; rien d'autre (ni tiers-temps, ni copies, ni identifiant)", async () => {
+    vi.mocked(detailEvaluationEnseignant).mockResolvedValue(ORIGINALE)
+    vi.mocked(creerEvaluation).mockResolvedValue({ ...ORIGINALE, id: 10 })
+
+    await dupliquerEvaluation(9)
+
+    expect(detailEvaluationEnseignant).toHaveBeenCalledWith(9)
+    const corps = vi.mocked(creerEvaluation).mock.calls[0][0]
+    expect(corps).toMatchObject({
+      titre: "Copie de Réseaux — contrôle", description: "Contrôle", dureeStandard: 60, promotionIds: [1, 2],
+      dateOuverture: "2020-01-10T08:00", dateFermeture: "2020-01-10T12:00",
+    })
+    expect(corps.questions.map((q) => q.type)).toEqual(["QCM", "OUVERTE"])
+    expect(corps.questions[0].choix).toEqual([{ texte: "TCP", estCorrect: true }, { texte: "UDP", estCorrect: false }])
+    expect(JSON.stringify(corps)).not.toMatch(/amenagements|resultatsPublies|nbCopies|"id"/)
+  })
+
+  it("la lecture échoue : rien n'est créé", async () => {
+    vi.mocked(detailEvaluationEnseignant).mockRejectedValue(new Error("403"))
+    await expect(dupliquerEvaluation(9)).rejects.toThrow("403")
+    expect(creerEvaluation).not.toHaveBeenCalled()
+  })
+
+  it("titreDeCopie : préfixe, tronqué à 255 caractères", () => {
+    expect(titreDeCopie("Examen")).toBe("Copie de Examen")
+    expect(titreDeCopie("x".repeat(300))).toHaveLength(255)
   })
 })

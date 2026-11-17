@@ -217,6 +217,8 @@ export interface ActionsEvaluation {
   publierResultats: boolean
   /** Tiers-temps (DS-06) : tant que l'évaluation n'est pas terminée. */
   tiersTemps: boolean
+  /** Dupliquer en un nouveau brouillon : toujours possible (DS-03). */
+  dupliquer: boolean
 }
 
 export function actionsDisponibles(e: Pick<EvaluationEnseignantApi, "statut" | "nbCopies" | "resultatsPublies">): ActionsEvaluation {
@@ -230,5 +232,6 @@ export function actionsDisponibles(e: Pick<EvaluationEnseignantApi, "statut" | "
     statistiques: e.statut === "TERMINEE" || e.statut === "PUBLIEE" || e.statut === "EN_COURS",
     publierResultats: e.statut === "TERMINEE" && !e.resultatsPublies,
     tiersTemps: e.statut !== "TERMINEE",
+    dupliquer: true,
   }
 }

@@ -59,6 +59,7 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 | Administrateur : gestion des comptes (liste, création, modification, désactivation, mot de passe provisoire, promotions, import CSV d'étudiants) | API (`/admin/utilisateurs`, `/admin/promotions`, `/admin/etudiants/import`) |
 | Enseignant : notes par étudiant dans la publication des résultats (`GET …/resultats`) | API |
 | Enseignant : statistiques d'une évaluation, export CSV des résultats | API (`GET /enseignant/evaluations/{id}/statistiques`, `GET …/export/csv`) |
+| Enseignant : dupliquer une évaluation en nouveau brouillon (bouton de « Mes évaluations ») | API existante : `GET` du détail puis `POST` de création, sans nouvelle route (DS-03) |
 | Enseignant : tiers-temps d'une évaluation (`/enseignant/evaluations/:id/tiers-temps`) | API (`GET` / `PUT` / `DELETE …/amenagements`) |
 | Enseignant : supervision d'une évaluation en cours | API (`GET /enseignant/supervision/{id}`, relue toutes les 15 s) |
 | Enseignant : tableau de bord | synthèse des API existantes (évaluations, corrections IA), sans route dédiée |

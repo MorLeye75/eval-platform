@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { AxiosError, type AxiosResponse } from "axios"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   depublierEvaluation,
@@ -13,6 +13,12 @@ import {
   type EvaluationEnseignantApi,
 } from "@/lib/evaluationsEnseignant"
 import ListeEvaluationsEnseignant from "./ListeEvaluationsEnseignant"
+import { dupliquerEvaluation } from "./creation/apiBrouillon"
+
+vi.mock("./creation/apiBrouillon", async (original) => ({
+  ...(await original<typeof import("./creation/apiBrouillon")>()),
+  dupliquerEvaluation: vi.fn(),
+}))
 
 vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
   ...(await original<typeof import("@/lib/evaluationsEnseignant")>()),
@@ -118,7 +124,7 @@ describe("Mes évaluations : lecture de l'API et actions (DS-03, DS-04, DS-07)",
     expect(screen.queryByRole("button", { name: "Supprimer : Évaluation 2" })).toBeNull()
     // En cours : supervision seulement
     expect(screen.getByRole("link", { name: "Supervision : Évaluation 3" })).toBeTruthy()
-    expect(screen.queryByRole("button", { name: /Évaluation 3$/ })).toBeNull()
+    expect(screen.queryByRole("button", { name: /^(Publier|Supprimer|Repasser).*Évaluation 3$/ })).toBeNull()
     // Terminée : résultats à publier
     expect(screen.getByRole("button", { name: "Publier les résultats : Évaluation 4" })).toBeTruthy()
     expect(screen.getByText("Résultats non publiés")).toBeTruthy()
@@ -224,5 +230,37 @@ describe("Mes évaluations : lecture de l'API et actions (DS-03, DS-04, DS-07)",
     expect(screen.queryByText("Évaluation 1")).toBeNull()
     expect(screen.getByText("Évaluation 3")).toBeTruthy()
     expect(screen.getByText("1 sur 4 évaluations")).toBeTruthy()
+  })
+
+  it("dupliquer : disponible quel que soit le statut, crée la copie puis ouvre son assistant d'édition", async () => {
+    vi.mocked(dupliquerEvaluation).mockResolvedValue(evaluation(77, "BROUILLON", { titre: "Copie de Évaluation 4" }))
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={["/liste"]}>
+          <Routes>
+            <Route path="/liste" element={<ListeEvaluationsEnseignant />} />
+            <Route path="/enseignant/evaluations/:id/edition" element={<p>Assistant d'édition</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    await screen.findByText("Évaluation 1")
+    for (const n of [1, 2, 3, 4]) expect(screen.getByRole("button", { name: `Dupliquer : Évaluation ${n}` })).toBeTruthy()
+
+    fireEvent.click(screen.getByRole("button", { name: "Dupliquer : Évaluation 4" }))
+
+    expect(await screen.findByText("Assistant d'édition")).toBeTruthy()
+    expect(vi.mocked(dupliquerEvaluation).mock.calls[0][0]).toBe(4)
+  })
+
+  it("duplication refusée : le message du serveur est affiché, on reste sur la liste", async () => {
+    vi.mocked(dupliquerEvaluation).mockRejectedValue(erreurHttp(403, "Cette évaluation appartient à un autre enseignant."))
+    afficher()
+    await screen.findByText("Évaluation 1")
+
+    fireEvent.click(screen.getByRole("button", { name: "Dupliquer : Évaluation 1" }))
+
+    expect((await screen.findByRole("alert")).textContent).toContain("appartient à un autre enseignant")
   })
 })

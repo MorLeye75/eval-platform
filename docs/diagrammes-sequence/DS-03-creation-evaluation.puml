@@ -100,6 +100,20 @@ else brouillon
 end
 deactivate B
 
+== Dupliquer une évaluation (sans nouvelle route) ==
+E -> F : clique « Dupliquer » sur une évaluation, quel que soit son statut
+F -> B ++ : GET /api/enseignant/evaluations/{id}
+B --> F -- : détail avec questions, choix et cas de test (404 / 403 comme ci-dessus)
+F -> F : construit le corps de création depuis ce détail ; titre = « Copie de » + titre (tronqué à 255 caractères)
+F -> B ++ : POST /api/enseignant/evaluations (route de création ci-dessus)
+B --> F -- : 201 Created, **nouveau brouillon** (mêmes règles de validation que toute création)
+F --> E : ouvre l'assistant d'édition sur la copie
+note right of F : la copie reprend titre, description, durée, dates, promotions et questions.
+ELLE NE REPREND PAS : tiers-temps, copies d'étudiants, notes, propositions IA, résultats publiés.
+Les dates d'une ancienne évaluation sont souvent passées : la publication (DS-04) refuse une fermeture
+dans le passé, l'enseignant les corrige dans l'assistant. Aucune migration, aucune nouvelle route :
+l'enseignant reste le propriétaire de la copie (le propriétaire vient du jeton).
+
 note over B
   **Règles de validation des questions**
   QCM : ≥ 2 choix, ≥ 1 choix correct ; un seul correct si estChoixMultiple = false

@@ -102,7 +102,7 @@ describe("actionsDisponibles : ce qui est proposé selon l'état de l'évaluatio
   it("brouillon : modifier, publier, supprimer ; rien d'autre", () => {
     expect(e("BROUILLON")).toEqual({
       modifier: true, supprimer: true, publier: true, depublier: false,
-      supervision: false, statistiques: false, publierResultats: false, tiersTemps: true,
+      supervision: false, statistiques: false, publierResultats: false, tiersTemps: true, dupliquer: true,
     })
   })
 

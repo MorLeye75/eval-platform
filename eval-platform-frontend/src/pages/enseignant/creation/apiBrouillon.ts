@@ -1,3 +1,4 @@
+import { creerEvaluation, detailEvaluationEnseignant } from "@/lib/evaluationsEnseignant"
 import type {
   EvaluationEnseignantApi,
   EvaluationRequete,
@@ -95,4 +96,22 @@ export function versBrouillon(evaluation: EvaluationEnseignantApi): BrouillonEva
     },
     questions: [...evaluation.questions].sort((a, b) => a.ordre - b.ordre).map(questionVersLocale),
   }
+}
+
+const PREFIXE_COPIE = "Copie de "
+const TITRE_MAX = 255
+
+/** Titre d'une copie : « Copie de » + titre, tronqué à la limite du serveur (255 caractères). */
+export function titreDeCopie(titre: string) {
+  return (PREFIXE_COPIE + titre).slice(0, TITRE_MAX)
+}
+
+/**
+ * Duplique une évaluation en un nouveau brouillon (DS-03) avec les routes existantes : le détail est relu, puis recréé.
+ * Reprend titre, description, durée, dates, promotions et questions ; ni tiers-temps, ni copies, ni notes, ni résultats.
+ */
+export async function dupliquerEvaluation(id: number) {
+  const detail = await detailEvaluationEnseignant(id)
+  const requete = versRequete(versBrouillon(detail))
+  return creerEvaluation({ ...requete, titre: titreDeCopie(detail.titre) })
 }
