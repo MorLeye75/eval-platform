@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { changerMotDePasse, lireProfil } from "@/lib/profil"
 import type { Profil } from "@/types"
 import ProfilePage from "./ProfilePage"
+import { AuthContext } from "@/context/AuthContext"
 
 vi.mock("@/lib/profil", () => ({ lireProfil: vi.fn(), changerMotDePasse: vi.fn() }))
 
@@ -102,5 +103,30 @@ describe("profil branché sur l'API", () => {
     afficher()
 
     await waitFor(() => expect(screen.getByText(/Impossible de charger votre profil/)).toBeTruthy())
+  })
+})
+
+describe("mot de passe provisoire (profil)", () => {
+  afterEach(() => cleanup())
+
+  it("bandeau affiché ; le changement réussi lève l'obligation dans la session", async () => {
+    vi.mocked(lireProfil).mockReset().mockResolvedValue(ETUDIANT)
+    vi.mocked(changerMotDePasse).mockReset().mockResolvedValue(undefined)
+    const updateUser = vi.fn()
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    render(
+      <AuthContext.Provider value={{
+        user: { nom: "Diop", prenom: "Awa", email: "awa.diop@ept.sn", role: "ETUDIANT", motDePasseProvisoire: true },
+        isAuthenticated: true, login: vi.fn(), logout: vi.fn(), updateUser,
+      }}>
+        <QueryClientProvider client={queryClient}><ProfilePage /></QueryClientProvider>
+      </AuthContext.Provider>
+    )
+    expect(await screen.findByText(/Votre mot de passe est provisoire/)).toBeTruthy()
+    saisir("Mot de passe actuel", "provisoire12")
+    saisir("Nouveau mot de passe", "unNouveauMotDePasse")
+    saisir("Confirmation", "unNouveauMotDePasse")
+    fireEvent.click(screen.getByRole("button", { name: /Modifier le mot de passe/ }))
+    await waitFor(() => expect(updateUser).toHaveBeenCalledWith({ motDePasseProvisoire: false }))
   })
 })

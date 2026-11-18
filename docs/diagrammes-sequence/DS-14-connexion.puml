@@ -80,7 +80,7 @@ else 401
 else serveur injoignable
   F -> F : cache gardé (la prochaine requête tranchera)
 end
-note right of F : ProtectedRoute : non connecté -> /login ;\nmauvais rôle -> accueil de son propre rôle
+note right of F : ProtectedRoute : non connecté -> /login ;\nmauvais rôle -> accueil de son propre rôle ;\nmot de passe provisoire (réponse /auth/login et /auth/me : motDePasseProvisoire = true) -> /profil seul :\nAuthTokenFilter répond 403 MOT_DE_PASSE_A_CHANGER à toute route hors /auth/** et /profil/** ;\nPUT /profil/mot-de-passe lève l'obligation (V14, DS-16)
 deactivate F
 
 == Déconnexion ==

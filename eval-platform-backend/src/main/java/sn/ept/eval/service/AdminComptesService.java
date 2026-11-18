@@ -167,6 +167,7 @@ public class AdminComptesService {
             }
             case ADMIN -> new Administrateur(nom, prenom, email, hache);
         };
+        compte.setMotDePasseProvisoire(true);
         return new CompteCreeResponse(versResponse(utilisateurRepository.saveAndFlush(compte)), motDePasse);
     }
 
@@ -236,6 +237,7 @@ public class AdminComptesService {
         String motDePasse = generateur.generer();
         compte.setMotDePasse(passwordEncoder.encode(motDePasse));
         compte.setMotDePasseModifieLe(java.time.LocalDateTime.now(clock));
+        compte.setMotDePasseProvisoire(true);
         utilisateurRepository.save(compte);
         return new MotDePasseProvisoireResponse(motDePasse);
     }

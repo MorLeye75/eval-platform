@@ -74,6 +74,7 @@ public class ProfilService {
             throw new IllegalArgumentException("Le nouveau mot de passe doit être différent de l'actuel.");
         }
         u.setMotDePasse(passwordEncoder.encode(nouveau));
+        u.setMotDePasseProvisoire(false);
         log.info("Mot de passe changé par l'utilisateur ID={}", u.getId());
     }
 

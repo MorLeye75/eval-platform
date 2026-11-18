@@ -22,6 +22,7 @@ public class UserDetailsImpl implements UserDetails {
     private Boolean actif;
     private Collection<? extends GrantedAuthority> authorities;
     private java.time.LocalDateTime motDePasseModifieLe;
+    private boolean motDePasseProvisoire;
 
     public UserDetailsImpl(Long id, String email, String nom, String prenom, String motDePasse, Role role, Boolean actif,
                            Collection<? extends GrantedAuthority> authorities) {
@@ -48,10 +49,12 @@ public class UserDetailsImpl implements UserDetails {
             authorities
         );
         details.motDePasseModifieLe = user.getMotDePasseModifieLe();
+        details.motDePasseProvisoire = user.isMotDePasseProvisoire();
         return details;
     }
 
     public java.time.LocalDateTime getMotDePasseModifieLe() { return motDePasseModifieLe; }
+    public boolean isMotDePasseProvisoire() { return motDePasseProvisoire; }
     public Long getId() { return id; }
     public String getNom() { return nom; }
     public String getPrenom() { return prenom; }

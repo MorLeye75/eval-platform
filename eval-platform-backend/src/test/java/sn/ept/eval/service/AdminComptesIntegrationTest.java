@@ -129,11 +129,11 @@ class AdminComptesIntegrationTest {
         long id = creerEtudiant(admin, email);
         String provisoire = reinitialiser(admin, id);
         String jetonEtudiant = bearer(email, provisoire);
-        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jetonEtudiant)).andExpect(status().isOk());
+        mockMvc.perform(get("/profil").header("Authorization", jetonEtudiant)).andExpect(status().isOk());
 
         mockMvc.perform(post("/admin/utilisateurs/" + id + "/desactiver").header("Authorization", admin))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.actif").value(false));
-        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jetonEtudiant)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/profil").header("Authorization", jetonEtudiant)).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/auth/login").contentType(JSON).content(login(email, provisoire))).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/admin/utilisateurs?actif=false&q=" + email).header("Authorization", admin))
                 .andExpect(jsonPath("$.length()").value(1));
@@ -175,16 +175,49 @@ class AdminComptesIntegrationTest {
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         long id = ((Number) JsonPath.read(corps, "$.utilisateur.id")).longValue();
         String ancienJeton = bearer(email, JsonPath.read(corps, "$.motDePasseProvisoire"));
-        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", ancienJeton)).andExpect(status().isOk());
+        mockMvc.perform(get("/profil").header("Authorization", ancienJeton)).andExpect(status().isOk());
 
         Thread.sleep(1100); // le jeton est daté à la seconde : un jeton émis dans la même seconde que le changement reste valable
         String nouveau = reinitialiser(admin, id);
 
-        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", ancienJeton)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/profil").header("Authorization", ancienJeton)).andExpect(status().isUnauthorized());
         String jetonNeuf = bearer(email, nouveau);
-        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jetonNeuf)).andExpect(status().isOk());
+        mockMvc.perform(get("/profil").header("Authorization", jetonNeuf)).andExpect(status().isOk());
         // l'administrateur qui a réinitialisé garde sa propre session
         mockMvc.perform(get("/admin/utilisateurs?q=" + email).header("Authorization", admin)).andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("Mot de passe provisoire : connexion marquée, tout refusé en 403 sauf /profil et /auth ; après changement, accès complet")
+    void motDePasseProvisoireObligeAChanger() throws Exception {
+        String admin = bearer("admin@ept.sn", "admin123");
+        String email = unEmail();
+        String corps = mockMvc.perform(post("/admin/utilisateurs").header("Authorization", admin).contentType(JSON)
+                        .content(creation("Sy", "Awa", email, "ETUDIANT", promotionId(), unNumero(), null)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String provisoire = JsonPath.read(corps, "$.motDePasseProvisoire");
+
+        String connexion = mockMvc.perform(post("/auth/login").contentType(JSON).content(login(email, provisoire)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.motDePasseProvisoire").value(true))
+                .andReturn().getResponse().getContentAsString();
+        String jeton = "Bearer " + JsonPath.read(connexion, "$.token");
+
+        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jeton))
+                .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("MOT_DE_PASSE_A_CHANGER"));
+        mockMvc.perform(get("/auth/me").header("Authorization", jeton))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.motDePasseProvisoire").value(true));
+        mockMvc.perform(get("/profil").header("Authorization", jeton)).andExpect(status().isOk());
+
+        mockMvc.perform(put("/profil/mot-de-passe").header("Authorization", jeton).contentType(JSON)
+                .content("{\"motDePasseActuel\":\"" + provisoire + "\",\"nouveauMotDePasse\":\"MonVraiMotDePasse1\"}"))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jeton)).andExpect(status().isOk());
+        mockMvc.perform(post("/auth/login").contentType(JSON).content(login(email, "MonVraiMotDePasse1")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.motDePasseProvisoire").value(false));
+        // un compte ordinaire (seed) n'est pas concerné
+        mockMvc.perform(post("/auth/login").contentType(JSON).content(login("etudiant@ept.sn", "etudiant123")))
+                .andExpect(jsonPath("$.motDePasseProvisoire").value(false));
     }
 
     // ---------------------------------------------------------------- promotions

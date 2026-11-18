@@ -104,6 +104,7 @@ public class AuthController {
                 userDetails.getRole()
         );
 
+        response.setMotDePasseProvisoire(userDetails.isMotDePasseProvisoire());
         return ResponseEntity.ok(response);
     }
 
@@ -140,6 +141,7 @@ public class AuthController {
                 userDetails.getRole()
         );
 
+        response.setMotDePasseProvisoire(userDetails.isMotDePasseProvisoire());
         return ResponseEntity.ok(response);
     }
 }

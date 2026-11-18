@@ -11,18 +11,20 @@ export interface User extends Partial<Utilisateur> {
   prenom: string
   email: string
   role: Role
+  /** Mot de passe attribué par un administrateur : seul le profil est accessible tant qu'il n'est pas changé. */
+  motDePasseProvisoire?: boolean
 }
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null
   isAuthenticated: boolean
   login: (email: string, motDePasse: string) => Promise<User>
   logout: () => void
   /** Met à jour l'utilisateur connecté (contexte + localStorage), ex. après édition du profil. */
-  updateUser: (patch: Partial<Pick<User, "nom" | "prenom" | "email">>) => void
+  updateUser: (patch: Partial<Pick<User, "nom" | "prenom" | "email" | "motDePasseProvisoire">>) => void
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 /** Réponse de /auth/login ou /auth/me sans le jeton (stocké à part). */
 function sansJeton(donnees: User & { token?: string | null }): User {
@@ -99,7 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
-  function updateUser(patch: Partial<Pick<User, "nom" | "prenom" | "email">>) {
+  function updateUser(patch: Partial<Pick<User, "nom" | "prenom" | "email" | "motDePasseProvisoire">>) {
     setUser((current) => {
       if (!current) return current
       const next = { ...current, ...patch }
@@ -113,6 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   )
+}
+
+/** Comme useAuth, sans erreur hors fournisseur (pages utilisables aussi seules, dans les tests). */
+export function useAuthOptionnel() {
+  return useContext(AuthContext)
 }
 
 export function useAuth() {

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { useAuthOptionnel } from "@/context/AuthContext"
 import { changerMotDePasse, lireProfil } from "@/lib/profil"
 import { messageErreur } from "@/lib/passation"
 import type { Role } from "@/types"
@@ -48,6 +49,8 @@ export default function ProfilePage() {
   const { data: profil, isPending, isError } = useQuery({ queryKey: ["profil"], queryFn: lireProfil })
 
   const [mdp, setMdp] = useState<MdpForm>({ actuel: "", nouveau: "", confirmation: "" })
+  const auth = useAuthOptionnel()
+  const doitChanger = auth?.user?.motDePasseProvisoire === true
   const [savedMdp, setSavedMdp] = useState(false)
   const [errorMdp, setErrorMdp] = useState<string | null>(null)
   const [savingMdp, setSavingMdp] = useState(false)
@@ -72,6 +75,7 @@ export default function ProfilePage() {
       await changerMotDePasse(mdp.actuel, mdp.nouveau)
       setMdp({ actuel: "", nouveau: "", confirmation: "" })
       setSavedMdp(true)
+      auth?.updateUser({ motDePasseProvisoire: false })
     } catch (err) {
       // Mot de passe actuel faux (400), trop d'échecs récents (429), nouveau mot de passe refusé : message du serveur
       setErrorMdp(messageErreur(err, "Le mot de passe n'a pas pu être modifié. Vérifiez votre connexion puis réessayez."))
@@ -141,6 +145,12 @@ export default function ProfilePage() {
           )}
         </CardContent>
       </Card>
+
+      {doitChanger && (
+        <div role="alert" className="rounded-xl bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
+          Votre mot de passe est provisoire : choisissez-en un nouveau pour accéder à la plateforme.
+        </div>
+      )}
 
       {/* Changement de mot de passe */}
       <Card className="rounded-2xl border-border/60 shadow-sm">

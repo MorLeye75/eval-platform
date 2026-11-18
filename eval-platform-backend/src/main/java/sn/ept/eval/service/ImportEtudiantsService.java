@@ -150,7 +150,11 @@ public class ImportEtudiantsService {
                 Ligne::numero, l -> passwordEncoder.encode(motsDePasse.get(l.numero()))));
 
         List<Etudiant> etudiants = valides.stream()
-                .map(l -> new Etudiant(l.nom(), l.prenom(), l.email(), haches.get(l.numero()), l.numEtudiant(), l.promotion()))
+                .map(l -> {
+                    Etudiant e = new Etudiant(l.nom(), l.prenom(), l.email(), haches.get(l.numero()), l.numEtudiant(), l.promotion());
+                    e.setMotDePasseProvisoire(true);
+                    return e;
+                })
                 .toList();
         etudiantRepository.saveAllAndFlush(etudiants);
 

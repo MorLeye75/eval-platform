@@ -54,6 +54,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    if (motDePasseProvisoireRefuse(request, userDetails)) {
+                        refuserMotDePasseProvisoire(response);
+                        return;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -61,6 +65,21 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /** Mot de passe provisoire : seuls /auth/** et /profil/** (pour le changer) restent accessibles. */
+    private boolean motDePasseProvisoireRefuse(HttpServletRequest request, UserDetails userDetails) {
+        if (!(userDetails instanceof sn.ept.eval.security.services.UserDetailsImpl d) || !d.isMotDePasseProvisoire()) return false;
+        String chemin = request.getRequestURI().substring(request.getContextPath().length());
+        return !(chemin.startsWith("/auth/") || chemin.equals("/profil") || chemin.startsWith("/profil/"));
+    }
+
+    private void refuserMotDePasseProvisoire(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/problem+json;charset=UTF-8");
+        response.getWriter().write("{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,"
+                + "\"code\":\"MOT_DE_PASSE_A_CHANGER\","
+                + "\"detail\":\"Vous devez d'abord remplacer votre mot de passe provisoire (profil).\"}");
     }
 
     private boolean emisAvantChangementDeMotDePasse(String jwt, UserDetails userDetails) {

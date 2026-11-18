@@ -10,6 +10,8 @@ public class LoginResponse {
     private String prenom;
     private String email;
     private Role role;
+    /** Vrai : l'interface n'offre que le changement de mot de passe (le serveur refuse le reste, 403). */
+    private boolean motDePasseProvisoire;
 
     public LoginResponse() {}
 
@@ -36,6 +38,9 @@ public class LoginResponse {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public boolean isMotDePasseProvisoire() { return motDePasseProvisoire; }
+    public void setMotDePasseProvisoire(boolean motDePasseProvisoire) { this.motDePasseProvisoire = motDePasseProvisoire; }
 
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }

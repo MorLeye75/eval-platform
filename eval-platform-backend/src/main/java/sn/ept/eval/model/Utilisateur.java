@@ -39,6 +39,10 @@ public class Utilisateur extends AuditableEntity {
     /** Posée quand un administrateur attribue un mot de passe provisoire : les jetons émis avant sont refusés. */
     private LocalDateTime motDePasseModifieLe;
 
+    /** Vrai tant que l'utilisateur n'a pas remplacé le mot de passe attribué par un administrateur. */
+    @Column(nullable = false)
+    private boolean motDePasseProvisoire = false;
+
     @OneToMany(mappedBy = "destinataire", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<Notification> notifications = new java.util.ArrayList<>();
 
@@ -74,6 +78,9 @@ public class Utilisateur extends AuditableEntity {
     public Boolean getActif() { return actif; }
     public void setActif(Boolean actif) { this.actif = actif; }
 
+
+    public boolean isMotDePasseProvisoire() { return motDePasseProvisoire; }
+    public void setMotDePasseProvisoire(boolean motDePasseProvisoire) { this.motDePasseProvisoire = motDePasseProvisoire; }
 
     public LocalDateTime getMotDePasseModifieLe() { return motDePasseModifieLe; }
     public void setMotDePasseModifieLe(LocalDateTime motDePasseModifieLe) { this.motDePasseModifieLe = motDePasseModifieLe; }
