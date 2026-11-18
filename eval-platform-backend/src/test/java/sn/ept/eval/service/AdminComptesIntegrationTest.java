@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -181,6 +182,44 @@ class AdminComptesIntegrationTest {
                         .content("{\"nom\":\"\",\"annee\":\"2026\"}")).andExpect(status().isBadRequest());
     }
 
+    @Test
+    @DisplayName("Renommer une promotion : 200 ; doublon avec une autre : 409 ; inconnue : 404 ; champ vide : 400")
+    void renommerPromotion() throws Exception {
+        String admin = bearer("admin@ept.sn", "admin123");
+        String suffixe = UUID.randomUUID().toString().substring(0, 6);
+        long id = creerPromotion(admin, "Renom A " + suffixe, "2030");
+        creerPromotion(admin, "Renom B " + suffixe, "2030");
+
+        mockMvc.perform(put("/admin/promotions/" + id).header("Authorization", admin).contentType(JSON)
+                        .content("{\"nom\":\"Renom A2 " + suffixe + "\",\"annee\":\"2031\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.nom").value("Renom A2 " + suffixe))
+                .andExpect(jsonPath("$.annee").value("2031")).andExpect(jsonPath("$.nbEtudiants").value(0));
+        // sans changement : pas de conflit avec soi-même
+        mockMvc.perform(put("/admin/promotions/" + id).header("Authorization", admin).contentType(JSON)
+                        .content("{\"nom\":\"renom a2 " + suffixe + "\",\"annee\":\"2031\"}")).andExpect(status().isOk());
+        mockMvc.perform(put("/admin/promotions/" + id).header("Authorization", admin).contentType(JSON)
+                        .content("{\"nom\":\"Renom B " + suffixe + "\",\"annee\":\"2030\"}")).andExpect(status().isConflict());
+        mockMvc.perform(put("/admin/promotions/999999").header("Authorization", admin).contentType(JSON)
+                        .content("{\"nom\":\"X\",\"annee\":\"1\"}")).andExpect(status().isNotFound());
+        mockMvc.perform(put("/admin/promotions/" + id).header("Authorization", admin).contentType(JSON)
+                        .content("{\"nom\":\" \",\"annee\":\"1\"}")).andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("Supprimer une promotion : vide 204 puis 404 ; avec des étudiants 409 et elle reste ; accès réservé à l'admin")
+    void supprimerPromotion() throws Exception {
+        String admin = bearer("admin@ept.sn", "admin123");
+        long vide = creerPromotion(admin, "Vide " + UUID.randomUUID().toString().substring(0, 6), "2030");
+        mockMvc.perform(delete("/admin/promotions/" + vide).header("Authorization", bearer("prof@ept.sn", "prof123")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/admin/promotions/" + vide).header("Authorization", admin)).andExpect(status().isNoContent());
+        mockMvc.perform(delete("/admin/promotions/" + vide).header("Authorization", admin)).andExpect(status().isNotFound());
+
+        Long occupee = promotionId();
+        mockMvc.perform(delete("/admin/promotions/" + occupee).header("Authorization", admin)).andExpect(status().isConflict());
+        assertThat(jdbcTemplate.queryForObject("select count(*) from promotions where id = ?", Integer.class, occupee)).isEqualTo(1);
+    }
+
     // ---------------------------------------------------------------- import CSV
 
     @Test
@@ -272,6 +311,13 @@ class AdminComptesIntegrationTest {
                         .content(creation("Sy", "Mariama", email, "ETUDIANT", promotionId(), unNumero(), null)))
                 .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         return ((Number) JsonPath.read(corps, "$.utilisateur.id")).longValue();
+    }
+
+    private long creerPromotion(String admin, String nom, String annee) throws Exception {
+        String corps = mockMvc.perform(post("/admin/promotions").header("Authorization", admin).contentType(JSON)
+                        .content("{\"nom\":\"" + nom + "\",\"annee\":\"" + annee + "\"}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        return ((Number) JsonPath.read(corps, "$.id")).longValue();
     }
 
     private String reinitialiser(String admin, long id) throws Exception {

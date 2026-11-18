@@ -9,6 +9,8 @@ import {
   importerEtudiants,
   listerComptes,
   reinitialiserMotDePasse,
+  renommerPromotion,
+  supprimerPromotion,
   type CompteAdminApi,
 } from "@/lib/adminComptes"
 import { listerPromotions } from "@/lib/evaluationsEnseignant"
@@ -23,6 +25,8 @@ vi.mock("@/lib/adminComptes", async (original) => ({
   reinitialiserMotDePasse: vi.fn(),
   importerEtudiants: vi.fn(),
   creerPromotion: vi.fn(),
+  renommerPromotion: vi.fn(),
+  supprimerPromotion: vi.fn(),
 }))
 vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
   ...(await original<typeof import("@/lib/evaluationsEnseignant")>()),
@@ -158,6 +162,33 @@ describe("gestion des comptes (DS-16)", () => {
     const liste = within(alerte.closest("[role=alert]") as HTMLElement)
     expect(liste.getByText("Ligne 3 : E-mail invalide : x")).toBeTruthy()
     expect(liste.getByText("Ligne 5 : Promotion inconnue : Z")).toBeTruthy()
+  })
+
+  it("renomme une promotion : le formulaire est prérempli, l'appel porte l'identifiant", async () => {
+    vi.mocked(renommerPromotion).mockResolvedValue({ id: 1, nom: "DIC2 Info", annee: "2026" })
+    afficher()
+    await screen.findByText("Prenom1 Nom1")
+    expect(screen.getByText("DIC2 (2026) · 10 étudiants")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Renommer la promotion DIC2" }))
+    const nom = screen.getByLabelText("Nom de la promotion") as HTMLInputElement
+    expect(nom.value).toBe("DIC2")
+    fireEvent.change(nom, { target: { value: "DIC2 Info" } })
+    fireEvent.click(screen.getByRole("button", { name: "Enregistrer la promotion" }))
+    await waitFor(() => expect(renommerPromotion).toHaveBeenCalledWith(1, "DIC2 Info", "2026"))
+    expect(await screen.findByText("Promotion « DIC2 Info » modifiée.")).toBeTruthy()
+  })
+
+  it("supprime une promotion après confirmation ; le refus du serveur (409) est affiché ; sans confirmation, aucun appel", async () => {
+    vi.mocked(supprimerPromotion).mockRejectedValue(erreurHttp(409, "Cette promotion compte 10 étudiant(s) : elle ne peut pas être supprimée."))
+    afficher()
+    await screen.findByText("Prenom1 Nom1")
+    vi.mocked(window.confirm).mockReturnValueOnce(false)
+    fireEvent.click(screen.getByRole("button", { name: "Supprimer la promotion DIC2" }))
+    expect(supprimerPromotion).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByRole("button", { name: "Supprimer la promotion DIC2" }))
+    await waitFor(() => expect(supprimerPromotion).toHaveBeenCalledWith(1))
+    expect(await screen.findByText("Cette promotion compte 10 étudiant(s) : elle ne peut pas être supprimée.")).toBeTruthy()
   })
 
   it("import réussi : nombre de comptes créés et téléchargement des mots de passe proposé", async () => {

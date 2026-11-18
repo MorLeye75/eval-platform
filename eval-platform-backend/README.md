@@ -159,6 +159,8 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | POST | `/admin/utilisateurs/{id}/desactiver` \| `/activer` | admin | désactive (effet immédiat sur ses jetons) ou réactive ; refusé pour son propre compte et le dernier administrateur actif (DS-16) |
 | POST | `/admin/utilisateurs/{id}/reinitialiser-mot-de-passe` | admin | nouveau mot de passe provisoire, une seule fois (DS-16) |
 | POST | `/admin/promotions` | admin | crée une promotion (DS-16) |
+| PUT | `/admin/promotions/{id}` | admin | renomme une promotion ; 409 si doublon nom + année (DS-16) |
+| DELETE | `/admin/promotions/{id}` | admin | supprime une promotion vide ; 409 si elle a des étudiants ou des évaluations (DS-16) |
 | GET | `/admin/tableau-de-bord` | admin | comptes actifs par rôle, évaluations, activité sur 7 jours, services réellement connus (DS-18) |
 | GET | `/admin/supervision` | admin | évaluations en cours de toute la plateforme et 20 dernières alertes ; à relire toutes les 30 s (DS-18) |
 | GET | `/admin/statistiques` | admin | notes sur 20 des copies notées, taux de remise, détail par promotion ; indicateur `null` sans copie notée (DS-18) |

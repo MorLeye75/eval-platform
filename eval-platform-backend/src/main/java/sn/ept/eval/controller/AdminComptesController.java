@@ -77,6 +77,19 @@ public class AdminComptesController {
         return ResponseEntity.status(HttpStatus.CREATED).body(comptesService.creerPromotion(requete));
     }
 
+    @Operation(summary = "Renommer une promotion", description = "Nom et année ; les étudiants et les évaluations y restent rattachés.")
+    @PutMapping("/promotions/{id}")
+    public ResponseEntity<PromotionResponse> modifierPromotion(@PathVariable Long id, @Valid @RequestBody CreerPromotionRequest requete) {
+        return ResponseEntity.ok(comptesService.modifierPromotion(id, requete));
+    }
+
+    @Operation(summary = "Supprimer une promotion", description = "Refusé (409) si elle compte des étudiants ou des évaluations.")
+    @DeleteMapping("/promotions/{id}")
+    public ResponseEntity<Void> supprimerPromotion(@PathVariable Long id) {
+        comptesService.supprimerPromotion(id);
+        return ResponseEntity.noContent().build();
+    }
+
     @Operation(summary = "Importer des étudiants (CSV)",
             description = "Colonnes : nom;prenom;email;numEtudiant;promotion. Tout ou rien : 200 si importé, 422 avec la liste des lignes en erreur sinon.")
     @PostMapping(value = "/etudiants/import", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

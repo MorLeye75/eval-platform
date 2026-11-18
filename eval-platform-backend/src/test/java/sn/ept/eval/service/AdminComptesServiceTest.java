@@ -31,13 +31,14 @@ class AdminComptesServiceTest {
     private final AdministrateurRepository administrateurs = mock(AdministrateurRepository.class);
     private final PromotionRepository promotions = mock(PromotionRepository.class);
     private final SoumissionRepository soumissions = mock(SoumissionRepository.class);
+    private final sn.ept.eval.repository.EvaluationRepository evaluations = mock(sn.ept.eval.repository.EvaluationRepository.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private AdminComptesService service;
 
     @BeforeEach
     void setUp() {
         service = new AdminComptesService(utilisateurs, etudiants, enseignants, administrateurs, promotions, soumissions,
-                encoder, new GenerateurMotDePasse());
+                evaluations, encoder, new GenerateurMotDePasse());
         when(utilisateurs.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
     }
 
@@ -45,6 +46,24 @@ class AdminComptesServiceTest {
         Administrateur a = new Administrateur("Nom", "Prenom", email, "x");
         a.setId(id);
         return a;
+    }
+
+    @Test
+    @DisplayName("Supprimer une promotion liée à une évaluation : refusé, rien n'est supprimé ; vide : supprimée")
+    void supprimerPromotionLieeAUneEvaluation() {
+        sn.ept.eval.model.Promotion promotion = new sn.ept.eval.model.Promotion("DIC1", "2026");
+        promotion.setId(7L);
+        when(promotions.findById(7L)).thenReturn(Optional.of(promotion));
+        when(etudiants.countByPromotionId(7L)).thenReturn(0L);
+        when(evaluations.countByPromotionsId(7L)).thenReturn(2L);
+
+        assertThatThrownBy(() -> service.supprimerPromotion(7L))
+                .isInstanceOf(OperationCompteRefuseeException.class).hasMessageContaining("2 évaluation(s)");
+        verify(promotions, never()).delete(any());
+
+        when(evaluations.countByPromotionsId(7L)).thenReturn(0L);
+        service.supprimerPromotion(7L);
+        verify(promotions).delete(promotion);
     }
 
     @Test

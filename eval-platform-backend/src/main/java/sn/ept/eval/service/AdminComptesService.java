@@ -22,6 +22,7 @@ import sn.ept.eval.model.enums.Role;
 import sn.ept.eval.repository.AdministrateurRepository;
 import sn.ept.eval.repository.EnseignantRepository;
 import sn.ept.eval.repository.EtudiantRepository;
+import sn.ept.eval.repository.EvaluationRepository;
 import sn.ept.eval.repository.PromotionRepository;
 import sn.ept.eval.repository.SoumissionRepository;
 import sn.ept.eval.repository.UtilisateurRepository;
@@ -49,13 +50,16 @@ public class AdminComptesService {
     private final AdministrateurRepository administrateurRepository;
     private final PromotionRepository promotionRepository;
     private final SoumissionRepository soumissionRepository;
+    private final EvaluationRepository evaluationRepository;
     private final PasswordEncoder passwordEncoder;
     private final GenerateurMotDePasse generateur;
 
     public AdminComptesService(UtilisateurRepository utilisateurRepository, EtudiantRepository etudiantRepository,
                                EnseignantRepository enseignantRepository, AdministrateurRepository administrateurRepository,
                                PromotionRepository promotionRepository, SoumissionRepository soumissionRepository,
+                               EvaluationRepository evaluationRepository,
                                PasswordEncoder passwordEncoder, GenerateurMotDePasse generateur) {
+        this.evaluationRepository = evaluationRepository;
         this.utilisateurRepository = utilisateurRepository;
         this.etudiantRepository = etudiantRepository;
         this.enseignantRepository = enseignantRepository;
@@ -96,6 +100,39 @@ public class AdminComptesService {
         }
         Promotion promotion = promotionRepository.save(new Promotion(nom, annee));
         return new PromotionResponse(promotion.getId(), promotion.getNom(), promotion.getAnnee(), 0);
+    }
+
+    /** Renomme une promotion ; les étudiants et les évaluations y restent rattachés (le lien est l'identifiant). */
+    public PromotionResponse modifierPromotion(Long id, CreerPromotionRequest requete) {
+        Promotion promotion = promotion(id);
+        String nom = requete.nom().trim();
+        String annee = requete.annee().trim();
+        if (nom.isEmpty() || annee.isEmpty()) {
+            throw new IllegalArgumentException("Le nom et l'année de la promotion sont obligatoires.");
+        }
+        if (promotionRepository.existsByNomIgnoreCaseAndAnneeAndIdNot(nom, annee, id)) {
+            throw new OperationCompteRefuseeException("Une promotion « " + nom + " » existe déjà pour l'année " + annee + ".");
+        }
+        promotion.setNom(nom);
+        promotion.setAnnee(annee);
+        Promotion enregistree = promotionRepository.saveAndFlush(promotion);
+        return new PromotionResponse(enregistree.getId(), enregistree.getNom(), enregistree.getAnnee(),
+                etudiantRepository.countByPromotionId(id));
+    }
+
+    /** Supprime une promotion vide : sans étudiant ni évaluation, rien d'existant ne perd son rattachement. */
+    public void supprimerPromotion(Long id) {
+        Promotion promotion = promotion(id);
+        long etudiants = etudiantRepository.countByPromotionId(id);
+        if (etudiants > 0) {
+            throw new OperationCompteRefuseeException("Cette promotion compte " + etudiants + " étudiant(s) : elle ne peut pas être supprimée.");
+        }
+        long evaluations = evaluationRepository.countByPromotionsId(id);
+        if (evaluations > 0) {
+            throw new OperationCompteRefuseeException("Cette promotion est liée à " + evaluations + " évaluation(s) : elle ne peut pas être supprimée.");
+        }
+        promotionRepository.delete(promotion);
+        promotionRepository.flush();
     }
 
     // ------------------------------------------------------------------ B — créer

@@ -39,6 +39,32 @@ else
   B --> F -- : 201 Created { id, nom, annee, nbEtudiants }
 end
 
+A -> F : « Renommer » une promotion
+F -> B ++ : PUT /api/admin/promotions/{id} { nom, annee }
+alt nom ou année vide
+  B --> F : 400 Bad Request
+else promotion inconnue
+  B --> F : 404 Not Found
+else une autre promotion porte déjà ce nom pour cette année
+  B --> F : 409 Conflict (code COMPTE_OPERATION_REFUSEE)
+else
+  B -> D : UPDATE Promotion (le lien étudiants / évaluations est l'identifiant : rien ne bouge)
+  B --> F -- : 200 OK { id, nom, annee, nbEtudiants }
+end
+
+A -> F : « Supprimer » une promotion (confirmation demandée)
+F -> B ++ : DELETE /api/admin/promotions/{id}
+alt promotion inconnue
+  B --> F : 404 Not Found
+else elle compte des étudiants ou elle est liée à des évaluations
+  B --> F : 409 Conflict (message : nombre d'étudiants ou d'évaluations)
+  note right of B : supprimer laisserait des étudiants sans promotion
+et des évaluations sans public
+else vide
+  B -> D : DELETE Promotion
+  B --> F -- : 204 No Content
+end
+
 == B — Créer un compte ==
 A -> F : remplit le formulaire (rôle, identité, promotion + n° étudiant, ou matricule)
 F -> B ++ : POST /api/admin/utilisateurs { nom, prenom, email, role, promotionId?, numEtudiant?, matricule? }

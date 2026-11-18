@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Search, Plus, Pencil, Power, KeyRound, Upload, Download } from "lucide-react"
+import { Search, Plus, Pencil, Power, KeyRound, Upload, Download, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -18,6 +18,8 @@ import {
   listerComptes,
   modifierCompte,
   reinitialiserMotDePasse,
+  renommerPromotion,
+  supprimerPromotion,
   type CompteAdminApi,
   type ImportApi,
 } from "@/lib/adminComptes"
@@ -78,7 +80,7 @@ export default function GestionComptes() {
   const [provisoire, setProvisoire] = useState<{ email: string; motDePasse: string } | null>(null)
   const [fichier, setFichier] = useState<File | null>(null)
   const [resultat, setResultat] = useState<ImportApi | null>(null)
-  const [promo, setPromo]     = useState({ nom: "", annee: "" })
+  const [promo, setPromo]     = useState<{ id: number | null; nom: string; annee: string }>({ id: null, nom: "", annee: "" })
   const queryClient = useQueryClient()
 
   const comptes = useQuery({ queryKey: CLE_COMPTES_ADMIN, queryFn: listerComptes })
@@ -132,9 +134,22 @@ export default function GestionComptes() {
   })
 
   const nouvellePromotion = useMutation({
-    mutationFn: () => creerPromotion(promo.nom.trim(), promo.annee.trim()),
-    onSuccess: (p) => { setErreur(null); setInfo(`Promotion « ${p.nom} » créée.`); setPromo({ nom: "", annee: "" }) },
-    onError: echec("La création de la promotion a échoué."),
+    mutationFn: () => promo.id === null
+      ? creerPromotion(promo.nom.trim(), promo.annee.trim())
+      : renommerPromotion(promo.id, promo.nom.trim(), promo.annee.trim()),
+    onSuccess: (p) => {
+      setErreur(null)
+      setInfo(`Promotion « ${p.nom} » ${promo.id === null ? "créée" : "modifiée"}.`)
+      setPromo({ id: null, nom: "", annee: "" })
+    },
+    onError: echec("L'enregistrement de la promotion a échoué."),
+    onSettled: () => { queryClient.invalidateQueries({ queryKey: CLE_PROMOTIONS }); apres() },
+  })
+
+  const suppressionPromotion = useMutation({
+    mutationFn: (id: number) => supprimerPromotion(id),
+    onSuccess: () => { setErreur(null); setInfo("Promotion supprimée."); setPromo({ id: null, nom: "", annee: "" }) },
+    onError: echec("La suppression de la promotion a échoué."),
     onSettled: () => queryClient.invalidateQueries({ queryKey: CLE_PROMOTIONS }),
   })
 
@@ -391,7 +406,25 @@ export default function GestionComptes() {
           )}
 
           <hr className="border-border" />
-          <h3 className="font-semibold">Nouvelle promotion</h3>
+          <h3 className="font-semibold">Promotions</h3>
+          {(promotions.data ?? []).length > 0 && (
+            <ul className="flex flex-col divide-y divide-border rounded-xl border border-border/60 text-sm">
+              {(promotions.data ?? []).map((p) => (
+                <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                  <span>{p.nom} ({p.annee}) · {p.nbEtudiants} étudiant{p.nbEtudiants > 1 ? "s" : ""}</span>
+                  <span className="flex gap-1">
+                    <Button variant="ghost" size="icon" className="size-8" aria-label={`Renommer la promotion ${p.nom}`}
+                      onClick={() => setPromo({ id: p.id, nom: p.nom, annee: p.annee })}><Pencil className="size-4" /></Button>
+                    <Button variant="ghost" size="icon" className="size-8 text-destructive" aria-label={`Supprimer la promotion ${p.nom}`}
+                      disabled={suppressionPromotion.isPending}
+                      onClick={() => { if (window.confirm(`Supprimer la promotion « ${p.nom} » ? Possible seulement si elle est vide.`)) suppressionPromotion.mutate(p.id) }}>
+                      <Trash2 className="size-4" /></Button>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <h3 className="font-semibold">{promo.id === null ? "Nouvelle promotion" : "Renommer la promotion"}</h3>
           <form className="flex flex-wrap items-end gap-3" onSubmit={(e) => { e.preventDefault(); nouvellePromotion.mutate() }}>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="promotion-nom" className="text-sm font-medium">Nom de la promotion</label>
@@ -402,7 +435,10 @@ export default function GestionComptes() {
               <Input id="promotion-annee" required placeholder="2026-2027" value={promo.annee}
                 onChange={(e) => setPromo((p) => ({ ...p, annee: e.target.value }))} className="rounded-lg" />
             </div>
-            <Button type="submit" variant="outline" className="rounded-xl" disabled={nouvellePromotion.isPending}>Créer la promotion</Button>
+            <Button type="submit" variant="outline" className="rounded-xl" disabled={nouvellePromotion.isPending}>{promo.id === null ? "Créer la promotion" : "Enregistrer la promotion"}</Button>
+            {promo.id !== null && (
+              <Button type="button" variant="ghost" className="rounded-xl" onClick={() => setPromo({ id: null, nom: "", annee: "" })}>Annuler</Button>
+            )}
           </form>
         </CardContent>
       </Card>

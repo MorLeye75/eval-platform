@@ -9,6 +9,8 @@ import {
   listerComptes,
   modifierCompte,
   reinitialiserMotDePasse,
+  renommerPromotion,
+  supprimerPromotion,
 } from "@/lib/adminComptes"
 
 vi.mock("@/lib/axios", () => ({
@@ -44,6 +46,16 @@ describe("appels d'administration des comptes (DS-16)", () => {
     expect(api.post).toHaveBeenLastCalledWith("/admin/utilisateurs/5/reinitialiser-mot-de-passe")
     await creerPromotion("DIC3", "2026")
     expect(api.post).toHaveBeenLastCalledWith("/admin/promotions", { nom: "DIC3", annee: "2026" })
+  })
+
+  it("renommer et supprimer une promotion : bonnes routes", async () => {
+    vi.mocked(api.put).mockResolvedValue({ data: { id: 4, nom: "DIC3", annee: "2027" } })
+    vi.mocked(api.delete).mockResolvedValue({ data: undefined })
+
+    expect((await renommerPromotion(4, "DIC3", "2027")).nom).toBe("DIC3")
+    expect(api.put).toHaveBeenCalledWith("/admin/promotions/4", { nom: "DIC3", annee: "2027" })
+    await supprimerPromotion(4)
+    expect(api.delete).toHaveBeenCalledWith("/admin/promotions/4")
   })
 
   it("import : fichier envoyé en multipart ; le 422 (lignes en erreur) est rendu, pas levé", async () => {

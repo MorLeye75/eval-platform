@@ -76,6 +76,16 @@ export async function creerPromotion(nom: string, annee: string) {
   return data
 }
 
+export async function renommerPromotion(id: number, nom: string, annee: string) {
+  const { data } = await api.put<{ id: number; nom: string; annee: string }>(`/admin/promotions/${id}`, { nom, annee })
+  return data
+}
+
+/** 409 si la promotion compte des étudiants ou des évaluations : le message du serveur est affiché tel quel. */
+export async function supprimerPromotion(id: number) {
+  await api.delete(`/admin/promotions/${id}`)
+}
+
 /** 422 = lignes en erreur (rien n'est importé) : la réponse a la même forme, elle est rendue au lieu de lever. */
 export async function importerEtudiants(fichier: File): Promise<ImportApi> {
   const formulaire = new FormData()

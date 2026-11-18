@@ -2349,7 +2349,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"201 : promotion créée\", function () { pm.response.to.have.status(201); });"
+                  "pm.test(\"201 : promotion créée\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('promotionAdminId', pm.response.json().id);"
                 ]
               }
             }
@@ -2387,6 +2388,95 @@
               "mode": "raw",
               "raw": "{ \"nom\": \"PM {{$timestamp}}\", \"annee\": \"2026-2027\" }"
             }
+          }
+        },
+        {
+          "name": "8.2b DS-16: Renommer une promotion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : promotion renommée\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().annee).to.eql('2027-2028'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/promotions/{{promotionAdminId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "promotions",
+                "{{promotionAdminId}}"
+              ]
+            },
+            "description": "409 si une autre promotion porte déjà ce nom pour cette année.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"nom\": \"PM renommée {{$timestamp}}\", \"annee\": \"2027-2028\" }"
+            }
+          }
+        },
+        {
+          "name": "8.2c DS-16: Supprimer une promotion vide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"204 : promotion vide supprimée\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/promotions/{{promotionAdminId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "promotions",
+                "{{promotionAdminId}}"
+              ]
+            },
+            "description": "409 si la promotion compte des étudiants ou des évaluations."
           }
         },
         {
