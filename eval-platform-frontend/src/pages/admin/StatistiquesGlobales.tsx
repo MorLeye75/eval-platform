@@ -72,6 +72,7 @@ export default function StatistiquesGlobales() {
           <CardTitle className="text-base font-bold">Statistiques par promotion</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          <div className="overflow-x-auto">
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -101,6 +102,7 @@ export default function StatistiquesGlobales() {
               )}
             </tbody>
           </table>
+          </div>
         </CardContent>
       </Card>
     </div>

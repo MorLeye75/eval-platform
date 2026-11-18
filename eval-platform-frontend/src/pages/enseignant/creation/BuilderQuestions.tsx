@@ -271,6 +271,7 @@ export default function BuilderQuestions() {
                       <div className="flex flex-col gap-1.5">
                         <Label>Énoncé</Label>
                         <textarea
+                          aria-label={`Énoncé de la question ${idx + 1}`}
                           value={q.enonce}
                           onChange={(e) => updateQuestion(q.localId, { enonce: e.target.value })}
                           rows={3}
@@ -281,6 +282,7 @@ export default function BuilderQuestions() {
                       <div className="flex flex-col gap-1.5">
                         <Label>Points</Label>
                         <Input
+                          aria-label={`Points de la question ${idx + 1}`}
                           type="number" min={0.5} step={0.5}
                           value={q.points}
                           onChange={(e) => updateQuestion(q.localId, { points: Number(e.target.value) })}
@@ -296,6 +298,7 @@ export default function BuilderQuestions() {
                           <Label>Choix multiples ?</Label>
                           <input
                             type="checkbox"
+                            aria-label={`Choix multiples, question ${idx + 1}`}
                             checked={q.estChoixMultiple ?? false}
                             onChange={(e) => updateQuestion(q.localId, basculerChoixMultiple(q, e.target.checked))}
                             className="size-4 accent-primary"
@@ -306,6 +309,7 @@ export default function BuilderQuestions() {
                             <div key={c.id} className="flex items-center gap-2">
                               <input
                                 type={q.estChoixMultiple ? "checkbox" : "radio"}
+                                aria-label={`Bonne réponse : choix ${(q.choix?.indexOf(c) ?? 0) + 1}, question ${idx + 1}`}
                                 checked={c.estCorrect}
                                 onChange={(e) => {
                                   if (!q.estChoixMultiple) {
@@ -318,17 +322,18 @@ export default function BuilderQuestions() {
                                 className="size-4 shrink-0 accent-primary"
                               />
                               <Input
+                                aria-label={`Texte du choix ${(q.choix?.indexOf(c) ?? 0) + 1}, question ${idx + 1}`}
                                 value={c.texte}
                                 onChange={(e) => updateChoix(q.localId, c.id, { texte: e.target.value })}
                                 placeholder={`Choix ${(q.choix?.indexOf(c) ?? 0) + 1}`}
                                 className="rounded-xl flex-1"
                               />
-                              <button onClick={() => removeChoix(q.localId, c.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
+                              <button type="button" aria-label={`Supprimer le choix ${(q.choix?.indexOf(c) ?? 0) + 1}, question ${idx + 1}`} onClick={() => removeChoix(q.localId, c.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
                                 <Trash2 className="size-4" />
                               </button>
                             </div>
                           ))}
-                          <button onClick={() => addChoix(q.localId)} className="flex items-center gap-1 text-xs text-primary">
+                          <button type="button" onClick={() => addChoix(q.localId)} className="flex items-center gap-1 text-xs text-primary">
                             <Plus className="size-3" /> Ajouter un choix
                           </button>
                         </div>
@@ -369,7 +374,7 @@ export default function BuilderQuestions() {
                                   />
                                   Masqué
                                 </label>
-                                <button onClick={() => removeCasTest(q.localId, ct.id)} className="text-muted-foreground hover:text-destructive">
+                                <button type="button" aria-label={`Supprimer le cas ${i + 1}, question ${idx + 1}`} onClick={() => removeCasTest(q.localId, ct.id)} className="text-muted-foreground hover:text-destructive">
                                   <Trash2 className="size-3.5" />
                                 </button>
                               </div>
@@ -377,16 +382,16 @@ export default function BuilderQuestions() {
                             <div className="grid gap-2 md:grid-cols-2">
                               <div className="flex flex-col gap-1">
                                 <Label className="text-[11px]">Entrée (facultative)</Label>
-                                <Input value={ct.entree} onChange={(e) => updateCasTest(q.localId, ct.id, { entree: e.target.value })} className="rounded-lg font-mono text-xs" placeholder="stdin (facultatif)" />
+                                <Input aria-label={`Entrée du cas ${i + 1}, question ${idx + 1}`} value={ct.entree} onChange={(e) => updateCasTest(q.localId, ct.id, { entree: e.target.value })} className="rounded-lg font-mono text-xs" placeholder="stdin (facultatif)" />
                               </div>
                               <div className="flex flex-col gap-1">
                                 <Label className="text-[11px]">Sortie attendue (obligatoire)</Label>
-                                <Input value={ct.sortieAttendue} onChange={(e) => updateCasTest(q.localId, ct.id, { sortieAttendue: e.target.value })} className="rounded-lg font-mono text-xs" placeholder="stdout attendu" />
+                                <Input aria-label={`Sortie attendue du cas ${i + 1}, question ${idx + 1}`} value={ct.sortieAttendue} onChange={(e) => updateCasTest(q.localId, ct.id, { sortieAttendue: e.target.value })} className="rounded-lg font-mono text-xs" placeholder="stdout attendu" />
                               </div>
                             </div>
                           </div>
                         ))}
-                        <button onClick={() => addCasTest(q.localId)} className="flex items-center gap-1 text-xs text-primary">
+                        <button type="button" onClick={() => addCasTest(q.localId)} className="flex items-center gap-1 text-xs text-primary">
                           <Plus className="size-3" /> Ajouter un cas de test
                         </button>
                       </div>
@@ -397,6 +402,7 @@ export default function BuilderQuestions() {
                       <div className="flex flex-col gap-1.5">
                         <Label>Durée individuelle (secondes)</Label>
                         <Input
+                          aria-label={`Durée individuelle en secondes, question ${idx + 1}`}
                           type="number" min={5}
                           value={q.dureeQuestion ?? 30}
                           onChange={(e) => updateQuestion(q.localId, { dureeQuestion: Number(e.target.value) })}

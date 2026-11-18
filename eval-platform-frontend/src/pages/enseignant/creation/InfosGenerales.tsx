@@ -200,6 +200,7 @@ export default function InfosGenerales() {
           <div className="flex flex-col gap-1.5">
             <Label>Description <span className="text-destructive">*</span></Label>
             <textarea
+              aria-label="Description de l'évaluation"
               value={form.description}
               onChange={(e) => set("description", e.target.value)}
               placeholder="Consignes générales, objectifs de l'évaluation..."
