@@ -49,6 +49,8 @@ class ProfilParDefautTest {
     @Test
     @DisplayName("Sans profil ni DB_PASSWORD, le démarrage échoue avant toute connexion à la base")
     void sansProfil_SansMotDePasse_DemarrageRefuse() {
+        // Un fichier .env local (import optionnel de application.yml) peut fournir DB_PASSWORD : le cas n'est pas reproductible
+        assumeTrue(!java.nio.file.Files.exists(java.nio.file.Path.of(".env")), "fichier .env présent sur ce poste");
         // Sans contrôle, Spring envoyait la chaîne « ${DB_PASSWORD} » comme mot de passe
         assertThatThrownBy(() -> environnement(CONFIG_PRINCIPALE))
                 .hasMessageContaining("DB_PASSWORD");
