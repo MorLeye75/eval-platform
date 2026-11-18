@@ -165,6 +165,28 @@ class AdminComptesIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    @Test
+    @DisplayName("Réinitialiser le mot de passe révoque les sessions ouvertes : l'ancien jeton est refusé (401), la nouvelle connexion marche")
+    void reinitialisationRevoqueLesSessions() throws Exception {
+        String admin = bearer("admin@ept.sn", "admin123");
+        String email = unEmail();
+        String corps = mockMvc.perform(post("/admin/utilisateurs").header("Authorization", admin).contentType(JSON)
+                        .content(creation("Sy", "Awa", email, "ETUDIANT", promotionId(), unNumero(), null)))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        long id = ((Number) JsonPath.read(corps, "$.utilisateur.id")).longValue();
+        String ancienJeton = bearer(email, JsonPath.read(corps, "$.motDePasseProvisoire"));
+        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", ancienJeton)).andExpect(status().isOk());
+
+        Thread.sleep(1100); // le jeton est daté à la seconde : un jeton émis dans la même seconde que le changement reste valable
+        String nouveau = reinitialiser(admin, id);
+
+        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", ancienJeton)).andExpect(status().isUnauthorized());
+        String jetonNeuf = bearer(email, nouveau);
+        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jetonNeuf)).andExpect(status().isOk());
+        // l'administrateur qui a réinitialisé garde sa propre session
+        mockMvc.perform(get("/admin/utilisateurs?q=" + email).header("Authorization", admin)).andExpect(status().isOk());
+    }
+
     // ---------------------------------------------------------------- promotions
 
     @Test

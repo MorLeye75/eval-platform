@@ -21,6 +21,7 @@ public class UserDetailsImpl implements UserDetails {
     private Role role;
     private Boolean actif;
     private Collection<? extends GrantedAuthority> authorities;
+    private java.time.LocalDateTime motDePasseModifieLe;
 
     public UserDetailsImpl(Long id, String email, String nom, String prenom, String motDePasse, Role role, Boolean actif,
                            Collection<? extends GrantedAuthority> authorities) {
@@ -36,7 +37,7 @@ public class UserDetailsImpl implements UserDetails {
 
     public static UserDetailsImpl build(Utilisateur user) {
         List<GrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
-        return new UserDetailsImpl(
+        UserDetailsImpl details = new UserDetailsImpl(
             user.getId(),
             user.getEmail(),
             user.getNom(),
@@ -46,8 +47,11 @@ public class UserDetailsImpl implements UserDetails {
             user.getActif(),
             authorities
         );
+        details.motDePasseModifieLe = user.getMotDePasseModifieLe();
+        return details;
     }
 
+    public java.time.LocalDateTime getMotDePasseModifieLe() { return motDePasseModifieLe; }
     public Long getId() { return id; }
     public String getNom() { return nom; }
     public String getPrenom() { return prenom; }

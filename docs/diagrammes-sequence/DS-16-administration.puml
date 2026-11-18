@@ -135,12 +135,12 @@ alt compte inconnu
   S --> B : 404 Not Found
 else
   S -> S : nouveau motDePasseProvisoire (SecureRandom)
-  S -> D : UPDATE Utilisateur SET mot_de_passe = BCrypt(…)
+  S -> D : UPDATE Utilisateur SET mot_de_passe = BCrypt(…), mot_de_passe_modifie_le = maintenant
   S --> B -- : mot de passe provisoire
   B --> F -- : 200 OK { motDePasseProvisoire }
   F --> A : "Mot de passe provisoire : … (affiché une seule fois)"
 end
-note right of S : les sessions déjà ouvertes par ce compte ne sont pas coupées (pas de révocation par\nutilisateur) : pour couper un accès tout de suite, désactiver le compte (section D).\nL'utilisateur change ensuite son mot de passe depuis son profil (DS-14).
+note right of S : les sessions déjà ouvertes par ce compte sont coupées : AuthTokenFilter refuse tout jeton émis\navant mot_de_passe_modifie_le (V13). Le jeton est daté à la seconde : un jeton émis dans la même seconde\nque la réinitialisation, par exemple la connexion qui suit, reste valable.\nL'utilisateur change ensuite son mot de passe depuis son profil (DS-14), ce qui ne coupe pas sa session.
 
 == F — Importer des étudiants (CSV) ==
 A -> F : choisit un fichier CSV (UTF-8, en-tête : nom;prenom;email;numEtudiant;promotion)

@@ -36,6 +36,9 @@ public class Utilisateur extends AuditableEntity {
 
     private LocalDateTime derniereConnexion;
 
+    /** Posée quand un administrateur attribue un mot de passe provisoire : les jetons émis avant sont refusés. */
+    private LocalDateTime motDePasseModifieLe;
+
     @OneToMany(mappedBy = "destinataire", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<Notification> notifications = new java.util.ArrayList<>();
 
@@ -71,6 +74,9 @@ public class Utilisateur extends AuditableEntity {
     public Boolean getActif() { return actif; }
     public void setActif(Boolean actif) { this.actif = actif; }
 
+
+    public LocalDateTime getMotDePasseModifieLe() { return motDePasseModifieLe; }
+    public void setMotDePasseModifieLe(LocalDateTime motDePasseModifieLe) { this.motDePasseModifieLe = motDePasseModifieLe; }
 
     public LocalDateTime getDerniereConnexion() { return derniereConnexion; }
     public void setDerniereConnexion(LocalDateTime derniereConnexion) { this.derniereConnexion = derniereConnexion; }

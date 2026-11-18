@@ -51,15 +51,17 @@ public class AdminComptesService {
     private final PromotionRepository promotionRepository;
     private final SoumissionRepository soumissionRepository;
     private final EvaluationRepository evaluationRepository;
+    private final java.time.Clock clock;
     private final PasswordEncoder passwordEncoder;
     private final GenerateurMotDePasse generateur;
 
     public AdminComptesService(UtilisateurRepository utilisateurRepository, EtudiantRepository etudiantRepository,
                                EnseignantRepository enseignantRepository, AdministrateurRepository administrateurRepository,
                                PromotionRepository promotionRepository, SoumissionRepository soumissionRepository,
-                               EvaluationRepository evaluationRepository,
+                               EvaluationRepository evaluationRepository, java.time.Clock clock,
                                PasswordEncoder passwordEncoder, GenerateurMotDePasse generateur) {
         this.evaluationRepository = evaluationRepository;
+        this.clock = clock;
         this.utilisateurRepository = utilisateurRepository;
         this.etudiantRepository = etudiantRepository;
         this.enseignantRepository = enseignantRepository;
@@ -233,6 +235,7 @@ public class AdminComptesService {
         Utilisateur compte = compte(id);
         String motDePasse = generateur.generer();
         compte.setMotDePasse(passwordEncoder.encode(motDePasse));
+        compte.setMotDePasseModifieLe(java.time.LocalDateTime.now(clock));
         utilisateurRepository.save(compte);
         return new MotDePasseProvisoireResponse(motDePasse);
     }

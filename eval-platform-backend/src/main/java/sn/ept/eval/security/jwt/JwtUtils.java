@@ -80,7 +80,7 @@ public class JwtUtils {
     }
 
     /** Identifiant (jti) et expiration d'un jeton dont la signature et l'expiration sont valides. */
-    public record JetonLu(String jti, LocalDateTime expiration) {}
+    public record JetonLu(String jti, LocalDateTime expiration, LocalDateTime emisLe) {}
 
     /**
      * Lit un jeton déjà validé ({@link #validateJwtToken}). jti nul pour un jeton émis avant l'ajout de la
@@ -88,7 +88,8 @@ public class JwtUtils {
      */
     public JetonLu lireJeton(String token) {
         Claims claims = parser.parseSignedClaims(token).getPayload();
-        return new JetonLu(claims.getId(), LocalDateTime.ofInstant(claims.getExpiration().toInstant(), clock.getZone()));
+        return new JetonLu(claims.getId(), LocalDateTime.ofInstant(claims.getExpiration().toInstant(), clock.getZone()),
+                LocalDateTime.ofInstant(claims.getIssuedAt().toInstant(), clock.getZone()));
     }
 
     public boolean validateJwtToken(String authToken) {

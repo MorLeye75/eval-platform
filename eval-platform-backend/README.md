@@ -157,7 +157,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | POST | `/admin/utilisateurs` | admin | crée un compte ; renvoie un mot de passe provisoire, une seule fois (DS-16) |
 | PUT | `/admin/utilisateurs/{id}` | admin | modifie un compte (jamais son rôle) ; un étudiant qui a des copies ne change plus de promotion (DS-16) |
 | POST | `/admin/utilisateurs/{id}/desactiver` \| `/activer` | admin | désactive (effet immédiat sur ses jetons) ou réactive ; refusé pour son propre compte et le dernier administrateur actif (DS-16) |
-| POST | `/admin/utilisateurs/{id}/reinitialiser-mot-de-passe` | admin | nouveau mot de passe provisoire, une seule fois (DS-16) |
+| POST | `/admin/utilisateurs/{id}/reinitialiser-mot-de-passe` | admin | nouveau mot de passe provisoire, une seule fois ; coupe les sessions ouvertes du compte (V13, DS-16) |
 | POST | `/admin/promotions` | admin | crée une promotion (DS-16) |
 | PUT | `/admin/promotions/{id}` | admin | renomme une promotion ; 409 si doublon nom + année (DS-16) |
 | DELETE | `/admin/promotions/{id}` | admin | supprime une promotion vide ; 409 si elle a des étudiants ou des évaluations (DS-16) |

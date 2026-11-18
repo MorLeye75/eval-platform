@@ -43,7 +43,8 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 // Un compte désactivé après l'émission du jeton ne doit plus être authentifié
-                if (userDetails.isEnabled()) {
+                // Un mot de passe provisoire attribué depuis l'émission du jeton révoque la session (DS-16)
+                if (userDetails.isEnabled() && !emisAvantChangementDeMotDePasse(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,
@@ -60,6 +61,12 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean emisAvantChangementDeMotDePasse(String jwt, UserDetails userDetails) {
+        if (!(userDetails instanceof sn.ept.eval.security.services.UserDetailsImpl d) || d.getMotDePasseModifieLe() == null) return false;
+        // iat est à la seconde : un jeton émis dans la seconde du changement (connexion qui suit) reste valable
+        return jwtUtils.lireJeton(jwt).emisLe().isBefore(d.getMotDePasseModifieLe().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
     }
 
     private String parseJwt(HttpServletRequest request) {

@@ -38,7 +38,7 @@ class AdminComptesServiceTest {
     @BeforeEach
     void setUp() {
         service = new AdminComptesService(utilisateurs, etudiants, enseignants, administrateurs, promotions, soumissions,
-                evaluations, encoder, new GenerateurMotDePasse());
+                evaluations, java.time.Clock.systemDefaultZone(), encoder, new GenerateurMotDePasse());
         when(utilisateurs.saveAndFlush(any())).thenAnswer(i -> i.getArgument(0));
     }
 
