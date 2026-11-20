@@ -250,3 +250,39 @@ Rejouée sur la même base, elle échoue : les copies sont déjà remises.
 - La correction assistée par IA est réservée à Aminou (DS-07).
 - **Épreuves mixtes** : leur besoin n'est pas confirmé par le cahier des charges. Elles sont gérées côté
   passation ; l'autre choix était de les interdire dans le Builder.
+
+## 10. Choix écartés et écarts au cahier des charges
+
+Décisions prises en connaissance de cause (20 novembre), à reprendre dans le rapport.
+
+**Écartés**
+
+- **Refresh token** (§7.4 : jeton de 24 h, refresh token de 7 jours). Non fait : le jeton de 24 h est déjà
+  revalidé en base à chaque requête par `AuthTokenFilter`, ce qui donne une révocation immédiate dans trois cas :
+  compte désactivé par l'administrateur, déconnexion (jeton révoqué, V10), changement ou réinitialisation du mot
+  de passe (jetons émis avant refusés, V13). Ce qu'apporte d'habitude un refresh token, pouvoir couper une
+  session, est donc déjà acquis. Le seul gain restant serait un jeton volé utilisable 15 minutes au lieu de
+  24 heures, et il n'existerait qu'avec un refresh token en cookie HttpOnly : rangé dans le `localStorage` comme
+  le jeton actuel, il serait volé en même temps que lui. En contrepartie, le renouvellement automatique passerait
+  par l'intercepteur qui porte la sauvegarde et la remise des copies : un défaut à cet endroit ferait perdre des
+  réponses pendant une épreuve. Levier disponible sans code : raccourcir `JWT_EXPIRATION_MS`.
+- **Pénalité de temps des quiz** (§4.4, « pénalité temps optionnelle »). Non faite : l'exigence est optionnelle,
+  et le temps est déjà imposé par le serveur question par question (V5, pas de retour en arrière, passage
+  automatique à la fin du chrono). Elle aurait demandé d'enregistrer le temps de réponse de chaque question.
+
+**Écarts**
+
+- **PostgreSQL 17 au lieu de MySQL 8** (§7.2). Tout le projet est construit et vérifié sur PostgreSQL : migrations
+  Flyway, tests de concurrence (verrous `FOR UPDATE`, `NOWAIT`) sur un vrai PostgreSQL via Testcontainers, en
+  local et en CI. Le schéma utilise un index partiel (V7, relance des corrections), que MySQL ne connaît pas.
+- **Pas d'inscription libre** (§4.1, « inscription et connexion sécurisée »). Les comptes sont créés par
+  l'administrateur, un par un ou par import CSV, avec un mot de passe provisoire à changer à la première
+  connexion (DS-16). Les utilisateurs cibles sont les étudiants, enseignants et administrateurs de l'EPT (§2.4) :
+  une inscription ouverte laisserait n'importe qui se créer un compte, et rien ne relie un compte à une promotion
+  sans l'administrateur.
+- **Jeton dans le `localStorage`** (§7.4, « flag HttpOnly envisagé »). Conservé : voir le refresh token ci-dessus.
+  Les risques sont limités par la revalidation à chaque requête et par l'effacement de la session à la
+  déconnexion et sur un poste partagé.
+- **QCM à choix multiples sans points partiels** (non précisé au §4.4). Seule la sélection exacte rapporte les
+  points ; toute autre sélection compte comme fausse, avec la pénalité du barème négatif s'il est fixé (V16). Les
+  points partiels restent possibles plus tard.
