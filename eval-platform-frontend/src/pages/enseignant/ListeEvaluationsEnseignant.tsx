@@ -132,7 +132,7 @@ export default function ListeEvaluationsEnseignant() {
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
 
       {/* En-tête */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Mes évaluations</h1>
           <p className="mt-1 text-muted-foreground">
