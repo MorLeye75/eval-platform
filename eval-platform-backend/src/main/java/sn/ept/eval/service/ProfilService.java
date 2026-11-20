@@ -6,14 +6,19 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import sn.ept.eval.dto.profil.ChangementMotDePasseRequest;
+import sn.ept.eval.dto.profil.ChangementMotDePasseResponse;
 import sn.ept.eval.dto.profil.ProfilResponse;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
 import sn.ept.eval.model.Etudiant;
 import sn.ept.eval.model.Utilisateur;
 import sn.ept.eval.repository.UtilisateurRepository;
+import sn.ept.eval.security.jwt.JwtUtils;
 import sn.ept.eval.security.services.TentativesConnexionService;
+import sn.ept.eval.security.services.UserDetailsImpl;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
+import java.time.LocalDateTime;
 
 /**
  * Profil de l'utilisateur connecté (tous les rôles) : consultation, et changement de son mot de passe.
@@ -30,12 +35,16 @@ public class ProfilService {
     private final UtilisateurRepository utilisateurRepository;
     private final PasswordEncoder passwordEncoder;
     private final TentativesConnexionService tentativesConnexionService;
+    private final JwtUtils jwtUtils;
+    private final Clock clock;
 
     public ProfilService(UtilisateurRepository utilisateurRepository, PasswordEncoder passwordEncoder,
-                         TentativesConnexionService tentativesConnexionService) {
+                         TentativesConnexionService tentativesConnexionService, JwtUtils jwtUtils, Clock clock) {
         this.utilisateurRepository = utilisateurRepository;
         this.passwordEncoder = passwordEncoder;
         this.tentativesConnexionService = tentativesConnexionService;
+        this.jwtUtils = jwtUtils;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
@@ -54,9 +63,12 @@ public class ProfilService {
      * Les échecs comptent avec ceux de la connexion (même couple email, IP) : un jeton volé ne permet pas de deviner
      * le mot de passe sans limite. Le mot de passe actuel faux donne un 400, pas un 401 : le navigateur
      * déconnecterait l'utilisateur.
+     * <p>
+     * Les jetons émis avant le changement sont refusés (même mécanisme que la réinitialisation par l'administrateur) :
+     * un appareil oublié ou un jeton volé est déconnecté. La session en cours continue avec le jeton renvoyé.
      */
     @Transactional
-    public void changerMotDePasse(String email, ChangementMotDePasseRequest demande, String ip) {
+    public ChangementMotDePasseResponse changerMotDePasse(String email, ChangementMotDePasseRequest demande, String ip) {
         // Essai compté avant la vérification, atomiquement (comme la connexion) : pas de rafale simultanée
         tentativesConnexionService.reserverTentative(email, ip);
         Utilisateur u = utilisateur(email);
@@ -75,7 +87,10 @@ public class ProfilService {
         }
         u.setMotDePasse(passwordEncoder.encode(nouveau));
         u.setMotDePasseProvisoire(false);
-        log.info("Mot de passe changé par l'utilisateur ID={}", u.getId());
+        u.setMotDePasseModifieLe(LocalDateTime.now(clock));
+        log.info("Mot de passe changé par l'utilisateur ID={} : sessions précédentes révoquées", u.getId());
+        // Émis après la date de changement (même seconde au plus) : accepté par AuthTokenFilter
+        return new ChangementMotDePasseResponse(jwtUtils.generateJwtToken(UserDetailsImpl.build(u)));
     }
 
     private Utilisateur utilisateur(String email) {

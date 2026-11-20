@@ -9,7 +9,6 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -17,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import sn.ept.eval.dto.profil.ChangementMotDePasseRequest;
+import sn.ept.eval.dto.profil.ChangementMotDePasseResponse;
 import sn.ept.eval.dto.profil.ProfilResponse;
 import sn.ept.eval.service.ProfilService;
 
@@ -40,19 +40,22 @@ public class ProfilController {
     }
 
     @Operation(summary = "Changer son mot de passe",
-            description = "Exige le mot de passe actuel. Les échecs comptent avec ceux de la connexion (blocage 429).")
+            description = "Exige le mot de passe actuel. Les échecs comptent avec ceux de la connexion (blocage 429). "
+                    + "Les jetons émis avant le changement sont refusés (autres appareils déconnectés) ; "
+                    + "la session en cours continue avec le jeton renvoyé.")
     @ApiResponses({
-            @ApiResponse(responseCode = "204", description = "Mot de passe changé"),
+            @ApiResponse(responseCode = "200", description = "Mot de passe changé, nouveau jeton à utiliser",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ChangementMotDePasseResponse.class))),
             @ApiResponse(responseCode = "400", description = "Mot de passe actuel incorrect, ou nouveau mot de passe invalide",
                     content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class))),
             @ApiResponse(responseCode = "429", description = "Trop d'échecs récents (en-tête Retry-After)",
                     content = @Content(mediaType = "application/problem+json", schema = @Schema(implementation = ProblemDetail.class)))
     })
     @PutMapping("/mot-de-passe")
-    public ResponseEntity<Void> changerMotDePasse(@Valid @RequestBody ChangementMotDePasseRequest demande,
-                                                  Authentication authentication, HttpServletRequest request) {
+    public ChangementMotDePasseResponse changerMotDePasse(@Valid @RequestBody ChangementMotDePasseRequest demande,
+                                                          Authentication authentication, HttpServletRequest request) {
         // IP du client : derrière un reverse proxy, celle transmise par le proxy si FORWARD_HEADERS_STRATEGY=native
-        profilService.changerMotDePasse(authentication.getName(), demande, request.getRemoteAddr());
-        return ResponseEntity.noContent().build();
+        return profilService.changerMotDePasse(authentication.getName(), demande, request.getRemoteAddr());
     }
 }

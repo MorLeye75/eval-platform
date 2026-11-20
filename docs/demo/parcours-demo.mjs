@@ -59,7 +59,7 @@ verifier("la connexion signale le mot de passe provisoire", premiere.motDePasseP
 r = await appel(premiere.token, "GET", "/etudiant/evaluations")
 verifier("tout est refusé tant qu'il n'est pas changé (403)", r.statut === 403 && r.donnees?.code === "MOT_DE_PASSE_A_CHANGER")
 r = await appel(premiere.token, "PUT", "/profil/mot-de-passe", { motDePasseActuel: provisoire, nouveauMotDePasse: "MotDePasseDemo2026" })
-verifier("changer son mot de passe", r.statut === 204)
+verifier("changer son mot de passe (les autres sessions sont coupées)", r.statut === 200 && typeof r.donnees?.token === "string")
 const apres = await connexion(email, "MotDePasseDemo2026")
 verifier("nouvelle connexion : plus de contrainte", apres.motDePasseProvisoire === false)
 r = await appel(apres.token, "GET", "/etudiant/evaluations")

@@ -362,7 +362,7 @@
                 "mot-de-passe"
               ]
             },
-            "description": "Changement de son mot de passe : 204 si le mot de passe actuel est bon. Nouveau : 8 caractères au moins, 72 octets au plus (BCrypt), différent de l'actuel. Les échecs comptent avec ceux de la connexion : 429 après 5 échecs en 15 min.",
+            "description": "Changement de son mot de passe : 200 si le mot de passe actuel est bon, avec un nouveau jeton (token) : les jetons émis avant le changement sont refusés (autres appareils déconnectés), la session en cours continue avec celui-ci. Nouveau : 8 caractères au moins, 72 octets au plus (BCrypt), différent de l'actuel. Les échecs comptent avec ceux de la connexion : 429 après 5 échecs en 15 min.",
             "auth": {
               "type": "bearer",
               "bearer": [

@@ -57,8 +57,11 @@ public class JwtUtils {
     }
 
     public String generateJwtToken(Authentication authentication) {
-        UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
+        return generateJwtToken((UserDetailsImpl) authentication.getPrincipal());
+    }
 
+    /** Jeton pour un utilisateur déjà authentifié autrement (ex. : nouveau jeton après changement de mot de passe). */
+    public String generateJwtToken(UserDetailsImpl userPrincipal) {
         return Jwts.builder()
                 // Identifiant unique : la déconnexion révoque ce jeton-là seulement (DS-14)
                 .id(UUID.randomUUID().toString())

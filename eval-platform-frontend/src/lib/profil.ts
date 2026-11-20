@@ -10,7 +10,10 @@ export async function lireProfil() {
 /**
  * Changement de son mot de passe. Mot de passe actuel faux : 400 (pas 401, qui déconnecterait) ;
  * trop d'échecs récents : 429, comme à la connexion.
+ * Le serveur révoque les jetons émis avant le changement (autres appareils déconnectés) : le jeton renvoyé remplace
+ * celui de cette session, sinon la requête suivante recevrait un 401.
  */
 export async function changerMotDePasse(motDePasseActuel: string, nouveauMotDePasse: string) {
-  await api.put("/profil/mot-de-passe", { motDePasseActuel, nouveauMotDePasse })
+  const { data } = await api.put<{ token: string }>("/profil/mot-de-passe", { motDePasseActuel, nouveauMotDePasse })
+  localStorage.setItem("token", data.token)
 }

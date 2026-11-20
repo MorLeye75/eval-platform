@@ -208,11 +208,13 @@ class AdminComptesIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.motDePasseProvisoire").value(true));
         mockMvc.perform(get("/profil").header("Authorization", jeton)).andExpect(status().isOk());
 
-        mockMvc.perform(put("/profil/mot-de-passe").header("Authorization", jeton).contentType(JSON)
+        String changement = mockMvc.perform(put("/profil/mot-de-passe").header("Authorization", jeton).contentType(JSON)
                 .content("{\"motDePasseActuel\":\"" + provisoire + "\",\"nouveauMotDePasse\":\"MonVraiMotDePasse1\"}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        // Le changement révoque les jetons antérieurs : la session continue avec le jeton renvoyé
+        String jetonRenvoye = "Bearer " + JsonPath.read(changement, "$.token");
 
-        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jeton)).andExpect(status().isOk());
+        mockMvc.perform(get("/etudiant/evaluations").header("Authorization", jetonRenvoye)).andExpect(status().isOk());
         mockMvc.perform(post("/auth/login").contentType(JSON).content(login(email, "MonVraiMotDePasse1")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.motDePasseProvisoire").value(false));
         // un compte ordinaire (seed) n'est pas concerné

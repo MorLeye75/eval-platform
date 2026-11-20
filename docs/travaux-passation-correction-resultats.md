@@ -151,8 +151,9 @@ Diagramme : [`DS-14-connexion.puml`](diagrammes-sequence/DS-14-connexion.puml). 
 - révocation à la déconnexion (11 novembre) : `POST /auth/logout` révoque le jeton de cette session seulement
   (identifiant `jti`, table `jetons_revoques`, V10). Les sessions ouvertes sur d'autres appareils restent valides.
 
-**Limite connue.** Un changement de mot de passe ne ferme pas les autres sessions : leurs jetons restent
-valables jusqu'à leur expiration, 24 h au plus.
+- changement de mot de passe (20 novembre) : `PUT /profil/mot-de-passe` pose `motDePasseModifieLe` (V13, même
+  mécanisme que la réinitialisation par l'administrateur, DS-16) ; les jetons émis avant sont refusés, donc les
+  autres appareils sont déconnectés. La session en cours continue avec le nouveau jeton renvoyé (200 `{token}`).
 
 ## 7. Migrations Flyway ajoutées
 
