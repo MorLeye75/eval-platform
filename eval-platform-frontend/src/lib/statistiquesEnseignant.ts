@@ -54,6 +54,12 @@ export async function exporterResultatsCsv(id: number) {
   return data
 }
 
+/** Détail par question (une ligne par étudiant et par question) : même principe que le CSV des résultats. */
+export async function exporterDetailCsv(id: number) {
+  const { data } = await api.get<Blob>(`/enseignant/evaluations/${id}/export/detail-csv`, { responseType: "blob" })
+  return data
+}
+
 export function telechargerFichier(blob: Blob, nom: string) {
   const url = URL.createObjectURL(blob)
   const lien = document.createElement("a")

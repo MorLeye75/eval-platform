@@ -88,6 +88,19 @@ deactivate B
 note right of F : l'écran et le fichier CSV sortent de la **même** fabrique de lignes : ils ne peuvent pas diverger.
 Notes visibles de l'enseignant avant la publication ; l'e-mail reste dans le CSV seul (minimisation à l'écran).
 
+== D — Exporter le détail par question ==
+E -> F : « Détail par question » (page Export des résultats)
+F -> B ++ : GET /api/enseignant/evaluations/{id}/export/detail-csv
+note right of B : même contrôle d'accès que les autres routes de DS-09 :\n404 inconnue, 403 autre enseignant, 409 avant l'ouverture
+B -> X ++ : exporterDetail(id, email)
+X -> D ++ : SELECT étudiants attendus, copies, questions (ordre) et notes des réponses
+D --> X -- : données
+X -> X : une ligne par étudiant attendu **et** par question :\nnumEtudiant;nom;prenom;etatCopie;ordre;type;points;noteObtenue
+note right of X : noteObtenue renseignée seulement si la copie est EVALUE\net la réponse validée par l'enseignant ; sinon cellule vide (jamais 0).\nAucun e-mail, aucun texte de réponse : uniquement des notes.
+X --> B -- : octets (BOM UTF-8 + CSV, mêmes protections que le CSV des résultats)
+B --> F -- : 200 OK ; attachment detail-{id}.csv ; Cache-Control: no-store
+deactivate B
+
 note over E, D
   **Confidentialité** : le fichier contient des données personnelles d'étudiants (noms, e-mails, notes) : réservé au propriétaire
   de l'évaluation, jamais mis en cache (no-store), nom de fichier construit à partir de l'identifiant seul (pas du titre).

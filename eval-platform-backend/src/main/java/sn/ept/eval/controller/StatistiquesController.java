@@ -47,6 +47,18 @@ public class StatistiquesController {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(exportService.lignes(id, authentication.getName()));
     }
 
+    @Operation(summary = "Export CSV du détail par question",
+            description = "Une ligne par étudiant attendu et par question : ordre, type, points, note obtenue (vide tant que la copie n'est pas notée). Même format que l'export des résultats.")
+    @GetMapping("/export/detail-csv")
+    public ResponseEntity<byte[]> exporterDetail(@PathVariable Long id, Authentication authentication) {
+        byte[] fichier = exportService.exporterDetail(id, authentication.getName());
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", java.nio.charset.StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("detail-" + id + ".csv").build().toString())
+                .cacheControl(CacheControl.noStore())
+                .body(fichier);
+    }
+
     @Operation(summary = "Export CSV des résultats",
             description = "Une ligne par étudiant attendu (absents compris), UTF-8 avec BOM, séparateur « ; », cellules protégées contre l'injection de formule.")
     @GetMapping("/export/csv")

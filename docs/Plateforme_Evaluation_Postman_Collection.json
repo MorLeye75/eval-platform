@@ -3060,6 +3060,48 @@
           }
         },
         {
+          "name": "9.2b DS-09: Export du détail par question",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : CSV du détail, une ligne par étudiant et par question', function () { pm.response.to.have.status(200); var t = pm.response.text(); pm.expect(t).to.include('numEtudiant;nom;prenom;etatCopie;ordre;type;points;noteObtenue'); pm.expect(pm.response.headers.get('Content-Disposition')).to.include('detail-'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/detail-csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "detail-csv"
+              ]
+            },
+            "description": "UTF-8 avec BOM, séparateur « ; », une ligne par étudiant attendu (absents compris). Données personnelles : réservé au propriétaire de l'évaluation."
+          }
+        },
+        {
           "name": "9.2a DS-09: Notes par étudiant",
           "event": [
             {

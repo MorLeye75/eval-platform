@@ -31,6 +31,7 @@ import java.util.regex.Pattern;
 public class ExportResultatsService {
 
     private static final Logger log = LoggerFactory.getLogger(ExportResultatsService.class);
+    static final String ENTETE_DETAIL = "numEtudiant;nom;prenom;etatCopie;ordre;type;points;noteObtenue";
     static final String ENTETE = "numEtudiant;nom;prenom;email;promotion;etatCopie;note;bareme;noteSur20;dateRemise";
     private static final byte[] BOM = {(byte) 0xEF, (byte) 0xBB, (byte) 0xBF};
     private static final Pattern FORMULE = Pattern.compile("^[=+\\-@\\t\\r].*", Pattern.DOTALL);
@@ -49,7 +50,7 @@ public class ExportResultatsService {
     /** Une ligne d'étudiant attendu avec sa copie : source commune de l'écran et du CSV. */
     private record Ligne(Etudiant etudiant, Soumission copie) {}
 
-    private record Donnees(Enseignant enseignant, double bareme, List<Ligne> lignes) {}
+    private record Donnees(Enseignant enseignant, double bareme, List<Question> questions, List<Ligne> lignes) {}
 
     /** Notes par étudiant pour l'écran de l'enseignant (DS-09, section C) : mêmes données et même ordre que le CSV. */
     public ResultatsEvaluationResponse lignes(Long evaluationId, String email) {
@@ -80,7 +81,8 @@ public class ExportResultatsService {
                 .sorted(Comparator.comparing((Etudiant e) -> e.getNom().toLowerCase(Locale.ROOT))
                         .thenComparing(e -> e.getPrenom().toLowerCase(Locale.ROOT)))
                 .map(e -> new Ligne(e, copies.get(e.getId()))).toList();
-        return new Donnees(enseignant, bareme, lignes);
+        List<Question> questions = evaluation.getQuestions().stream().sorted(Comparator.comparing(Question::getOrdre)).toList();
+        return new Donnees(enseignant, bareme, questions, lignes);
     }
 
     private static String etat(Soumission copie) {
@@ -101,6 +103,36 @@ public class ExportResultatsService {
         List<Etudiant> etudiants = d.lignes().stream().map(Ligne::etudiant).toList();
 
         log.info("[Export] Évaluation ID={} exportée par l'enseignant ID={} ({} lignes)", evaluationId, enseignant.getId(), etudiants.size());
+        return avecBom(csv);
+    }
+
+    /**
+     * Détail par question (DS-09, section D) : une ligne par étudiant attendu et par question. La note d'une question
+     * n'apparaît que si la copie est notée (EVALUE) et la réponse validée par l'enseignant ; sinon la cellule est vide.
+     * Ni texte de réponse ni e-mail : seulement des notes.
+     */
+    public byte[] exporterDetail(Long evaluationId, String email) {
+        Donnees d = charger(evaluationId, email);
+        StringBuilder csv = new StringBuilder(ENTETE_DETAIL).append('\n');
+        for (Ligne l : d.lignes()) {
+            for (Question q : d.questions()) {
+                String note = "";
+                if (estNotee(l.copie())) {
+                    note = l.copie().getReponses().stream()
+                            .filter(r -> r.getQuestion().getId().equals(q.getId()) && Boolean.TRUE.equals(r.getValideeParProf())
+                                    && r.getNoteObtenue() != null)
+                            .findFirst().map(r -> nombre(r.getNoteObtenue())).orElse("");
+                }
+                csv.append(String.join(";", cellule(l.etudiant().getNumEtudiant()), cellule(l.etudiant().getNom()),
+                        cellule(l.etudiant().getPrenom()), etat(l.copie()), String.valueOf(q.getOrdre()), q.getType().name(),
+                        nombre(q.getPoints()), note)).append('\n');
+            }
+        }
+        log.info("[Export] Détail de l'évaluation ID={} exporté par l'enseignant ID={}", evaluationId, d.enseignant().getId());
+        return avecBom(csv);
+    }
+
+    private static byte[] avecBom(StringBuilder csv) {
         byte[] contenu = csv.toString().getBytes(StandardCharsets.UTF_8);
         byte[] fichier = new byte[BOM.length + contenu.length];
         System.arraycopy(BOM, 0, fichier, 0, BOM.length);

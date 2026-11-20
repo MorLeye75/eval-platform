@@ -108,7 +108,7 @@ class StatistiquesExportIntegrationTest {
         Long publiee = nouvelleEvaluation(StatutEvaluation.PUBLIEE);
         Long terminee = nouvelleEvaluation(StatutEvaluation.TERMINEE);
 
-        for (String route : new String[]{"/statistiques", "/export/csv", "/resultats"}) {
+        for (String route : new String[]{"/statistiques", "/export/csv", "/export/detail-csv", "/resultats"}) {
             mockMvc.perform(get("/enseignant/evaluations/" + brouillon + route).header("Authorization", prof)).andExpect(status().isConflict());
             mockMvc.perform(get("/enseignant/evaluations/" + publiee + route).header("Authorization", prof)).andExpect(status().isConflict());
             mockMvc.perform(get("/enseignant/evaluations/" + terminee + route).header("Authorization", bearer(nouvelEnseignant(), "motDePasse")))
@@ -150,6 +150,37 @@ class StatistiquesExportIntegrationTest {
         // un nom commençant par « = » ne s'exécute pas dans le tableur
         assertThat(lignes).anyMatch(l -> l.contains("'=cmd|' /C calc'!A0") || l.contains("\"'=cmd|' /C calc'!A0\""));
         assertThat(csv).doesNotContain(";=cmd");
+    }
+
+    @Test
+    @DisplayName("Export du détail : une ligne par étudiant attendu et par question, note de chaque question seulement si la copie est notée, ni e-mail ni texte")
+    void exportDetail() throws Exception {
+        Cas cas = evaluationAvecResultats(StatutEvaluation.TERMINEE);
+        long attendus = jdbcTemplate.queryForObject(
+                "select count(*) from etudiants e join promotions p on p.id = e.promotion_id where p.nom = 'DIC2 Informatique'", Long.class);
+
+        var reponse = mockMvc.perform(get("/enseignant/evaluations/" + cas.evaluationId() + "/export/detail-csv")
+                        .header("Authorization", bearer("prof@ept.sn", "prof123")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"detail-" + cas.evaluationId() + ".csv\""))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andReturn().getResponse();
+        byte[] octets = reponse.getContentAsByteArray();
+        assertThat(octets).startsWith((byte) 0xEF, (byte) 0xBB, (byte) 0xBF);
+        String csv = new String(octets, 3, octets.length - 3, StandardCharsets.UTF_8);
+        List<String> lignes = csv.lines().toList();
+
+        assertThat(lignes.get(0)).isEqualTo(ExportResultatsService.ENTETE_DETAIL);
+        assertThat(lignes).hasSize((int) attendus * 2 + 1); // deux questions par étudiant
+        // Alpha : 8 puis 6 ; Bravo : 4 puis 2 (notes de chaque question, virgule décimale, ordre des questions)
+        assertThat(lignes).anyMatch(l -> l.contains(";Alpha;") && l.contains(";EVALUE;1;OUVERTE;10,0;8,0"));
+        assertThat(lignes).anyMatch(l -> l.contains(";Alpha;") && l.contains(";EVALUE;2;OUVERTE;10,0;6,0"));
+        assertThat(lignes).anyMatch(l -> l.contains(";Bravo;") && l.contains(";EVALUE;1;OUVERTE;10,0;4,0"));
+        // copie en correction et étudiant absent : la question est listée, sans note
+        assertThat(lignes).anyMatch(l -> l.contains(";Charlie;") && l.endsWith(";EN_CORRECTION;1;OUVERTE;10,0;"));
+        assertThat(lignes).anyMatch(l -> l.contains(";ABSENT;1;OUVERTE;10,0;"));
+        // aucun e-mail ni texte de réponse
+        assertThat(csv).doesNotContain("@ept.sn").doesNotContain("réponse");
     }
 
     @Test

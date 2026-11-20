@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { FileSpreadsheet, Download, CheckCircle2, Users } from "lucide-react"
 import type { StatutEvaluation } from "@/types"
 import { CLE_EVALUATIONS_ENSEIGNANT, mesEvaluationsEnseignant } from "@/lib/evaluationsEnseignant"
-import { exporterResultatsCsv, telechargerFichier } from "@/lib/statistiquesEnseignant"
+import { exporterDetailCsv, exporterResultatsCsv, telechargerFichier } from "@/lib/statistiquesEnseignant"
 import { messageErreur } from "@/lib/passation"
 
 // ============================================================
@@ -19,21 +19,28 @@ const STATUT_CFG: Partial<Record<StatutEvaluation, { label: string; cls: string 
   TERMINEE: { label: "Terminée", cls: "bg-yellow-500/10 text-yellow-700 border-yellow-500/20 dark:text-yellow-400" },
 }
 
+/** Formats proposés pour chaque évaluation ; la clé distingue les téléchargements d'une même évaluation. */
+const FORMATS = [
+  { cle: "csv", court: "CSV", aria: "Télécharger le CSV", fichier: (id: number) => `resultats-${id}.csv`, appel: exporterResultatsCsv },
+  { cle: "detail", court: "Détail par question", aria: "Télécharger le détail par question", fichier: (id: number) => `detail-${id}.csv`, appel: exporterDetailCsv },
+] as const
+
 export default function ExportResultats() {
-  const [enCours, setEnCours] = useState<number | null>(null)
-  const [exportes, setExportes] = useState<number[]>([])
+  const [enCours, setEnCours] = useState<string | null>(null)
+  const [exportes, setExportes] = useState<string[]>([])
   const [erreur, setErreur] = useState<string | null>(null)
 
   const evaluations = useQuery({ queryKey: CLE_EVALUATIONS_ENSEIGNANT, queryFn: mesEvaluationsEnseignant })
   // Avant l'ouverture, aucune copie n'existe : rien à exporter
   const exportables = (evaluations.data ?? []).filter((e) => e.statut === "TERMINEE" || e.statut === "EN_COURS")
 
-  async function exporter(id: number) {
-    setEnCours(id)
+  async function exporter(id: number, format: (typeof FORMATS)[number]) {
+    const cle = `${id}-${format.cle}`
+    setEnCours(cle)
     setErreur(null)
     try {
-      telechargerFichier(await exporterResultatsCsv(id), `resultats-${id}.csv`)
-      setExportes((prev) => (prev.includes(id) ? prev : [...prev, id]))
+      telechargerFichier(await format.appel(id), format.fichier(id))
+      setExportes((prev) => (prev.includes(cle) ? prev : [...prev, cle]))
     } catch (e) {
       // Une erreur renvoyée en blob n'est pas lisible comme JSON : message générique
       setErreur(messageErreur(e, "L'export a échoué."))
@@ -96,21 +103,29 @@ export default function ExportResultats() {
                       <span>Fermeture : {new Date(e.dateFermeture).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}</span>
                     </div>
                   </div>
-                  <Button
-                    variant="outline"
-                    className="shrink-0 rounded-xl border-green-500/30 text-green-700 hover:bg-green-500/10 hover:text-green-700 dark:text-green-400"
-                    aria-label={`Télécharger le CSV : ${e.titre}`}
-                    onClick={() => exporter(e.id)}
-                    disabled={enCours === e.id}
-                  >
-                    {enCours === e.id ? (
-                      <span className="text-xs">Génération...</span>
-                    ) : exportes.includes(e.id) ? (
-                      <><CheckCircle2 className="size-4" /> Téléchargé</>
-                    ) : (
-                      <><Download className="size-4" /> CSV</>
-                    )}
-                  </Button>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    {FORMATS.map((format) => {
+                      const cle = `${e.id}-${format.cle}`
+                      return (
+                        <Button
+                          key={format.cle}
+                          variant="outline"
+                          className="rounded-xl border-green-500/30 text-green-700 hover:bg-green-500/10 hover:text-green-700 dark:text-green-400"
+                          aria-label={`${format.aria} : ${e.titre}`}
+                          onClick={() => exporter(e.id, format)}
+                          disabled={enCours === cle}
+                        >
+                          {enCours === cle ? (
+                            <span className="text-xs">Génération...</span>
+                          ) : exportes.includes(cle) ? (
+                            <><CheckCircle2 className="size-4" /> Téléchargé</>
+                          ) : (
+                            <><Download className="size-4" /> {format.court}</>
+                          )}
+                        </Button>
+                      )
+                    })}
+                  </div>
                 </CardContent>
               </Card>
             )
