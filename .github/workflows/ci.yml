@@ -35,8 +35,11 @@ jobs:
           distribution: 'temurin'
           cache: 'maven'
 
+      # verify et pas test : construit aussi le jar, pour que le cache Maven partagé contienne les plugins de
+      # packaging dont les jobs api-tests et e2e-tests ont besoin (sinon Maven Central, qui limite les runners
+      # GitHub, répond parfois 429 et fait échouer ces jobs avant même les tests)
       - name: Compile & Run Automated Tests
-        run: mvn clean test --batch-mode
+        run: mvn clean verify --batch-mode
 
       - name: Publish Test Report (Surefire)
         if: always()
