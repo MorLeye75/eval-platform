@@ -37,6 +37,7 @@ const TiersTemps = lazy(() => import("@/pages/enseignant/TiersTemps"))
 const SupervisionTempsReel = lazy(() => import("@/pages/enseignant/SupervisionTempsReel"))
 const ValidationIA = lazy(() => import("@/pages/enseignant/ValidationIA"))
 const StatistiquesEvaluation = lazy(() => import("@/pages/enseignant/StatistiquesEvaluation"))
+const ComparaisonEvaluations = lazy(() => import("@/pages/enseignant/ComparaisonEvaluations"))
 const PublicationResultats = lazy(() => import("@/pages/enseignant/PublicationResultats"))
 const ExportResultats = lazy(() => import("@/pages/enseignant/ExportResultats"))
 
@@ -134,6 +135,7 @@ export function AppRouter() {
             <Route path="supervision/:id?" element={<SupervisionTempsReel />} />
             <Route path="validation-ia" element={<ValidationIA />} />
             <Route path="statistiques/:id?" element={<StatistiquesEvaluation />} />
+            <Route path="comparaison" element={<ComparaisonEvaluations />} />
             <Route path="publication" element={<PublicationResultats />} />
             <Route path="export" element={<ExportResultats />} />
             <Route path="notifications" element={<NotificationsPage />} />

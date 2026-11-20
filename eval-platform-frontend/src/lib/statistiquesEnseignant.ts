@@ -60,6 +60,28 @@ export async function exporterDetailCsv(id: number) {
   return data
 }
 
+/** DS-19 : 2 à 6 évaluations côte à côte. Les indicateurs sont null (jamais 0) sans copie notée. */
+export const MIN_COMPARAISON = 2
+export const MAX_COMPARAISON = 6
+
+export interface LigneComparaisonApi {
+  evaluationId: number
+  titre: string
+  statut: string
+  nbAttendus: number
+  nbNotees: number
+  moyenneSur20: number | null
+  medianeSur20: number | null
+  tauxReussite: number | null
+}
+
+export const cleComparaison = (ids: number[]) => ["enseignant-comparaison", ...ids] as const
+
+export async function comparerEvaluations(ids: number[]) {
+  const { data } = await api.get<{ evaluations: LigneComparaisonApi[] }>("/enseignant/comparaison", { params: { ids: ids.join(",") } })
+  return data
+}
+
 /** Rapport PDF : indicateurs et notes par étudiant. */
 export async function exporterResultatsPdf(id: number) {
   const { data } = await api.get<Blob>(`/enseignant/evaluations/${id}/export/pdf`, { responseType: "blob" })

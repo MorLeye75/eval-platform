@@ -161,6 +161,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | POST | `/admin/promotions` | admin | crée une promotion (DS-16) |
 | PUT | `/admin/promotions/{id}` | admin | renomme une promotion ; 409 si doublon nom + année (DS-16) |
 | DELETE | `/admin/promotions/{id}` | admin | supprime une promotion vide ; 409 si elle a des étudiants ou des évaluations (DS-16) |
+| GET | `/enseignant/comparaison?ids=1,2,3` | enseignant | indicateurs sur 20 de 2 à 6 évaluations côte à côte, mêmes chiffres que les statistiques ; 400 / 403 / 404 / 409 (DS-19) |
 | GET | `/admin/tableau-de-bord` | admin | comptes actifs par rôle, évaluations, activité sur 7 jours, services réellement connus (DS-18) |
 | GET | `/admin/supervision` | admin | évaluations en cours de toute la plateforme et 20 dernières alertes ; à relire toutes les 30 s (DS-18) |
 | GET | `/admin/statistiques` | admin | notes sur 20 des copies notées, taux de remise, détail par promotion ; indicateur `null` sans copie notée (DS-18) |

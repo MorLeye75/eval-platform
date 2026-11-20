@@ -5,6 +5,7 @@ import {
   Eye,
   CheckCircle2,
   BarChart3,
+  Scale,
   Users,
   FileOutput,
   GraduationCap,
@@ -30,6 +31,7 @@ const menuItems = [
   { title: "Supervision live",    url: "/enseignant/supervision",      icon: Eye                    },
   { title: "Validation IA",       url: "/enseignant/validation-ia",    icon: CheckCircle2           },
   { title: "Statistiques",        url: "/enseignant/statistiques",     icon: BarChart3              },
+  { title: "Comparer",           url: "/enseignant/comparaison",      icon: Scale                  },
   { title: "Publication résultats", url: "/enseignant/publication",    icon: Users                  },
   { title: "Export résultats",    url: "/enseignant/export",           icon: FileOutput             },
 ]

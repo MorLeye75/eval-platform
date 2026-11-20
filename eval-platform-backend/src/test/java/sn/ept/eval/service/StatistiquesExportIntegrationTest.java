@@ -210,6 +210,50 @@ class StatistiquesExportIntegrationTest {
     }
 
     @Test
+    @DisplayName("Comparaison (DS-19) : indicateurs de chaque évaluation dans l'ordre demandé, mêmes valeurs que les statistiques, null sans copie notée")
+    void comparaison() throws Exception {
+        String prof = bearer("prof@ept.sn", "prof123");
+        Cas avecNotes = evaluationAvecResultats(StatutEvaluation.TERMINEE);
+        Long sansNote = nouvelleEvaluation(StatutEvaluation.TERMINEE);
+
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + sansNote + "," + avecNotes.evaluationId()).header("Authorization", prof))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.evaluations.length()").value(2))
+                .andExpect(jsonPath("$.evaluations[0].evaluationId").value(sansNote))
+                .andExpect(jsonPath("$.evaluations[0].moyenneSur20").doesNotExist())
+                .andExpect(jsonPath("$.evaluations[0].tauxReussite").doesNotExist())
+                .andExpect(jsonPath("$.evaluations[0].nbNotees").value(0))
+                .andExpect(jsonPath("$.evaluations[1].evaluationId").value(avecNotes.evaluationId()))
+                .andExpect(jsonPath("$.evaluations[1].nbNotees").value(2))
+                .andExpect(jsonPath("$.evaluations[1].moyenneSur20").value(10.0))   // notes 14 et 6 sur 20
+                .andExpect(jsonPath("$.evaluations[1].tauxReussite").value(50.0));  // une copie sur deux a au moins 10/20
+
+        // identique à la page Statistiques de la même évaluation
+        mockMvc.perform(get("/enseignant/evaluations/" + avecNotes.evaluationId() + "/statistiques").header("Authorization", prof))
+                .andExpect(jsonPath("$.moyenneSur20").value(10.0)).andExpect(jsonPath("$.tauxReussite").value(50.0));
+    }
+
+    @Test
+    @DisplayName("Comparaison : moins de 2, plus de 6 ou doublon 400 ; brouillon 409 ; autre enseignant 403 ; inconnue 404 ; étudiant 403 ; sans jeton 401")
+    void comparaisonRefus() throws Exception {
+        String prof = bearer("prof@ept.sn", "prof123");
+        Long a = nouvelleEvaluation(StatutEvaluation.TERMINEE), b = nouvelleEvaluation(StatutEvaluation.TERMINEE);
+        Long brouillon = nouvelleEvaluation(StatutEvaluation.BROUILLON);
+
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + a).header("Authorization", prof)).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + a + "," + a).header("Authorization", prof)).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/enseignant/comparaison?ids=1,2,3,4,5,6,7").header("Authorization", prof)).andExpect(status().isBadRequest());
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + a + "," + brouillon).header("Authorization", prof)).andExpect(status().isConflict());
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + a + ",999999").header("Authorization", prof)).andExpect(status().isNotFound());
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + a + "," + b).header("Authorization", bearer(nouvelEnseignant(), "motDePasse")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + a + "," + b).header("Authorization", bearer("etudiant@ept.sn", "etudiant123")))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/enseignant/comparaison?ids=" + a + "," + b)).andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("Notes par étudiant : mêmes lignes que le CSV, sans e-mail, null (jamais 0) sans note, absent signalé")
     void notesParEtudiant() throws Exception {
         Cas cas = evaluationAvecResultats(StatutEvaluation.TERMINEE);

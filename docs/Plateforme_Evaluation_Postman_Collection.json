@@ -3144,6 +3144,51 @@
           }
         },
         {
+          "name": "9.2d DS-19: Comparer deux évaluations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : deux évaluations comparées, indicateurs null ou nombres', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j.evaluations).to.have.length(2); j.evaluations.forEach(function (e) { pm.expect(e.moyenneSur20 === null || typeof e.moyenneSur20 === 'number').to.eql(true); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/comparaison?ids={{evaluationId}},{{codeEvaluationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "comparaison"
+              ],
+              "query": [
+                {
+                  "key": "ids",
+                  "value": "{{evaluationId}},{{codeEvaluationId}}"
+                }
+              ]
+            },
+            "description": "Réservé à l'enseignant ; 2 à 6 évaluations ouvertes, dans l'ordre demandé."
+          }
+        },
+        {
           "name": "9.2a DS-09: Notes par étudiant",
           "event": [
             {

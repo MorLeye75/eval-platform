@@ -21,6 +21,7 @@ Les fichiers `.md` contiennent des diagrammes Mermaid, affichés directement par
 | DS-14 Connexion, requêtes authentifiées et déconnexion (JWT) | `DS-14-connexion.puml` | Mor | aligné sur le code |
 | DS-15 Notifications | `DS-15-notifications.puml` | Mor | brouillon, à valider avec Aminou |
 | DS-18 Vue d'ensemble de l'administrateur (tableau de bord, supervision globale, statistiques globales) | `DS-18-vue-ensemble-admin.puml` | Aminou | aligné sur le code |
+| DS-19 Comparaison de plusieurs évaluations par leur enseignant | `DS-19-comparaison-evaluations.puml` | Aminou | aligné sur le code |
 | DS-17 Supervision d'une évaluation en cours (lecture seule, sondage) | `DS-17-supervision-temps-reel.puml` | Aminou | aligné sur le code |
 | DS-16 Administration (comptes, mots de passe provisoires, import CSV) | `DS-16-administration.puml` | Aminou | aligné sur le code |
 
