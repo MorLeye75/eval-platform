@@ -19,7 +19,7 @@ Les fichiers `.md` contiennent des diagrammes Mermaid, affichés directement par
 | DS-12 Correction automatique du code via Judge0 | `DS-12-correction-code-judge0.puml` | Mor | aligné sur le code (Judge0 réel non encore testé) |
 | DS-13 Consultation des résultats (détail d'une copie, tableau de bord) | `DS-13-consultation-resultats.puml` | Mor | aligné sur le code |
 | DS-14 Connexion, requêtes authentifiées et déconnexion (JWT) | `DS-14-connexion.puml` | Mor | aligné sur le code |
-| DS-15 Notifications | `DS-15-notifications.puml` | Mor | brouillon, à valider avec Aminou |
+| DS-15 Notifications | `DS-15-notifications.puml` | Mor | aligné sur le code |
 | DS-18 Vue d'ensemble de l'administrateur (tableau de bord, supervision globale, statistiques globales) | `DS-18-vue-ensemble-admin.puml` | Aminou | aligné sur le code |
 | DS-17 Supervision d'une évaluation en cours (lecture seule, sondage) | `DS-17-supervision-temps-reel.puml` | Aminou | aligné sur le code |
 | DS-16 Administration (comptes, mots de passe provisoires, import CSV) | `DS-16-administration.puml` | Aminou | aligné sur le code |
