@@ -48,7 +48,7 @@ class PublicationResultatsServiceTest {
     @BeforeEach
     void setUp() {
         service = new PublicationResultatsService(evaluationService, evaluationRepository, soumissionRepository,
-                notificationService, tempsEpreuveService);
+                notificationService, tempsEpreuveService, org.mockito.Mockito.mock(org.springframework.transaction.PlatformTransactionManager.class));
 
         prof = new Enseignant("Sow", "Mamadou", "prof@ept.sn", "x", "ENS-1");
         prof.setId(1L);

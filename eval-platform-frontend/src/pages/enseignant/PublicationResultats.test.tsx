@@ -5,7 +5,9 @@ import { AxiosError, type AxiosResponse } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { resultatsEvaluation } from "@/lib/statistiquesEnseignant"
 import {
+  annulerProgrammationPublication,
   mesEvaluationsEnseignant,
+  programmerPublication,
   publierResultats,
   type EvaluationEnseignantApi,
 } from "@/lib/evaluationsEnseignant"
@@ -19,6 +21,8 @@ vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
   ...(await original<typeof import("@/lib/evaluationsEnseignant")>()),
   mesEvaluationsEnseignant: vi.fn(),
   publierResultats: vi.fn(),
+  programmerPublication: vi.fn(),
+  annulerProgrammationPublication: vi.fn(),
 }))
 
 function evaluation(id: number, statut: EvaluationEnseignantApi["statut"], resultatsPublies = false): EvaluationEnseignantApi {
@@ -120,6 +124,44 @@ describe("publication des résultats (DS-07)", () => {
     expect(statut.textContent).toContain("2 en attente de notation")
     expect(vi.mocked(publierResultats).mock.calls[0][0]).toBe(3)
     await waitFor(() => expect(vi.mocked(mesEvaluationsEnseignant).mock.calls.length).toBeGreaterThan(appelsAvant))
+  })
+
+  it("programmer la publication : la date choisie part au serveur, le message annonce la date", async () => {
+    vi.mocked(programmerPublication).mockResolvedValue({ evaluationId: 3, publicationPrevueLe: "2030-02-01T08:30:00" })
+    afficher()
+    fireEvent.click(await screen.findByRole("button", { name: /Évaluation 3/ }))
+    const bouton = screen.getByRole("button", { name: "Programmer la publication" }) as HTMLButtonElement
+    expect(bouton.disabled).toBe(true) // pas de date : rien à envoyer
+
+    fireEvent.change(screen.getByLabelText("Date et heure de publication"), { target: { value: "2030-02-01T08:30" } })
+    fireEvent.click(bouton)
+
+    await waitFor(() => expect(programmerPublication).toHaveBeenCalledWith(3, "2030-02-01T08:30"))
+    expect((await screen.findByRole("status")).textContent).toContain("Publication programmée le")
+    expect(publierResultats).not.toHaveBeenCalled() // programmer n'est pas publier
+  })
+
+  it("publication déjà programmée : la date est affichée, le formulaire remplacé par « Annuler la programmation »", async () => {
+    vi.mocked(mesEvaluationsEnseignant).mockResolvedValue([{ ...evaluation(3, "TERMINEE"), publicationResultatsPrevueLe: "2030-02-01T08:30:00" }])
+    vi.mocked(annulerProgrammationPublication).mockResolvedValue(undefined)
+    afficher()
+    fireEvent.click(await screen.findByRole("button", { name: /Évaluation 3/ }))
+
+    expect(screen.getByText(/Publication automatique prévue le/)).toBeTruthy()
+    expect(screen.queryByLabelText("Date et heure de publication")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Annuler la programmation" }))
+
+    await waitFor(() => expect(vi.mocked(annulerProgrammationPublication).mock.calls[0][0]).toBe(3))
+    expect((await screen.findByRole("status")).textContent).toContain("Programmation annulée")
+  })
+
+  it("programmation refusée (date trop proche) : le motif du serveur est affiché", async () => {
+    vi.mocked(programmerPublication).mockRejectedValue(erreurHttp(400, "La date de publication doit être dans le futur."))
+    afficher()
+    fireEvent.click(await screen.findByRole("button", { name: /Évaluation 3/ }))
+    fireEvent.change(screen.getByLabelText("Date et heure de publication"), { target: { value: "2020-01-01T08:00" } })
+    fireEvent.click(screen.getByRole("button", { name: "Programmer la publication" }))
+    expect((await screen.findByRole("alert")).textContent).toContain("dans le futur")
   })
 
   it("publication refusée à la confirmation : rien n'est envoyé", async () => {

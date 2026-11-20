@@ -4,11 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Send, Users, FileText, CheckCircle2 } from "lucide-react"
+import { Send, Users, FileText, CheckCircle2, CalendarClock } from "lucide-react"
+import { Input } from "@/components/ui/input"
 import {
   CLE_EVALUATIONS_ENSEIGNANT,
   libelleNbQuestions,
+  annulerProgrammationPublication,
   mesEvaluationsEnseignant,
+  programmerPublication,
   publierResultats,
   type ResultatsPublicationApi,
 } from "@/lib/evaluationsEnseignant"
@@ -23,6 +26,10 @@ import NotesParEtudiant from "./NotesParEtudiant"
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })
+}
+
+function formatDateHeure(iso: string) {
+  return new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
 }
 
 function bilan(r: ResultatsPublicationApi) {
@@ -45,6 +52,20 @@ export default function PublicationResultats() {
     mutationFn: publierResultats,
     onSuccess: (r) => { setErreur(null); setInfo(bilan(r)); setSelected(null) },
     onError: (e) => { setInfo(null); setErreur(messageErreur(e, "La publication des résultats a échoué.")) },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: CLE_EVALUATIONS_ENSEIGNANT }),
+  })
+
+  const [datePrevue, setDatePrevue] = useState("")
+  const programmation = useMutation({
+    mutationFn: ({ id, date }: { id: number; date: string }) => programmerPublication(id, date),
+    onSuccess: (r) => { setErreur(null); setInfo(`Publication programmée le ${formatDateHeure(r.publicationPrevueLe)}.`); setDatePrevue("") },
+    onError: (e) => { setInfo(null); setErreur(messageErreur(e, "La programmation a échoué.")) },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: CLE_EVALUATIONS_ENSEIGNANT }),
+  })
+  const annulation = useMutation({
+    mutationFn: annulerProgrammationPublication,
+    onSuccess: () => { setErreur(null); setInfo("Programmation annulée : les résultats ne seront pas publiés automatiquement.") },
+    onError: (e) => { setInfo(null); setErreur(messageErreur(e, "L'annulation a échoué.")) },
     onSettled: () => queryClient.invalidateQueries({ queryKey: CLE_EVALUATIONS_ENSEIGNANT }),
   })
 
@@ -186,6 +207,32 @@ export default function PublicationResultats() {
                         <><Send className="size-4" /> Publier les résultats</>
                       )}
                     </Button>
+
+                    {/* Publication différée (DS-07) : seule la date est enregistrée, le serveur publie à l'échéance */}
+                    <div className="flex flex-col gap-2 rounded-xl border border-border/60 p-4">
+                      <p className="flex items-center gap-2 text-sm font-semibold"><CalendarClock className="size-4 text-primary" /> Publier plus tard</p>
+                      {evalSelected.publicationResultatsPrevueLe ? (
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                          <span>Publication automatique prévue le <strong>{formatDateHeure(evalSelected.publicationResultatsPrevueLe)}</strong>.</span>
+                          <Button variant="outline" size="sm" className="rounded-lg" disabled={annulation.isPending}
+                            onClick={() => annulation.mutate(evalSelected.id)}>
+                            Annuler la programmation
+                          </Button>
+                        </div>
+                      ) : (
+                        <form className="flex flex-wrap items-end gap-3"
+                          onSubmit={(ev) => { ev.preventDefault(); if (datePrevue) programmation.mutate({ id: evalSelected.id, date: datePrevue }) }}>
+                          <div className="flex flex-col gap-1.5">
+                            <label htmlFor="date-publication" className="text-xs text-muted-foreground">Date et heure de publication</label>
+                            <Input id="date-publication" type="datetime-local" required value={datePrevue}
+                              onChange={(ev) => setDatePrevue(ev.target.value)} className="rounded-lg" />
+                          </div>
+                          <Button type="submit" variant="outline" className="rounded-xl" disabled={!datePrevue || programmation.isPending}>
+                            Programmer la publication
+                          </Button>
+                        </form>
+                      )}
+                    </div>
                   </>
                 )}
 

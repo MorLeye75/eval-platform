@@ -147,6 +147,8 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | PUT | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | tiers-temps ; corps `{ dureeMinutes }` (DS-06) |
 | DELETE | `/enseignant/evaluations/{id}/amenagements/{etudiantId}` | enseignant (propriétaire) | supprime un tiers-temps |
 | POST | `/enseignant/evaluations/{id}/resultats/publier` | enseignant (propriétaire) | rend notes et corrigés consultables et notifie les étudiants (DS-07) |
+| PUT | `/enseignant/evaluations/{id}/resultats/programmation` | enseignant (propriétaire) | programme la publication automatique des résultats (date future, après la marge) ; 400 / 409 (V15, DS-07) |
+| DELETE | `/enseignant/evaluations/{id}/resultats/programmation` | enseignant (propriétaire) | annule la publication programmée ; 409 si rien n'est programmé (DS-07) |
 | POST | `/enseignant/evaluations/{id}/corrections-ia/generer` | enseignant (propriétaire) | lance la génération (asynchrone, 202) des propositions IA des questions ouvertes d'une évaluation terminée (DS-08) |
 | GET | `/enseignant/corrections-ia` | enseignant | propositions de l'IA (filtres `evaluationId`, `statut`) et nombre de réponses encore sans proposition (DS-08) |
 | PUT | `/enseignant/corrections-ia/{id}/valider` | enseignant (propriétaire) | retient la note de l'IA, ou `{ note }` ; si c'est la dernière note de la copie, elle passe EVALUE (DS-08) |

@@ -379,6 +379,7 @@ public class EvaluationService {
         r.setDateFermeture(evaluation.getDateFermeture());
         r.setStatut(evaluation.getStatut());
         r.setResultatsPublies(evaluation.getResultatsPublies());
+        r.setPublicationResultatsPrevueLe(evaluation.getPublicationResultatsPrevueLe());
         r.setVersion(evaluation.getVersion());
         r.setPromotionIds(evaluation.getPromotions().stream().map(Promotion::getId).toList());
         r.setNbQuestions(evaluation.getQuestions().size());

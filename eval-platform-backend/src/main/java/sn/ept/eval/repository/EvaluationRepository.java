@@ -54,6 +54,9 @@ public interface EvaluationRepository extends JpaRepository<Evaluation, Long> {
     @Query("update versioned Evaluation e set e.resultatsPublies = true where e.id = :id and e.resultatsPublies = false")
     int publierResultatsSiNonPublies(@Param("id") Long id);
 
+    /** Publications de résultats programmées et échues (DS-07, planificateur). */
+    List<Evaluation> findByResultatsPubliesFalseAndPublicationResultatsPrevueLeLessThanEqual(LocalDateTime date);
+
     /** Évaluations d'un statut dont la date d'ouverture est atteinte (DS-05). */
     List<Evaluation> findByStatutAndDateOuvertureLessThanEqual(StatutEvaluation statut, LocalDateTime date);
 

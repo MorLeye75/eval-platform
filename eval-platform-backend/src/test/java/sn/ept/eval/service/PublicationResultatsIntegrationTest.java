@@ -31,8 +31,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -52,6 +54,7 @@ class PublicationResultatsIntegrationTest {
     @Autowired private PasswordEncoder passwordEncoder;
     @Autowired private TransactionTemplate transactionTemplate;
     @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private PublicationResultatsService publicationResultatsService;
 
     /** Remplace le service provisoire : on vérifie les appels sans dépendre du module de Mor. */
     @MockitoBean private NotificationService notificationService;
@@ -150,6 +153,131 @@ class PublicationResultatsIntegrationTest {
     // ---------------------------------------------------------------- outils
 
     /** Évaluation du professeur de démonstration, avec une question ouverte, dans le statut et la fermeture voulus. */
+    // ---------------------------------------------------------------- publication différée
+
+    private static String corpsProgrammation(LocalDateTime date) {
+        return "{\"datePublication\":\"" + date.withNano(0) + "\"}";
+    }
+
+    private void programmer(String prof, Long evaluationId, LocalDateTime date) throws Exception {
+        mockMvc.perform(put("/enseignant/evaluations/" + evaluationId + "/resultats/programmation").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content(corpsProgrammation(date)))
+                .andExpect(status().isOk());
+    }
+
+    private LocalDateTime prevueEnBase(Long evaluationId) {
+        java.sql.Timestamp t = jdbcTemplate.queryForObject(
+                "select publication_resultats_prevue_le from evaluations where id = ?", java.sql.Timestamp.class, evaluationId);
+        return t == null ? null : t.toLocalDateTime();
+    }
+
+    @Test
+    @DisplayName("Programmer : la date est enregistrée et visible, rien n'est publié ; à l'échéance le planificateur publie une fois, notifie une fois, efface la date")
+    void programmationPuisPublicationAutomatique() throws Exception {
+        Long evaluationId = evaluationTerminee(StatutEvaluation.TERMINEE, LocalDateTime.now().minusMinutes(30));
+        String etudiant = nouvelEtudiant();
+        copieNotee(evaluationId, etudiant, 4.0);
+        String prof = bearer("prof@ept.sn", "prof123");
+        LocalDateTime date = LocalDateTime.now().plusHours(2).withNano(0);
+
+        mockMvc.perform(put("/enseignant/evaluations/" + evaluationId + "/resultats/programmation").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content(corpsProgrammation(date)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.publicationPrevueLe").value(date.toString()));
+        mockMvc.perform(get("/enseignant/evaluations/" + evaluationId).header("Authorization", prof))
+                .andExpect(jsonPath("$.publicationResultatsPrevueLe").value(date.toString()))
+                .andExpect(jsonPath("$.resultatsPublies").value(false));
+
+        // pas encore échue : rien ne se passe
+        assertThat(publicationResultatsService.publierProgrammees()).isZero();
+        verify(notificationService, never()).resultatsPublies(any());
+
+        // échéance atteinte
+        jdbcTemplate.update("update evaluations set publication_resultats_prevue_le = ? where id = ?", LocalDateTime.now().minusMinutes(1), evaluationId);
+        assertThat(publicationResultatsService.publierProgrammees()).isEqualTo(1);
+
+        assertThat(evaluationRepository.findById(evaluationId).orElseThrow().getResultatsPublies()).isTrue();
+        assertThat(prevueEnBase(evaluationId)).isNull();
+        verify(notificationService, org.mockito.Mockito.times(1)).resultatsPublies(argThat(e -> e.getId().equals(evaluationId)));
+        // deuxième passage et clic manuel ensuite : aucune seconde publication
+        assertThat(publicationResultatsService.publierProgrammees()).isZero();
+        mockMvc.perform(post("/enseignant/evaluations/" + evaluationId + "/resultats/publier").header("Authorization", prof))
+                .andExpect(status().isConflict());
+        verify(notificationService, org.mockito.Mockito.times(1)).resultatsPublies(argThat(e -> e.getId().equals(evaluationId)));
+    }
+
+    @Test
+    @DisplayName("Évaluation pas encore terminée : une programmation échue reste programmée, rien n'est publié")
+    void programmationEchueMaisEvaluationOuverte() throws Exception {
+        Long evaluationId = evaluationTerminee(StatutEvaluation.EN_COURS, LocalDateTime.now().plusDays(1));
+        String prof = bearer("prof@ept.sn", "prof123");
+        programmer(prof, evaluationId, LocalDateTime.now().plusDays(2));
+        jdbcTemplate.update("update evaluations set publication_resultats_prevue_le = ? where id = ?", LocalDateTime.now().minusMinutes(1), evaluationId);
+
+        assertThat(publicationResultatsService.publierProgrammees()).isZero();
+
+        assertThat(evaluationRepository.findById(evaluationId).orElseThrow().getResultatsPublies()).isFalse();
+        assertThat(prevueEnBase(evaluationId)).isNotNull();
+        verify(notificationService, never()).resultatsPublies(any());
+    }
+
+    @Test
+    @DisplayName("Une publication manuelle efface la programmation ; annuler la programmation : 204 puis 409 ; la publication automatique n'a plus lieu")
+    void annulerEtPublicationManuelle() throws Exception {
+        String prof = bearer("prof@ept.sn", "prof123");
+        Long annulee = evaluationTerminee(StatutEvaluation.TERMINEE, LocalDateTime.now().minusMinutes(30));
+        programmer(prof, annulee, LocalDateTime.now().plusHours(1));
+        mockMvc.perform(delete("/enseignant/evaluations/" + annulee + "/resultats/programmation").header("Authorization", prof))
+                .andExpect(status().isNoContent());
+        assertThat(prevueEnBase(annulee)).isNull();
+        mockMvc.perform(delete("/enseignant/evaluations/" + annulee + "/resultats/programmation").header("Authorization", prof))
+                .andExpect(status().isConflict());
+        assertThat(publicationResultatsService.publierProgrammees()).isZero();
+
+        Long manuelle = evaluationTerminee(StatutEvaluation.TERMINEE, LocalDateTime.now().minusMinutes(30));
+        programmer(prof, manuelle, LocalDateTime.now().plusHours(1));
+        mockMvc.perform(post("/enseignant/evaluations/" + manuelle + "/resultats/publier").header("Authorization", prof))
+                .andExpect(status().isOk());
+        assertThat(prevueEnBase(manuelle)).isNull();
+    }
+
+    @Test
+    @DisplayName("Programmation refusée : date absente, passée ou avant la marge 400 ; brouillon et déjà publiée 409 ; autre enseignant 403 ; étudiant 403 ; sans jeton 401 ; inconnue 404")
+    void programmationRefusee() throws Exception {
+        String prof = bearer("prof@ept.sn", "prof123");
+        String url = "/resultats/programmation";
+        Long ouverte = evaluationTerminee(StatutEvaluation.EN_COURS, LocalDateTime.now().plusDays(1));
+        Long terminee = evaluationTerminee(StatutEvaluation.TERMINEE, LocalDateTime.now().minusMinutes(30));
+        Long brouillon = evaluationTerminee(StatutEvaluation.BROUILLON, LocalDateTime.now().plusDays(1));
+        Long publiee = evaluationTerminee(StatutEvaluation.TERMINEE, LocalDateTime.now().minusMinutes(30));
+        mockMvc.perform(post("/enseignant/evaluations/" + publiee + "/resultats/publier").header("Authorization", prof)).andExpect(status().isOk());
+
+        // 400 : absente, dans le passé, avant la fin de la marge (l'évaluation ferme dans un jour)
+        mockMvc.perform(put("/enseignant/evaluations/" + terminee + url).header("Authorization", prof)
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest());
+        mockMvc.perform(put("/enseignant/evaluations/" + terminee + url).header("Authorization", prof)
+                .contentType(MediaType.APPLICATION_JSON).content(corpsProgrammation(LocalDateTime.now().minusHours(1)))).andExpect(status().isBadRequest());
+        mockMvc.perform(put("/enseignant/evaluations/" + ouverte + url).header("Authorization", prof)
+                .contentType(MediaType.APPLICATION_JSON).content(corpsProgrammation(LocalDateTime.now().plusHours(1)))).andExpect(status().isBadRequest());
+        assertThat(prevueEnBase(terminee)).isNull();
+        assertThat(prevueEnBase(ouverte)).isNull();
+
+        String futur = corpsProgrammation(LocalDateTime.now().plusDays(3));
+        mockMvc.perform(put("/enseignant/evaluations/" + brouillon + url).header("Authorization", prof)
+                .contentType(MediaType.APPLICATION_JSON).content(futur)).andExpect(status().isConflict());
+        mockMvc.perform(put("/enseignant/evaluations/" + publiee + url).header("Authorization", prof)
+                .contentType(MediaType.APPLICATION_JSON).content(futur)).andExpect(status().isConflict());
+        mockMvc.perform(put("/enseignant/evaluations/999999" + url).header("Authorization", prof)
+                .contentType(MediaType.APPLICATION_JSON).content(futur)).andExpect(status().isNotFound());
+        mockMvc.perform(put("/enseignant/evaluations/" + terminee + url).header("Authorization", bearer(nouvelEnseignant(), "motDePasse"))
+                .contentType(MediaType.APPLICATION_JSON).content(futur)).andExpect(status().isForbidden());
+        mockMvc.perform(put("/enseignant/evaluations/" + terminee + url).header("Authorization", bearer("etudiant@ept.sn", "etudiant123"))
+                .contentType(MediaType.APPLICATION_JSON).content(futur)).andExpect(status().isForbidden());
+        mockMvc.perform(put("/enseignant/evaluations/" + terminee + url)
+                .contentType(MediaType.APPLICATION_JSON).content(futur)).andExpect(status().isUnauthorized());
+        mockMvc.perform(delete("/enseignant/evaluations/" + terminee + url).header("Authorization", bearer(nouvelEnseignant(), "motDePasse")))
+                .andExpect(status().isForbidden());
+    }
+
     private Long evaluationTerminee(StatutEvaluation statut, LocalDateTime fermeture) {
         return transactionTemplate.execute(tx -> {
             Enseignant prof = (Enseignant) utilisateurRepository.findByEmail("prof@ept.sn").orElseThrow();

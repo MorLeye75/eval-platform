@@ -90,7 +90,7 @@ flowchart TD
 - **Assessment builder**: wizard (general info → questions → preview) saving drafts server-side; QCM, open, code and timed-quiz questions; **duplicate** an assessment into a new draft; publish / unpublish / delete.
 - **Extra time (tiers-temps)**: per-student duration override, locked once the student has started.
 - **Live supervision** (read-only, 15 s polling): who has started / submitted, anti-cheat alerts as indications, never as proof.
-- **Results**: statistics, per-student grades (same rows as the CSV export), CSV export, controlled publication to students.
+- **Results**: statistics, per-student grades (same rows as the CSV export), CSV export, per-question detail export and PDF report, **comparison of 2 to 6 assessments** (grades normalised to /20), controlled publication to students — immediately or **scheduled** at a chosen date (published automatically once the tolerance margin has passed).
 
 ### 7. 🛠️ Administrator Space
 - **Accounts** (never deleted, only deactivated): create, edit, deactivate / reactivate, CSV import of students (all-or-nothing, with a per-line error report).

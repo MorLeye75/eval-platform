@@ -18,10 +18,13 @@ public class PassationScheduler {
 
     private final ClotureCopiesService clotureCopiesService;
     private final EvaluationStatutService evaluationStatutService;
+    private final PublicationResultatsService publicationResultatsService;
 
-    public PassationScheduler(ClotureCopiesService clotureCopiesService, EvaluationStatutService evaluationStatutService) {
+    public PassationScheduler(ClotureCopiesService clotureCopiesService, EvaluationStatutService evaluationStatutService,
+                              PublicationResultatsService publicationResultatsService) {
         this.clotureCopiesService = clotureCopiesService;
         this.evaluationStatutService = evaluationStatutService;
+        this.publicationResultatsService = publicationResultatsService;
     }
 
     @Scheduled(fixedDelayString = "${passation.taches-planifiees.intervalle-ms:60000}",
@@ -43,6 +46,15 @@ public class PassationScheduler {
             }
         } catch (Exception e) {
             log.error("[Planifié] Échec de la clôture des copies expirées", e);
+        }
+
+        try {
+            int publiees = publicationResultatsService.publierProgrammees();
+            if (publiees > 0) {
+                log.info("[Planifié] {} publication(s) de résultats programmée(s) effectuée(s)", publiees);
+            }
+        } catch (Exception e) {
+            log.error("[Planifié] Échec des publications de résultats programmées", e);
         }
 
         try {

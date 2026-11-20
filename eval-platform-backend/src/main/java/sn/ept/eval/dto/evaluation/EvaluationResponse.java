@@ -20,6 +20,7 @@ public class EvaluationResponse {
     private LocalDateTime dateFermeture;
     private StatutEvaluation statut;
     private Boolean resultatsPublies;
+    private LocalDateTime publicationResultatsPrevueLe;
     private Long version;
     private List<Long> promotionIds = new ArrayList<>();
     private Integer nbQuestions;
@@ -50,6 +51,10 @@ public class EvaluationResponse {
 
     public StatutEvaluation getStatut() { return statut; }
     public void setStatut(StatutEvaluation statut) { this.statut = statut; }
+
+    /** Publication automatique des résultats programmée (DS-07), ou null. */
+    public LocalDateTime getPublicationResultatsPrevueLe() { return publicationResultatsPrevueLe; }
+    public void setPublicationResultatsPrevueLe(LocalDateTime publicationResultatsPrevueLe) { this.publicationResultatsPrevueLe = publicationResultatsPrevueLe; }
 
     public Boolean getResultatsPublies() { return resultatsPublies; }
     public void setResultatsPublies(Boolean resultatsPublies) { this.resultatsPublies = resultatsPublies; }

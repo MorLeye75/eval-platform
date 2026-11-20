@@ -51,6 +51,61 @@ else publiable
 end
 deactivate B
 
+== Publication différée (programmer, annuler, déclenchement) ==
+note over E, D
+  L'enseignant peut **programmer** la publication à une date au lieu de cliquer le jour même. Rien n'est publié à la
+  programmation : seule la date est enregistrée (colonne publication_resultats_prevue_le, migration V15). La publication
+  elle-même passe par la **même** bascule atomique que le clic manuel : mêmes règles, une seule notification par copie.
+end note
+
+E -> F : choisit une date et heure, « Programmer la publication »
+F -> B ++ : PUT /api/enseignant/evaluations/{id}/resultats/programmation { datePublication }
+alt évaluation inconnue
+  B --> F : 404 Not Found
+else évaluation d'un autre enseignant
+  B --> F : 403 Forbidden
+else résultats déjà publiés ou évaluation en BROUILLON
+  B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
+else date absente, dans le passé ou avant la fin de la marge de tolérance (fermeture + 2 min)
+  B --> F : 400 Bad Request (problem+json : « la date doit être postérieure à … »)
+else
+  B -> D : UPDATE Evaluation SET publication_resultats_prevue_le = :date
+  B --> F : 200 OK { evaluationId, publicationPrevueLe }
+  F --> E : « Publication prévue le … » et bouton « Annuler la programmation »
+end
+deactivate B
+
+E -> F : « Annuler la programmation »
+F -> B ++ : DELETE /api/enseignant/evaluations/{id}/resultats/programmation
+alt rien n'est programmé
+  B --> F : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
+else
+  B -> D : UPDATE Evaluation SET publication_resultats_prevue_le = NULL
+  B --> F : 204 No Content
+end
+deactivate B
+
+== Déclenchement à l'échéance (PassationScheduler, toutes les 60 s) ==
+participant "PassationScheduler" as P
+P -> B ++ : publierProgrammees()
+B -> D ++ : SELECT évaluations WHERE publication_resultats_prevue_le <= maintenant AND resultatsPublies = false
+D --> B -- : évaluations échues
+loop pour chaque évaluation échue (un échec n'arrête pas les autres)
+  alt statut ≠ TERMINEE ou marge de tolérance non écoulée
+    B -> B : laissée programmée, nouvel essai à la minute suivante
+  else
+    B -> D : UPDATE resultatsPublies = true WHERE resultatsPublies = false (même bascule atomique que DS-07)
+    alt 0 ligne : l'enseignant vient de publier à la main
+      B -> B : rien à notifier
+    else
+      B -> N : resultatsPublies(évaluation) : une notification par copie déjà notée
+    end
+    B -> D : UPDATE publication_resultats_prevue_le = NULL
+  end
+end
+deactivate B
+note right of B : une publication manuelle efface aussi la programmation.\nHorloge : Clock de l'application. Le planificateur est désactivé dans les tests\n(passation.taches-planifiees.actif=false) : ils l'appellent directement.
+
 == Copies pas encore notées au moment de la publication ==
 note over B, D
   Une copie encore SOUMIS / EN_CORRECTION (code en nouvel essai Judge0, correction manuelle d'une question ouverte)

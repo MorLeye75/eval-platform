@@ -43,6 +43,9 @@ public class Evaluation extends AuditableEntity {
     @Column(nullable = false)
     private Boolean resultatsPublies = false;
 
+    /** Date de publication automatique des résultats choisie par l'enseignant (DS-07) ; null = rien de programmé. */
+    private java.time.LocalDateTime publicationResultatsPrevueLe;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "enseignant_id", nullable = false)
     private Enseignant enseignant;
@@ -94,6 +97,9 @@ public class Evaluation extends AuditableEntity {
 
     public Boolean getResultatsPublies() { return resultatsPublies; }
     public void setResultatsPublies(Boolean resultatsPublies) { this.resultatsPublies = resultatsPublies; }
+
+    public java.time.LocalDateTime getPublicationResultatsPrevueLe() { return publicationResultatsPrevueLe; }
+    public void setPublicationResultatsPrevueLe(java.time.LocalDateTime publicationResultatsPrevueLe) { this.publicationResultatsPrevueLe = publicationResultatsPrevueLe; }
 
     public Enseignant getEnseignant() { return enseignant; }
     public void setEnseignant(Enseignant enseignant) { this.enseignant = enseignant; }

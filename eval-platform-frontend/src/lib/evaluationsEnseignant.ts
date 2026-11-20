@@ -51,6 +51,8 @@ export interface EvaluationEnseignantApi {
   dateFermeture: string
   statut: StatutEvaluation
   resultatsPublies: boolean
+  /** DS-07 : publication automatique des résultats programmée (heure locale), ou null. */
+  publicationResultatsPrevueLe?: string | null
   /** Verrou optimiste : incrémenté à chaque modification côté serveur. */
   version: number
   promotionIds: number[]
@@ -149,6 +151,17 @@ export async function depublierEvaluation(id: number) {
 export async function publierResultats(id: number) {
   const { data } = await api.post<ResultatsPublicationApi>(`${BASE}/${id}/resultats/publier`)
   return data
+}
+
+/** DS-07 : programme la publication automatique des résultats à une date (heure locale, « AAAA-MM-JJThh:mm »). */
+export async function programmerPublication(id: number, datePublication: string) {
+  const { data } = await api.put<{ evaluationId: number; publicationPrevueLe: string }>(`${BASE}/${id}/resultats/programmation`, { datePublication })
+  return data
+}
+
+/** DS-07 : annule la publication programmée (409 si rien n'est programmé). */
+export async function annulerProgrammationPublication(id: number) {
+  await api.delete(`${BASE}/${id}/resultats/programmation`)
 }
 
 /** DS-06 : tiers-temps d'un étudiant. */

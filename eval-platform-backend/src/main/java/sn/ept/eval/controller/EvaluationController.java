@@ -19,6 +19,8 @@ import sn.ept.eval.dto.evaluation.AmenagementResponse;
 import sn.ept.eval.dto.evaluation.AmenagementsEvaluationResponse;
 import sn.ept.eval.dto.evaluation.CreateEvaluationRequest;
 import sn.ept.eval.dto.evaluation.EvaluationResponse;
+import sn.ept.eval.dto.evaluation.ProgrammationPublicationRequest;
+import sn.ept.eval.dto.evaluation.ProgrammationPublicationResponse;
 import sn.ept.eval.dto.evaluation.ResultatsPublicationResponse;
 import sn.ept.eval.service.AmenagementTempsService;
 import sn.ept.eval.service.EvaluationService;
@@ -102,6 +104,21 @@ public class EvaluationController {
     @PostMapping("/{id}/resultats/publier")
     public ResponseEntity<ResultatsPublicationResponse> publierResultats(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok(publicationResultatsService.publier(id, authentication.getName()));
+    }
+
+    @Operation(summary = "Programmer la publication des résultats",
+            description = "Enregistre la date à laquelle les résultats seront publiés automatiquement (DS-07). 400 si la date est dans le passé ou avant la fin de la marge de tolérance ; 409 si les résultats sont déjà publiés ou l'évaluation en brouillon.")
+    @PutMapping("/{id}/resultats/programmation")
+    public ResponseEntity<ProgrammationPublicationResponse> programmerPublication(@PathVariable Long id,
+            @Valid @RequestBody ProgrammationPublicationRequest requete, Authentication authentication) {
+        return ResponseEntity.ok(publicationResultatsService.programmer(id, authentication.getName(), requete.datePublication()));
+    }
+
+    @Operation(summary = "Annuler la publication programmée", description = "409 si rien n'est programmé.")
+    @DeleteMapping("/{id}/resultats/programmation")
+    public ResponseEntity<Void> annulerProgrammation(@PathVariable Long id, Authentication authentication) {
+        publicationResultatsService.annulerProgrammation(id, authentication.getName());
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "Étudiants attendus et leurs aménagements de temps",
