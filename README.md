@@ -96,7 +96,7 @@ flowchart TD
 - **Accounts** (never deleted, only deactivated): create, edit, deactivate / reactivate, CSV import of students (all-or-nothing, with a per-line error report).
 - **Provisional passwords**: generated server-side, shown once, stored hashed. A provisional password must be replaced at first login (the server answers `403 MOT_DE_PASSE_A_CHANGER` on every route except `/auth` and `/profil`); resetting a password cuts the account's open sessions.
 - **Promotions**: create, rename, delete when empty.
-- **Overview**: dashboard, global supervision (30 s polling) and global statistics (grades normalised to /20, `null` — never 0 — when there is no data). The system-settings page is a preview, flagged as such on screen.
+- **Overview**: dashboard, global supervision (30 s polling) and global statistics (grades normalised to /20, `null` — never 0 — when there is no data). The system-settings page shows the configuration the server actually applies, read-only, with the source of each value (code or deployment) and never a secret.
 
 ---
 

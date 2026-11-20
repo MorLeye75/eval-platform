@@ -85,3 +85,16 @@ export function sur20(valeur: number | null) {
 export function pourcent(valeur: number | null) {
   return valeur === null ? "—" : `${valeur.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`
 }
+
+// ---------------------------------------------------------------- configuration en vigueur (DS-18, section D)
+
+export interface ParametreApi { libelle: string; valeur: string; source: "CODE" | "DEPLOIEMENT" | string }
+export interface SectionConfigurationApi { titre: string; parametres: ParametreApi[] }
+
+export const CLE_CONFIGURATION = ["admin-configuration"] as const
+
+/** Ce que le serveur applique réellement, en lecture seule ; jamais de secret. */
+export async function configurationSysteme() {
+  const { data } = await api.get<{ sections: SectionConfigurationApi[] }>("/admin/configuration")
+  return data
+}

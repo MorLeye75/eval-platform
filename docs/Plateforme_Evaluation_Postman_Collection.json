@@ -3722,6 +3722,45 @@
           }
         },
         {
+          "name": "11.3b DS-18: Configuration en vigueur (lecture seule, sans secret)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : sections de configuration, chaque paramètre avec sa source, jamais de secret', function () { pm.response.to.have.status(200); var t = pm.response.text(); var j = pm.response.json(); pm.expect(j.sections).to.be.an('array').that.is.not.empty; j.sections.forEach(function (s) { s.parametres.forEach(function (p) { pm.expect(['CODE', 'DEPLOIEMENT']).to.include(p.source); }); }); pm.expect(t.toLowerCase()).to.not.include('jdbc:'); pm.expect(t.toLowerCase()).to.not.include('password'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "configuration"
+              ]
+            },
+            "description": "Notes sur 20 des copies notées ; indicateur null sans copie notée."
+          }
+        },
+        {
           "name": "11.4 DS-18: Un enseignant n'y a pas accès → 403",
           "event": [
             {

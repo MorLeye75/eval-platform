@@ -135,9 +135,9 @@ Postman : dossier « 05 - Évaluations enseignant (DS-03 à DS-07) » dans `docs
 
 - **DS-08, suite** : connecteur vers un vrai modèle de langage (fournisseur, clé `LLM_API_KEY` et coût à décider avec
   l'encadrant), modification d'une note après coup. Les notes manuelles ont leur écran (section « À noter à la main » de la validation IA).
-- **DS-09, suite** : comparaison avec les sessions précédentes (aucune donnée de référence), export PDF / Excel natif si l'encadrant l'exige.
+- **DS-09, suite** : export Excel natif si l'encadrant l'exige (le CSV s'ouvre dans Excel). Fait depuis : export du détail par question, rapport PDF, comparaison entre évaluations (DS-19), publication différée des résultats (DS-07).
 - **DS-16, suite** : gestion des promotions (modifier, supprimer), révocation des sessions d'un compte dont on réinitialise le mot de passe, changement de mot de passe obligatoire à la première connexion, paramètres système de l'espace administrateur (aperçu non branché : aucune configuration modifiable à chaud n'existe côté serveur).
-- Écran encore simulé : paramètres système de l'administrateur (signalé comme aperçu à l'écran).
+- Paramètres système de l'administrateur : lecture seule (configuration réellement appliquée, sans secret). Les rendre modifiables demande de brancher chaque réglage, un par un : à décider avec Mor.
 
 **Avec Mor**
 

@@ -48,5 +48,5 @@ Le script crée ses propres données (suffixe unique) : il peut être relancé s
 
 - La **correction IA** des questions ouvertes utilise un correcteur de démonstration : aucun vrai modèle n'est branché (fournisseur, clé et coût à décider avec l'encadrant). L'enseignant valide ou note à la main chaque réponse.
 - L'**exécution du code** passe par Judge0 : un test réel contre une instance Judge0 reste à faire ; les tests automatiques utilisent un faux exécuteur.
-- La page **Paramètres système** de l'administrateur est un aperçu : rien n'y est enregistré côté serveur, et l'écran le dit.
+- La page **Paramètres système** de l'administrateur est en **lecture seule** : elle montre ce que le serveur applique réellement (valeurs du code ou du déploiement), mais rien ne s'y modifie.
 - Une évaluation créée pendant la démonstration est datée de 2030 : elle ne s'ouvre pas tout de suite. Pour montrer la passation, utiliser les évaluations de démonstration déjà ouvertes.
