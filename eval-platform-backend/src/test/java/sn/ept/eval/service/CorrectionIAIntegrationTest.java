@@ -29,6 +29,11 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -121,11 +126,17 @@ class CorrectionIAIntegrationTest {
         correctionIAService.proposer(cas.reponseIds().get(0));
         correctionIAService.proposer(cas.reponseIds().get(1));
 
-        for (Long reponseId : cas.reponseIds()) {
-            mockMvc.perform(put("/enseignant/reponses/" + reponseId + "/note").header("Authorization", prof)
-                            .contentType(MediaType.APPLICATION_JSON).content("{\"note\":1}"))
-                    .andExpect(status().isOk());
-        }
+        mockMvc.perform(put("/enseignant/reponses/" + cas.reponseIds().get(0) + "/note").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"note\":1}"))
+                .andExpect(status().isOk());
+        // Une réponse reste à noter : la copie est encore en correction, personne n'est notifié
+        assertThat(statutEtNoteDeLaCopie(cas.copieId())).containsExactly("EN_CORRECTION", null);
+        verify(notificationService, never()).resultatPublie(any());
+
+        mockMvc.perform(put("/enseignant/reponses/" + cas.reponseIds().get(1) + "/note").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"note\":1}"))
+                .andExpect(status().isOk());
+        assertThat(statutEtNoteDeLaCopie(cas.copieId())).containsExactly("EVALUE", 2.0);
         verify(notificationService, times(1)).resultatPublie(any());
     }
 
@@ -252,10 +263,73 @@ class CorrectionIAIntegrationTest {
     @DisplayName("Deux générations successives : une seule proposition par réponse (idempotence)")
     void proposerDeuxFois() {
         Cas cas = copieAvecDeuxReponses(StatutEvaluation.TERMINEE, false);
-        correctionIAService.proposer(cas.reponseIds().get(0));
-        correctionIAService.proposer(cas.reponseIds().get(0));
+        Long reponseId = cas.reponseIds().get(0);
+        int avant = jdbcTemplate.queryForObject("select count(*) from propositions_ia", Integer.class);
+
+        correctionIAService.proposer(reponseId);
+        Long premiere = propositionDe(reponseId);
+        correctionIAService.proposer(reponseId);
+
         verify(correcteur, times(1)).proposer(anyString(), anyDouble(), anyString());
-        assertThat(jdbcTemplate.queryForObject("select count(*) from propositions_ia", Integer.class)).isGreaterThanOrEqualTo(1);
+        assertThat(premiere).isNotNull();
+        assertThat(propositionDe(reponseId)).isEqualTo(premiere); // la proposition n'a pas été remplacée
+        // une seule ligne créée par les deux appels (les autres tests de la classe partagent la base : on compare à l'état d'avant)
+        assertThat(jdbcTemplate.queryForObject("select count(*) from propositions_ia", Integer.class)).isEqualTo(avant + 1);
+    }
+
+    @Test
+    @DisplayName("Course : la note manuelle est posée pendant que l'IA écrit sa proposition -> la proposition tardive n'est pas enregistrée et la note reste")
+    void propositionTardiveNeConcurrenceCasUneNoteManuelle() throws Exception {
+        Cas cas = copieAvecDeuxReponses(StatutEvaluation.TERMINEE, false);
+        Long reponseId = cas.reponseIds().get(0);
+        CountDownLatch verrouPris = new CountDownLatch(1);
+        CountDownLatch iaLancee = new CountDownLatch(1);
+        ExecutorService fils = Executors.newFixedThreadPool(2);
+        try {
+            // Fil « enseignant » : tient le verrou de la copie, laisse l'IA arriver à l'écriture, puis pose la note et valide
+            Future<?> enseignant = fils.submit(() -> transactionTemplate.executeWithoutResult(tx -> {
+                soumissionRepository.findByIdForUpdate(cas.copieId());
+                verrouPris.countDown();
+                try {
+                    iaLancee.await(5, TimeUnit.SECONDS);
+                    Thread.sleep(400); // le temps que l'IA atteigne son écriture
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                jdbcTemplate.update("update reponses_etudiant set note_obtenue = 3, validee_par_prof = true where id = ?", reponseId);
+            }));
+            assertThat(verrouPris.await(5, TimeUnit.SECONDS)).isTrue();
+            // Fil « IA » : lit la réponse (encore à noter), répond, puis veut écrire alors que la copie est verrouillée
+            Future<?> ia = fils.submit(() -> correctionIAService.proposer(reponseId));
+            iaLancee.countDown();
+            enseignant.get(10, TimeUnit.SECONDS);
+            ia.get(10, TimeUnit.SECONDS);
+        } finally {
+            fils.shutdownNow();
+        }
+
+        assertThat(propositionDe(reponseId)).as("aucune proposition ne doit apparaître sur une réponse déjà notée").isNull();
+        assertThat(jdbcTemplate.queryForObject("select note_obtenue from reponses_etudiant where id = ?", Double.class, reponseId)).isEqualTo(3.0);
+        assertThat(jdbcTemplate.queryForObject("select validee_par_prof from reponses_etudiant where id = ?", Boolean.class, reponseId)).isTrue();
+    }
+
+    @Test
+    @DisplayName("Proposition périmée (réponse notée à la main entre-temps) : la valider est refusée (409) et ne remplace pas la note")
+    void validerUnePropositionPerimeeEstRefuse() throws Exception {
+        Cas cas = copieAvecDeuxReponses(StatutEvaluation.TERMINEE, false);
+        Long reponseId = cas.reponseIds().get(0);
+        String prof = bearer("prof@ept.sn", "prof123");
+        correctionIAService.proposer(reponseId);
+        Long propositionId = propositionDe(reponseId);
+        assertThat(propositionId).isNotNull();
+        // état que la course laissait : proposition en attente sur une réponse déjà notée
+        jdbcTemplate.update("update reponses_etudiant set note_obtenue = 3, validee_par_prof = true where id = ?", reponseId);
+
+        mockMvc.perform(put("/enseignant/corrections-ia/" + propositionId + "/valider").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isConflict());
+
+        assertThat(jdbcTemplate.queryForObject("select note_obtenue from reponses_etudiant where id = ?", Double.class, reponseId)).isEqualTo(3.0);
     }
 
     // ---------------------------------------------------------------- outils
@@ -269,6 +343,12 @@ class CorrectionIAIntegrationTest {
             Thread.sleep(100);
         }
         throw new AssertionError("Propositions non générées à temps");
+    }
+
+    /** {statut, noteFinale} d'une copie, lus en base. */
+    private List<Object> statutEtNoteDeLaCopie(Long copieId) {
+        return jdbcTemplate.queryForObject("select statut, note_finale from soumissions where id = ?",
+                (rs, i) -> java.util.Arrays.<Object>asList(rs.getString(1), (Double) rs.getObject(2)), copieId);
     }
 
     private Long propositionDe(Long reponseId) {

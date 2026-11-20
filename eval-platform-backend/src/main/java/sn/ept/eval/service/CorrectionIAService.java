@@ -98,8 +98,15 @@ public class CorrectionIAService {
 
     private void ecrire(Long reponseId, double note, String justification) {
         ReponseOuverte r = reponseOuverteRepository.findById(reponseId).orElse(null);
-        // Apparue entre-temps, ou copie plus en correction : rien n'est écrit (idempotence)
-        if (r == null || !proposable(r)) return;
+        if (r == null) return;
+        // Même verrou de copie que les décisions de l'enseignant, puis relecture : une note manuelle posée pendant que le
+        // modèle répondait est vue ici, et la proposition tardive n'est pas enregistrée.
+        Soumission copie = soumissionRepository.findByIdForUpdate(r.getSoumission().getId()).orElse(null);
+        if (copie == null) return;
+        entityManager.refresh(copie);
+        entityManager.refresh(r);
+        // Apparue entre-temps, déjà notée, ou copie plus en correction : rien n'est écrit (idempotence)
+        if (!proposable(r)) return;
         r.setPropositionIA(new PropositionIA(note, justification, StatutProposition.EN_ATTENTE));
         reponseOuverteRepository.save(r);
     }
@@ -173,6 +180,10 @@ public class CorrectionIAService {
         PropositionIA proposition = reponse.getPropositionIA();
         if (proposition.getStatut() != StatutProposition.EN_ATTENTE) {
             throw new CorrectionNonModifiableException("Cette proposition a déjà été traitée.");
+        }
+        // Notée à la main pendant que la proposition s'écrivait : la valider écraserait la note de l'enseignant
+        if (Boolean.TRUE.equals(reponse.getValideeParProf())) {
+            throw new CorrectionNonModifiableException("Cette réponse est déjà notée : la proposition est périmée.");
         }
         proposition.setStatut(rejet ? StatutProposition.REJETEE : StatutProposition.VALIDEE);
         return poserNote(copie, reponse, note, requete == null ? null : requete.commentaire());

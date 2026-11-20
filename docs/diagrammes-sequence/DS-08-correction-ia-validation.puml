@@ -62,8 +62,9 @@ deactivate C
 alt modèle indisponible, délai dépassé, 5xx, 429 ou réponse illisible
   note right of S : pas de proposition créée : la réponse reste à noter à la main (section D).\nJournal WARN, pas de nouvelle tentative automatique :\nl'enseignant peut relancer « Générer » plus tard, sans doublon (seules les réponses sans proposition sont reprises).
 else proposition obtenue
-  S -> D : SELECT Réponse WHERE id = :id (transaction courte)
-  break proposition apparue entre-temps, ou copie plus EN_CORRECTION
+  S -> D : SELECT Soumission WHERE id = :copie FOR UPDATE, puis relecture de la réponse (transaction courte)
+  note right of D : même verrou de copie que les décisions de l'enseignant (section D) :\nune note manuelle posée pendant que le modèle répondait est vue ici
+  break proposition apparue entre-temps, réponse déjà notée, ou copie plus EN_CORRECTION
     note right of S : proposition abandonnée, rien n'est écrit
   end
   S -> D : INSERT PropositionIA (noteProposee, justification, statut = 'EN_ATTENTE')\nUPDATE ReponseOuverte SET proposition_ia_id = :id
@@ -100,6 +101,9 @@ else
     B --> F : 409 Conflict (code CORRECTION_NON_MODIFIABLE, « copie déjà évaluée »)
   else proposition ≠ EN_ATTENTE
     B --> F : 409 Conflict (code CORRECTION_NON_MODIFIABLE, « déjà traitée »)
+  else réponse déjà notée (valideeParProf = true)
+    B --> F : 409 Conflict (code CORRECTION_NON_MODIFIABLE, « proposition périmée »)
+    note right of B : garde-fou : la validation écraserait la note manuelle de l'enseignant
   else validation possible
     B -> D : UPDATE PropositionIA SET statut = 'VALIDEE' ou 'REJETEE'
     B -> D : UPDATE Réponse SET noteObtenue = :note, valideeParProf = true, commentaireProf = :commentaire
