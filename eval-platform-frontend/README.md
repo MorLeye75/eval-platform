@@ -58,7 +58,7 @@ pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécha
 | Enseignant : validation des corrections IA | API (`POST …/corrections-ia/generer`, `GET /enseignant/corrections-ia`, `PUT …/valider`, `PUT …/rejeter`) ; section « À noter à la main » (`GET /enseignant/corrections-manuelles`, `PUT /enseignant/reponses/{id}/note`) |
 | Administrateur : gestion des comptes (liste, création, modification, désactivation, mot de passe provisoire, promotions créées, renommées, supprimées si vides, import CSV d'étudiants) | API (`/admin/utilisateurs`, `/admin/promotions`, `/admin/etudiants/import`) |
 | Enseignant : notes par étudiant dans la publication des résultats (`GET …/resultats`) | API |
-| Enseignant : statistiques d'une évaluation, export CSV des résultats et du détail par question | API (`GET /enseignant/evaluations/{id}/statistiques`, `GET …/export/csv`, `GET …/export/detail-csv`) |
+| Enseignant : statistiques d'une évaluation, export CSV des résultats, du détail par question et rapport PDF | API (`GET /enseignant/evaluations/{id}/statistiques`, `GET …/export/csv`, `GET …/export/detail-csv`, `GET …/export/pdf`) |
 | Enseignant : dupliquer une évaluation en nouveau brouillon (bouton de « Mes évaluations ») | API existante : `GET` du détail puis `POST` de création, sans nouvelle route (DS-03) |
 | Enseignant : tiers-temps d'une évaluation (`/enseignant/evaluations/:id/tiers-temps`) | API (`GET` / `PUT` / `DELETE …/amenagements`) |
 | Enseignant : supervision d'une évaluation en cours | API (`GET /enseignant/supervision/{id}`, relue toutes les 15 s) |

@@ -108,7 +108,7 @@ class StatistiquesExportIntegrationTest {
         Long publiee = nouvelleEvaluation(StatutEvaluation.PUBLIEE);
         Long terminee = nouvelleEvaluation(StatutEvaluation.TERMINEE);
 
-        for (String route : new String[]{"/statistiques", "/export/csv", "/export/detail-csv", "/resultats"}) {
+        for (String route : new String[]{"/statistiques", "/export/csv", "/export/detail-csv", "/export/pdf", "/resultats"}) {
             mockMvc.perform(get("/enseignant/evaluations/" + brouillon + route).header("Authorization", prof)).andExpect(status().isConflict());
             mockMvc.perform(get("/enseignant/evaluations/" + publiee + route).header("Authorization", prof)).andExpect(status().isConflict());
             mockMvc.perform(get("/enseignant/evaluations/" + terminee + route).header("Authorization", bearer(nouvelEnseignant(), "motDePasse")))
@@ -181,6 +181,32 @@ class StatistiquesExportIntegrationTest {
         assertThat(lignes).anyMatch(l -> l.contains(";ABSENT;1;OUVERTE;10,0;"));
         // aucun e-mail ni texte de réponse
         assertThat(csv).doesNotContain("@ept.sn").doesNotContain("réponse");
+    }
+
+    @Test
+    @DisplayName("Rapport PDF : en-têtes (application/pdf, attachment, no-store), document PDF valide listant les étudiants, sans e-mail")
+    void exportPdf() throws Exception {
+        Cas cas = evaluationAvecResultats(StatutEvaluation.TERMINEE);
+
+        var reponse = mockMvc.perform(get("/enseignant/evaluations/" + cas.evaluationId() + "/export/pdf")
+                        .header("Authorization", bearer("prof@ept.sn", "prof123")))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"resultats-" + cas.evaluationId() + ".pdf\""))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andReturn().getResponse();
+        assertThat(reponse.getContentType()).startsWith("application/pdf");
+        byte[] octets = reponse.getContentAsByteArray();
+        assertThat(new String(octets, 0, 5, StandardCharsets.ISO_8859_1)).isEqualTo("%PDF-");
+        assertThat(new String(octets, StandardCharsets.ISO_8859_1)).contains("%%EOF");
+
+        // Contenu relu avec la bibliothèque : indicateurs, étudiants et absents présents, jamais d'e-mail
+        StringBuilder texte = new StringBuilder();
+        com.lowagie.text.pdf.PdfReader lecteur = new com.lowagie.text.pdf.PdfReader(octets);
+        com.lowagie.text.pdf.parser.PdfTextExtractor extracteur = new com.lowagie.text.pdf.parser.PdfTextExtractor(lecteur);
+        for (int page = 1; page <= lecteur.getNumberOfPages(); page++) texte.append(extracteur.getTextFromPage(page)).append('\n');
+        lecteur.close();
+        assertThat(texte.toString()).contains("Moyenne").contains("Alpha").contains("Bravo").contains("Absent").contains("En attente de note");
+        assertThat(texte.toString()).doesNotContain("@ept.sn");
     }
 
     @Test

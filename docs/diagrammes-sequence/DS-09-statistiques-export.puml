@@ -7,6 +7,7 @@ boundary "Frontend React" as F
 control "Backend Spring\n(StatistiquesController)" as B
 control "StatistiquesEvaluationService" as S
 control "ExportResultatsService" as X
+control "ExportPdfService" as P
 entity "BDD" as D
 
 note over E, D
@@ -101,12 +102,24 @@ X --> B -- : octets (BOM UTF-8 + CSV, mêmes protections que le CSV des résulta
 B --> F -- : 200 OK ; attachment detail-{id}.csv ; Cache-Control: no-store
 deactivate B
 
+== E — Rapport PDF ==
+E -> F : « PDF » (page Export des résultats)
+F -> B ++ : GET /api/enseignant/evaluations/{id}/export/pdf
+note right of B : mêmes contrôles que le CSV : 404 inconnue, 403 autre enseignant,\n409 avant l'ouverture
+B -> P ++ : exporter(id, email)  (ExportPdfService)
+P -> X ++ : statistiques(id, email) puis lignes(id, email)
+X --> P -- : indicateurs sur 20 et une ligne par étudiant attendu
+note right of P : le PDF réutilise les services de l'écran et du CSV :\nmêmes nombres, mêmes contrôles d'accès, aucune requête de plus.\nContenu : titre, barème, effectifs, moyenne / médiane / min / max / taux de réussite,\npuis tableau étudiant · état de la copie · note · sur 20 (« — » sans note, jamais 0).\nAucun e-mail dans le document.
+P --> B -- : octets du PDF
+B --> F -- : 200 OK ; application/pdf ; attachment resultats-{id}.pdf ; Cache-Control: no-store
+deactivate B
+
 note over E, D
   **Confidentialité** : le fichier contient des données personnelles d'étudiants (noms, e-mails, notes) : réservé au propriétaire
   de l'évaluation, jamais mis en cache (no-store), nom de fichier construit à partir de l'identifiant seul (pas du titre).
   L'export est disponible dès que l'évaluation est ouverte, **résultats publiés ou non** : l'enseignant voit les notes de
   ses propres étudiants ; seul l'étudiant attend DS-07.
-  **Hors périmètre** : export PDF et Excel natif (le CSV s'ouvre dans Excel) ; comparaison avec les sessions précédentes
+  **Hors périmètre** : Excel natif (le CSV s'ouvre dans Excel) ; comparaison avec les sessions précédentes
   (aucune donnée de référence) ; statistiques globales de la plateforme (administrateur).
   Horodatage : Clock de l'application. **Migration** : aucune.
 end note

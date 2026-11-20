@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { FileSpreadsheet, Download, CheckCircle2, Users } from "lucide-react"
 import type { StatutEvaluation } from "@/types"
 import { CLE_EVALUATIONS_ENSEIGNANT, mesEvaluationsEnseignant } from "@/lib/evaluationsEnseignant"
-import { exporterDetailCsv, exporterResultatsCsv, telechargerFichier } from "@/lib/statistiquesEnseignant"
+import { exporterDetailCsv, exporterResultatsCsv, exporterResultatsPdf, telechargerFichier } from "@/lib/statistiquesEnseignant"
 import { messageErreur } from "@/lib/passation"
 
 // ============================================================
@@ -23,6 +23,7 @@ const STATUT_CFG: Partial<Record<StatutEvaluation, { label: string; cls: string 
 const FORMATS = [
   { cle: "csv", court: "CSV", aria: "Télécharger le CSV", fichier: (id: number) => `resultats-${id}.csv`, appel: exporterResultatsCsv },
   { cle: "detail", court: "Détail par question", aria: "Télécharger le détail par question", fichier: (id: number) => `detail-${id}.csv`, appel: exporterDetailCsv },
+  { cle: "pdf", court: "PDF", aria: "Télécharger le PDF", fichier: (id: number) => `resultats-${id}.pdf`, appel: exporterResultatsPdf },
 ] as const
 
 export default function ExportResultats() {
@@ -55,7 +56,7 @@ export default function ExportResultats() {
       <div>
         <h1 className="text-3xl font-extrabold tracking-tight">Export des résultats</h1>
         <p className="mt-1 text-muted-foreground">
-          Téléchargez les résultats de vos évaluations au format CSV, qui s'ouvre dans Excel ou tout autre tableur.
+          Téléchargez les résultats de vos évaluations : en CSV (s'ouvre dans Excel), avec le détail par question, ou en rapport PDF.
         </p>
       </div>
 

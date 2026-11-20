@@ -167,6 +167,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | POST | `/admin/etudiants/import` | admin | import CSV `nom;prenom;email;numEtudiant;promotion`, tout ou rien : 200, ou 422 avec les lignes en erreur (DS-16) |
 | GET | `/enseignant/evaluations/{id}/statistiques` | enseignant (propriétaire) | moyenne, médiane, min, max, écart-type, taux de réussite, distribution et taux par question, sur 20 ; 409 avant l'ouverture (DS-09) |
 | GET | `/enseignant/evaluations/{id}/resultats` | enseignant (propriétaire) | notes par étudiant attendu (absents compris), mêmes lignes que l'export CSV, sans e-mail ; `null` (jamais 0) sans note ; 409 avant l'ouverture (DS-09) |
+| GET | `/enseignant/evaluations/{id}/export/pdf` | enseignant (propriétaire) | rapport PDF : indicateurs sur 20 et notes par étudiant, sans e-mail (DS-09) |
 | GET | `/enseignant/evaluations/{id}/export/detail-csv` | enseignant | CSV du détail par question : une ligne par étudiant et par question (DS-09) |
 | GET | `/enseignant/evaluations/{id}/export/csv` | enseignant (propriétaire) | résultats en CSV (UTF-8 BOM, « ; »), une ligne par étudiant attendu, absents compris (DS-09) |
 | GET | `/enseignant/supervision/{id}` | enseignant (propriétaire) | avancement en lecture seule d'une évaluation ouverte : état de chaque étudiant, réponses données, alertes anti-triche ; à relire toutes les 15 s (DS-17) |

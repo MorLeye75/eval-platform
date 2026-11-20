@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import sn.ept.eval.dto.evaluation.ResultatsEvaluationResponse;
 import sn.ept.eval.dto.evaluation.StatistiquesEvaluationResponse;
+import sn.ept.eval.service.ExportPdfService;
 import sn.ept.eval.service.ExportResultatsService;
 import sn.ept.eval.service.StatistiquesEvaluationService;
 
@@ -27,10 +28,13 @@ public class StatistiquesController {
 
     private final StatistiquesEvaluationService statistiquesService;
     private final ExportResultatsService exportService;
+    private final ExportPdfService pdfService;
 
-    public StatistiquesController(StatistiquesEvaluationService statistiquesService, ExportResultatsService exportService) {
+    public StatistiquesController(StatistiquesEvaluationService statistiquesService, ExportResultatsService exportService,
+                                  ExportPdfService pdfService) {
         this.statistiquesService = statistiquesService;
         this.exportService = exportService;
+        this.pdfService = pdfService;
     }
 
     @Operation(summary = "Statistiques d'une évaluation",
@@ -45,6 +49,18 @@ public class StatistiquesController {
     @GetMapping("/resultats")
     public ResponseEntity<ResultatsEvaluationResponse> resultats(@PathVariable Long id, Authentication authentication) {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(exportService.lignes(id, authentication.getName()));
+    }
+
+    @Operation(summary = "Rapport PDF des résultats",
+            description = "Indicateurs sur 20 puis une ligne par étudiant attendu (absents compris), sans e-mail. Mêmes contrôles d'accès que l'export CSV.")
+    @GetMapping("/export/pdf")
+    public ResponseEntity<byte[]> exporterPdf(@PathVariable Long id, Authentication authentication) {
+        byte[] fichier = pdfService.exporter(id, authentication.getName());
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("resultats-" + id + ".pdf").build().toString())
+                .cacheControl(CacheControl.noStore())
+                .body(fichier);
     }
 
     @Operation(summary = "Export CSV du détail par question",

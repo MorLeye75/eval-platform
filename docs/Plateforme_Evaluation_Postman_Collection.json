@@ -3102,6 +3102,48 @@
           }
         },
         {
+          "name": "9.2c DS-09: Rapport PDF des résultats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : document PDF', function () { pm.response.to.have.status(200); pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf'); pm.expect(pm.response.text().slice(0, 5)).to.eql('%PDF-'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "pdf"
+              ]
+            },
+            "description": "UTF-8 avec BOM, séparateur « ; », une ligne par étudiant attendu (absents compris). Données personnelles : réservé au propriétaire de l'évaluation."
+          }
+        },
+        {
           "name": "9.2a DS-09: Notes par étudiant",
           "event": [
             {

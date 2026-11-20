@@ -60,6 +60,12 @@ export async function exporterDetailCsv(id: number) {
   return data
 }
 
+/** Rapport PDF : indicateurs et notes par étudiant. */
+export async function exporterResultatsPdf(id: number) {
+  const { data } = await api.get<Blob>(`/enseignant/evaluations/${id}/export/pdf`, { responseType: "blob" })
+  return data
+}
+
 export function telechargerFichier(blob: Blob, nom: string) {
   const url = URL.createObjectURL(blob)
   const lien = document.createElement("a")

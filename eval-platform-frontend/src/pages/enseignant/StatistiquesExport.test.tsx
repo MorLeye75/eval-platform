@@ -8,6 +8,7 @@ import { mesEvaluationsEnseignant, type EvaluationEnseignantApi } from "@/lib/ev
 import {
   exporterResultatsCsv,
   exporterDetailCsv,
+  exporterResultatsPdf,
   statistiquesEvaluation,
   telechargerFichier,
   type StatistiquesApi,
@@ -24,6 +25,7 @@ vi.mock("@/lib/statistiquesEnseignant", async (original) => ({
   statistiquesEvaluation: vi.fn(),
   exporterResultatsCsv: vi.fn(),
   exporterDetailCsv: vi.fn(),
+  exporterResultatsPdf: vi.fn(),
   telechargerFichier: vi.fn(),
 }))
 
@@ -143,6 +145,17 @@ describe("export des résultats (DS-09)", () => {
     expect(exporterResultatsCsv).not.toHaveBeenCalled()
     // le CSV des résultats reste proposé, non téléchargé
     expect(screen.getByRole("button", { name: "Télécharger le CSV : Évaluation 4" })).toBeTruthy()
+  })
+
+  it("rapport PDF : un troisième bouton télécharge resultats-<id>.pdf", async () => {
+    const blob = new Blob(["%PDF-1.4"], { type: "application/pdf" })
+    vi.mocked(exporterResultatsPdf).mockResolvedValue(blob)
+    afficher(<ExportResultats />, "/enseignant/export", "/enseignant/export")
+
+    fireEvent.click(await screen.findByRole("button", { name: "Télécharger le PDF : Évaluation 4" }))
+    await waitFor(() => expect(exporterResultatsPdf).toHaveBeenCalledWith(4))
+    await waitFor(() => expect(telechargerFichier).toHaveBeenCalledWith(blob, "resultats-4.pdf"))
+    expect(exporterResultatsCsv).not.toHaveBeenCalled()
   })
 
   it("échec de l'export : message affiché, aucun fichier téléchargé", async () => {
