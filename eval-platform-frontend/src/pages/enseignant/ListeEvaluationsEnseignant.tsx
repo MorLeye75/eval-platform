@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Link, useNavigate } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
@@ -29,6 +29,7 @@ import {
   Copy,
 } from "lucide-react"
 import type { StatutEvaluation } from "@/types"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   CLE_EVALUATIONS_ENSEIGNANT,
   actionsDisponibles,
@@ -38,6 +39,7 @@ import {
   publierEvaluation,
   publierResultats,
   supprimerEvaluation,
+  type EvaluationEnseignantApi,
 } from "@/lib/evaluationsEnseignant"
 import { messageErreur } from "@/lib/passation"
 import { dupliquerEvaluation } from "./creation/apiBrouillon"
@@ -71,6 +73,157 @@ function formatDate(iso: string) {
 const BOUTON_ICONE =
   "inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
 
+/** Sur téléphone : cibles assez grandes pour un doigt (40 px). */
+const BOUTON_ICONE_TACTILE = BOUTON_ICONE.replace("size-8", "size-10")
+
+/** Actions d'une ligne, déclenchées par la page (mutations et confirmations communes au tableau et aux cartes). */
+interface GestesEvaluation {
+  dupliquer: (id: number) => void
+  publier: (id: number) => void
+  depublier: (id: number) => void
+  publierResultats: (e: EvaluationEnseignantApi) => void
+  supprimer: (e: EvaluationEnseignantApi) => void
+}
+
+function StatutEtResultats({ e }: { e: EvaluationEnseignantApi }) {
+  return (
+    <div className="flex flex-col items-start gap-1">
+      <StatutBadge statut={e.statut} />
+      {e.statut === "TERMINEE" && (
+        <span className="text-[11px] text-muted-foreground">
+          {e.resultatsPublies ? "Résultats publiés" : "Résultats non publiés"}
+        </span>
+      )}
+    </div>
+  )
+}
+
+function Soumissions({ copies, attendus }: { copies: number; attendus: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm font-semibold">{copies}</span>
+      <span className="text-[11px] text-muted-foreground">/ {attendus}</span>
+      {attendus > 0 && (
+        <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-primary"
+            style={{ width: `${Math.min(100, Math.round((copies / attendus) * 100))}%` }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ActionsEvaluation({ e, occupe, gestes, className, tactile = false }: {
+  e: EvaluationEnseignantApi
+  occupe: boolean
+  gestes: GestesEvaluation
+  className: string
+  tactile?: boolean
+}) {
+  const a = actionsDisponibles(e)
+  const bouton = tactile ? BOUTON_ICONE_TACTILE : BOUTON_ICONE
+  const icone = tactile ? "size-4" : "size-3.5"
+  return (
+    <div className={className}>
+      {a.statistiques && (
+        <Link to={`/enseignant/statistiques/${e.id}`} aria-label={`Statistiques : ${e.titre}`} title="Statistiques"
+          className={bouton}>
+          <BarChart3 className={icone} aria-hidden />
+        </Link>
+      )}
+      {a.supervision && (
+        <Link to={`/enseignant/supervision/${e.id}`} aria-label={`Supervision : ${e.titre}`} title="Supervision"
+          className={bouton}>
+          <Eye className={icone} aria-hidden />
+        </Link>
+      )}
+      {a.dupliquer && (
+        <button type="button" disabled={occupe} onClick={() => gestes.dupliquer(e.id)}
+          aria-label={`Dupliquer : ${e.titre}`} title="Dupliquer en nouveau brouillon" className={bouton}>
+          <Copy className={icone} aria-hidden />
+        </button>
+      )}
+      {a.tiersTemps && (
+        <Link to={`/enseignant/evaluations/${e.id}/tiers-temps`} aria-label={`Tiers-temps : ${e.titre}`}
+          title="Tiers-temps" className={bouton}>
+          <Timer className={icone} aria-hidden />
+        </Link>
+      )}
+      {a.modifier && (
+        <Link to={`/enseignant/evaluations/${e.id}/edition`} state={{ nouveau: true }} aria-label={`Modifier : ${e.titre}`}
+          title="Modifier" className={bouton}>
+          <Pencil className={icone} aria-hidden />
+        </Link>
+      )}
+      {a.publier && (
+        <button type="button" disabled={occupe} onClick={() => gestes.publier(e.id)}
+          aria-label={`Publier : ${e.titre}`} title="Publier" className={bouton}>
+          <Send className={icone} aria-hidden />
+        </button>
+      )}
+      {a.depublier && (
+        <button type="button" disabled={occupe} onClick={() => gestes.depublier(e.id)}
+          aria-label={`Repasser en brouillon : ${e.titre}`} title="Repasser en brouillon" className={bouton}>
+          <Undo2 className={icone} aria-hidden />
+        </button>
+      )}
+      {a.publierResultats && (
+        <button type="button" disabled={occupe} onClick={() => gestes.publierResultats(e)}
+          aria-label={`Publier les résultats : ${e.titre}`} title="Publier les résultats" className={bouton}>
+          <Megaphone className={icone} aria-hidden />
+        </button>
+      )}
+      {a.supprimer && (
+        <button type="button" disabled={occupe} onClick={() => gestes.supprimer(e)}
+          aria-label={`Supprimer : ${e.titre}`} title="Supprimer"
+          className={`${bouton} hover:bg-destructive/10 hover:text-destructive`}>
+          <Trash2 className={icone} aria-hidden />
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** Une évaluation sur téléphone : les informations du tableau, empilées, et ses actions en bas. */
+function CarteEvaluation({ e, occupe, gestes }: { e: EvaluationEnseignantApi; occupe: boolean; gestes: GestesEvaluation }) {
+  return (
+    <article aria-label={e.titre}>
+    <Card className="rounded-2xl border-border/60 shadow-sm">
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex items-start gap-3">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-primary">
+            <FileText className="size-[18px]" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="font-semibold break-words">{e.titre}</div>
+            <div className="text-[11px] text-muted-foreground">{e.dureeStandard} min</div>
+          </div>
+          <StatutEtResultats e={e} />
+        </div>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+          <div>
+            <dt className="text-[11px] text-muted-foreground">Questions</dt>
+            <dd>{libelleNbQuestions(e.nbQuestions)}</dd>
+          </div>
+          <div>
+            <dt className="text-[11px] text-muted-foreground">Fermeture</dt>
+            <dd>{formatDate(e.dateFermeture)}</dd>
+          </div>
+          <div className="col-span-2">
+            <dt className="text-[11px] text-muted-foreground">Soumissions</dt>
+            <dd><Soumissions copies={e.nbCopies ?? 0} attendus={e.nbAttendus ?? 0} /></dd>
+          </div>
+        </dl>
+        <ActionsEvaluation e={e} occupe={occupe} gestes={gestes} tactile
+          className="flex flex-wrap gap-2 border-t border-border/60 pt-3" />
+      </CardContent>
+    </Card>
+    </article>
+  )
+}
+
 // ──────────────────────────────────────────────────────────
 //  Composant principal
 // ──────────────────────────────────────────────────────────
@@ -90,6 +243,7 @@ export default function ListeEvaluationsEnseignant() {
   const [info, setInfo]     = useState<string | null>(null)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const estTelephone = useIsMobile()
 
   const evaluations = useQuery({
     queryKey: CLE_EVALUATIONS_ENSEIGNANT,
@@ -127,6 +281,37 @@ export default function ListeEvaluationsEnseignant() {
     const matchQuery = e.titre.toLowerCase().includes(query.toLowerCase())
     return matchTab && matchQuery
   })
+
+  // Confirmations et mutations communes au tableau et aux cartes
+  const gestes: GestesEvaluation = {
+    dupliquer: (id) => dupliquer.mutate(id),
+    publier: (id) => publier.mutate(id),
+    depublier: (id) => depublier.mutate(id),
+    publierResultats: (e) => {
+      if (window.confirm(`Publier les résultats de « ${e.titre} » ? Les étudiants verront leurs notes et les corrigés.`)) {
+        resultats.mutate(e.id)
+      }
+    },
+    supprimer: (e) => {
+      if (window.confirm(`Supprimer le brouillon « ${e.titre} » ? Cette action est définitive.`)) {
+        supprimer.mutate(e.id)
+      }
+    },
+  }
+
+  // Chargement, erreur ou liste vide : même message dans le tableau et sur téléphone
+  const etat = evaluations.isPending
+    ? { role: "status", erreur: false, contenu: "Chargement des évaluations…" as ReactNode }
+    : evaluations.isError
+      ? {
+          role: "alert", erreur: true,
+          contenu: <>Impossible de charger vos évaluations.{" "}
+            <button type="button" onClick={() => evaluations.refetch()} className="underline">Réessayer</button></>,
+        }
+      : filtered.length === 0
+        ? { role: undefined, erreur: false,
+            contenu: toutes.length === 0 ? "Vous n'avez pas encore créé d'évaluation." : "Aucune évaluation trouvée." }
+        : null
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -183,46 +368,45 @@ export default function ListeEvaluationsEnseignant() {
         </Tabs>
       </div>
 
-      {/* Table */}
-      <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Évaluation</TableHead>
-                <TableHead>Questions</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Soumissions</TableHead>
-                <TableHead>Fermeture</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {evaluations.isPending ? (
+      {/* Liste : tableau sur ordinateur, une carte par évaluation sur téléphone (mêmes données, mêmes actions) */}
+      {estTelephone ? (
+        etat ? (
+          <Card className="rounded-2xl border-border/60 shadow-sm">
+            <CardContent role={etat.role} className={`py-10 text-center text-sm ${etat.erreur ? "text-destructive" : "text-muted-foreground"}`}>
+              {etat.contenu}
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {filtered.map((e) => (
+              <CarteEvaluation key={e.id} e={e} occupe={occupe} gestes={gestes} />
+            ))}
+          </div>
+        )
+      ) : (
+        <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={6} role="status" className="py-12 text-center text-muted-foreground">
-                    Chargement des évaluations…
-                  </TableCell>
+                  <TableHead>Évaluation</TableHead>
+                  <TableHead>Questions</TableHead>
+                  <TableHead>Statut</TableHead>
+                  <TableHead>Soumissions</TableHead>
+                  <TableHead>Fermeture</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ) : evaluations.isError ? (
-                <TableRow>
-                  <TableCell colSpan={6} role="alert" className="py-12 text-center text-destructive">
-                    Impossible de charger vos évaluations.{" "}
-                    <button type="button" onClick={() => evaluations.refetch()} className="underline">Réessayer</button>
-                  </TableCell>
-                </TableRow>
-              ) : filtered.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={6} className="py-12 text-center text-muted-foreground">
-                    {toutes.length === 0 ? "Vous n'avez pas encore créé d'évaluation." : "Aucune évaluation trouvée."}
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filtered.map((e) => {
-                  const a = actionsDisponibles(e)
-                  const copies = e.nbCopies ?? 0
-                  const attendus = e.nbAttendus ?? 0
-                  return (
+              </TableHeader>
+              <TableBody>
+                {etat ? (
+                  <TableRow>
+                    <TableCell colSpan={6} role={etat.role}
+                      className={`py-12 text-center ${etat.erreur ? "text-destructive" : "text-muted-foreground"}`}>
+                      {etat.contenu}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filtered.map((e) => (
                     <TableRow key={e.id}>
                       {/* Titre */}
                       <TableCell>
@@ -244,29 +428,11 @@ export default function ListeEvaluationsEnseignant() {
                       </TableCell>
                       {/* Statut */}
                       <TableCell>
-                        <div className="flex flex-col items-start gap-1">
-                          <StatutBadge statut={e.statut} />
-                          {e.statut === "TERMINEE" && (
-                            <span className="text-[11px] text-muted-foreground">
-                              {e.resultatsPublies ? "Résultats publiés" : "Résultats non publiés"}
-                            </span>
-                          )}
-                        </div>
+                        <StatutEtResultats e={e} />
                       </TableCell>
                       {/* Soumissions */}
                       <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold">{copies}</span>
-                          <span className="text-[11px] text-muted-foreground">/ {attendus}</span>
-                          {attendus > 0 && (
-                            <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-                              <div
-                                className="h-full rounded-full bg-primary"
-                                style={{ width: `${Math.min(100, Math.round((copies / attendus) * 100))}%` }}
-                              />
-                            </div>
-                          )}
-                        </div>
+                        <Soumissions copies={e.nbCopies ?? 0} attendus={e.nbAttendus ?? 0} />
                       </TableCell>
                       {/* Date fermeture */}
                       <TableCell className="text-sm text-muted-foreground">
@@ -274,126 +440,16 @@ export default function ListeEvaluationsEnseignant() {
                       </TableCell>
                       {/* Actions */}
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1.5">
-                          {a.statistiques && (
-                            <Link
-                              to={`/enseignant/statistiques/${e.id}`}
-                              aria-label={`Statistiques : ${e.titre}`}
-                              title="Statistiques"
-                              className={BOUTON_ICONE}
-                            >
-                              <BarChart3 className="size-3.5" aria-hidden />
-                            </Link>
-                          )}
-                          {a.supervision && (
-                            <Link
-                              to={`/enseignant/supervision/${e.id}`}
-                              aria-label={`Supervision : ${e.titre}`}
-                              title="Supervision"
-                              className={BOUTON_ICONE}
-                            >
-                              <Eye className="size-3.5" aria-hidden />
-                            </Link>
-                          )}
-                          {a.dupliquer && (
-                            <button
-                              type="button"
-                              disabled={occupe}
-                              onClick={() => dupliquer.mutate(e.id)}
-                              aria-label={`Dupliquer : ${e.titre}`}
-                              title="Dupliquer en nouveau brouillon"
-                              className={BOUTON_ICONE}
-                            >
-                              <Copy className="size-3.5" aria-hidden />
-                            </button>
-                          )}
-                          {a.tiersTemps && (
-                            <Link
-                              to={`/enseignant/evaluations/${e.id}/tiers-temps`}
-                              aria-label={`Tiers-temps : ${e.titre}`}
-                              title="Tiers-temps"
-                              className={BOUTON_ICONE}
-                            >
-                              <Timer className="size-3.5" aria-hidden />
-                            </Link>
-                          )}
-                          {a.modifier && (
-                            <Link
-                              to={`/enseignant/evaluations/${e.id}/edition`}
-                              state={{ nouveau: true }}
-                              aria-label={`Modifier : ${e.titre}`}
-                              title="Modifier"
-                              className={BOUTON_ICONE}
-                            >
-                              <Pencil className="size-3.5" aria-hidden />
-                            </Link>
-                          )}
-                          {a.publier && (
-                            <button
-                              type="button"
-                              disabled={occupe}
-                              onClick={() => publier.mutate(e.id)}
-                              aria-label={`Publier : ${e.titre}`}
-                              title="Publier"
-                              className={BOUTON_ICONE}
-                            >
-                              <Send className="size-3.5" aria-hidden />
-                            </button>
-                          )}
-                          {a.depublier && (
-                            <button
-                              type="button"
-                              disabled={occupe}
-                              onClick={() => depublier.mutate(e.id)}
-                              aria-label={`Repasser en brouillon : ${e.titre}`}
-                              title="Repasser en brouillon"
-                              className={BOUTON_ICONE}
-                            >
-                              <Undo2 className="size-3.5" aria-hidden />
-                            </button>
-                          )}
-                          {a.publierResultats && (
-                            <button
-                              type="button"
-                              disabled={occupe}
-                              onClick={() => {
-                                if (window.confirm(`Publier les résultats de « ${e.titre} » ? Les étudiants verront leurs notes et les corrigés.`)) {
-                                  resultats.mutate(e.id)
-                                }
-                              }}
-                              aria-label={`Publier les résultats : ${e.titre}`}
-                              title="Publier les résultats"
-                              className={BOUTON_ICONE}
-                            >
-                              <Megaphone className="size-3.5" aria-hidden />
-                            </button>
-                          )}
-                          {a.supprimer && (
-                            <button
-                              type="button"
-                              disabled={occupe}
-                              onClick={() => {
-                                if (window.confirm(`Supprimer le brouillon « ${e.titre} » ? Cette action est définitive.`)) {
-                                  supprimer.mutate(e.id)
-                                }
-                              }}
-                              aria-label={`Supprimer : ${e.titre}`}
-                              title="Supprimer"
-                              className={`${BOUTON_ICONE} hover:bg-destructive/10 hover:text-destructive`}
-                            >
-                              <Trash2 className="size-3.5" aria-hidden />
-                            </button>
-                          )}
-                        </div>
+                        <ActionsEvaluation e={e} occupe={occupe} gestes={gestes} className="flex justify-end gap-1.5" />
                       </TableCell>
                     </TableRow>
-                  )
-                })
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {evaluations.isSuccess && (
         <p className="text-xs text-muted-foreground">

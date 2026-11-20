@@ -264,3 +264,54 @@ describe("Mes évaluations : lecture de l'API et actions (DS-03, DS-04, DS-07)",
     expect((await screen.findByRole("alert")).textContent).toContain("appartient à un autre enseignant")
   })
 })
+
+describe("Mes évaluations sur téléphone : une carte par évaluation, mêmes informations et mêmes actions", () => {
+  const largeurInitiale = window.innerWidth
+
+  beforeEach(() => {
+    vi.resetAllMocks()
+    vi.mocked(mesEvaluationsEnseignant).mockResolvedValue(TOUTES)
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 })
+  })
+
+  afterEach(() => {
+    cleanup()
+    vi.restoreAllMocks()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: largeurInitiale })
+  })
+
+  it("pas de tableau : chaque évaluation est une carte avec questions, statut, copies sur attendus, durée et fermeture", async () => {
+    afficher()
+
+    const carte = await screen.findByRole("article", { name: "Évaluation 3" })
+    expect(screen.queryByRole("table")).toBeNull()
+    expect(within(carte).getByText("3 questions")).toBeTruthy()
+    expect(within(carte).getByText("En cours")).toBeTruthy()
+    expect(within(carte).getByText("12")).toBeTruthy()
+    expect(within(carte).getByText("/ 45")).toBeTruthy()
+    expect(within(carte).getByText("60 min")).toBeTruthy()
+    expect(within(carte).getByText(/10 janv\. 2030/)).toBeTruthy()
+    expect(screen.getAllByRole("article")).toHaveLength(4)
+  })
+
+  it("les actions de la carte appellent les mêmes routes que le tableau (publier, supprimer après confirmation)", async () => {
+    vi.mocked(publierEvaluation).mockResolvedValue(evaluation(1, "PUBLIEE"))
+    vi.mocked(supprimerEvaluation).mockResolvedValue(undefined)
+    afficher()
+    const brouillon = await screen.findByRole("article", { name: "Évaluation 1" })
+
+    fireEvent.click(within(brouillon).getByRole("button", { name: "Publier : Évaluation 1" }))
+    await waitFor(() => expect(vi.mocked(publierEvaluation).mock.calls[0][0]).toBe(1))
+    fireEvent.click(within(brouillon).getByRole("button", { name: "Supprimer : Évaluation 1" }))
+    await waitFor(() => expect(vi.mocked(supprimerEvaluation).mock.calls[0][0]).toBe(1))
+    expect(window.confirm).toHaveBeenCalled()
+  })
+
+  it("liste vide : le message s'affiche aussi sans tableau", async () => {
+    vi.mocked(mesEvaluationsEnseignant).mockResolvedValue([])
+    afficher()
+    expect(await screen.findByText("Vous n'avez pas encore créé d'évaluation.")).toBeTruthy()
+    expect(screen.queryByRole("table")).toBeNull()
+  })
+})

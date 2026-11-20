@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import type { Role } from "@/types"
+import { useIsMobile } from "@/hooks/use-mobile"
 import {
   CLE_COMPTES_ADMIN,
   changerEtatCompte,
@@ -48,6 +49,101 @@ function formatDate(iso: string | null) {
   return rtf.format(Math.round(diffMin / 60 / 24 / 30), "month")
 }
 
+/** Actions d'un compte, déclenchées par la page (mutations et confirmations communes au tableau et aux cartes). */
+interface GestesCompte {
+  modifier: (u: CompteAdminApi) => void
+  reinitialiser: (u: CompteAdminApi) => void
+  basculer: (u: CompteAdminApi) => void
+}
+
+function BadgeRole({ role }: { role: Role }) {
+  return (
+    <Badge variant="outline" className={`rounded-full text-[11px] font-semibold ${ROLE_CLS[role]}`}>
+      {ROLE_LABEL[role]}
+    </Badge>
+  )
+}
+
+function BadgeStatut({ actif }: { actif: boolean }) {
+  return (
+    <Badge
+      variant="outline"
+      className={`inline-flex items-center gap-1.5 rounded-full text-[11px] font-semibold ${actif ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
+    >
+      <span className="size-1.5 rounded-full bg-current" />
+      {actif ? "Actif" : "Désactivé"}
+    </Badge>
+  )
+}
+
+function ActionsCompte({ u, gestes, reinitialisationEnCours, etatEnCours, className, tactile = false }: {
+  u: CompteAdminApi
+  gestes: GestesCompte
+  reinitialisationEnCours: boolean
+  etatEnCours: boolean
+  className: string
+  tactile?: boolean
+}) {
+  const nomComplet = `${u.prenom} ${u.nom}`
+  // Sur téléphone : boutons bordés de 40 px, assez grands pour un doigt
+  const variante = tactile ? "outline" : "ghost"
+  const taille = tactile ? "size-10 rounded-lg" : undefined
+  const icone = tactile ? "size-4" : "size-3.5"
+  return (
+    <div className={className}>
+      <Button variant={variante} size="icon" className={taille} aria-label={`Modifier : ${nomComplet}`}
+        onClick={() => gestes.modifier(u)}>
+        <Pencil className={icone} />
+      </Button>
+      <Button variant={variante} size="icon" className={taille} aria-label={`Réinitialiser le mot de passe : ${nomComplet}`}
+        disabled={reinitialisationEnCours} onClick={() => gestes.reinitialiser(u)}>
+        <KeyRound className={icone} />
+      </Button>
+      <Button variant={variante} size="icon" className={taille}
+        aria-label={`${u.actif ? "Désactiver" : "Réactiver"} : ${nomComplet}`}
+        disabled={etatEnCours} onClick={() => gestes.basculer(u)}>
+        <Power className={icone} />
+      </Button>
+    </div>
+  )
+}
+
+function Initiales({ u }: { u: CompteAdminApi }) {
+  return (
+    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+      {`${u.prenom[0] ?? ""}${u.nom[0] ?? ""}`.toUpperCase()}
+    </div>
+  )
+}
+
+/** Un compte sur téléphone : les informations du tableau, empilées, et ses actions en bas. */
+function CarteCompte({ u, ...actions }: Omit<Parameters<typeof ActionsCompte>[0], "className" | "tactile">) {
+  const nomComplet = `${u.prenom} ${u.nom}`
+  return (
+    <article aria-label={nomComplet}>
+      <Card className="rounded-2xl border-border/60 shadow-sm">
+        <CardContent className="flex flex-col gap-3 p-4">
+          <div className="flex items-start gap-3">
+            <Initiales u={u} />
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold break-words">{nomComplet}</div>
+              <div className="text-[11px] break-all text-muted-foreground">
+                {u.email}{u.promotion ? ` · ${u.promotion}` : ""}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <BadgeRole role={u.role} />
+            <BadgeStatut actif={u.actif} />
+            <span className="text-[11px] text-muted-foreground">Dernière connexion : {formatDate(u.derniereConnexion)}</span>
+          </div>
+          <ActionsCompte u={u} {...actions} tactile className="flex flex-wrap gap-2 border-t border-border/60 pt-3" />
+        </CardContent>
+      </Card>
+    </article>
+  )
+}
+
 interface Formulaire {
   id: number | null // null = création
   role: Role
@@ -71,6 +167,7 @@ function telecharger(nom: string, contenu: string) {
 }
 
 export default function GestionComptes() {
+  const estTelephone = useIsMobile()
   const [tab, setTab]         = useState<"tous" | Role>("tous")
   const [query, setQuery]     = useState("")
   const [form, setForm]       = useState<Formulaire | null>(null)
@@ -165,6 +262,22 @@ export default function GestionComptes() {
       promotionId: u.promotionId ? String(u.promotionId) : "", numEtudiant: u.numEtudiant ?? "", matricule: u.matricule ?? "",
     })
   }
+
+  // Confirmations et mutations communes au tableau et aux cartes
+  const gestes: GestesCompte = {
+    modifier,
+    reinitialiser: (u) => {
+      if (window.confirm(`Générer un nouveau mot de passe provisoire pour ${u.prenom} ${u.nom} ? L'ancien ne fonctionnera plus.`)) {
+        reinitialisation.mutate({ id: u.id, email: u.email })
+      }
+    },
+    basculer: (u) => {
+      if (!u.actif || window.confirm(`Désactiver le compte de ${u.prenom} ${u.nom} ? Il ne pourra plus se connecter.`)) {
+        etat.mutate({ id: u.id, actif: !u.actif })
+      }
+    },
+  }
+
 
   const champ = (cle: keyof Formulaire) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => (f ? { ...f, [cle]: e.target.value } : f))
@@ -261,7 +374,7 @@ export default function GestionComptes() {
 
       {/* Barre outils */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="relative max-w-sm flex-1">
+        <div className="relative w-full sm:max-w-sm sm:flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             aria-label="Rechercher un compte"
@@ -281,11 +394,18 @@ export default function GestionComptes() {
         </Tabs>
       </div>
 
-      {/* Table */}
+      {/* Liste : tableau sur ordinateur, une carte par compte sur téléphone (mêmes données, mêmes actions) */}
       {comptes.isError ? (
         <p role="alert" className="text-sm text-destructive">{messageErreur(comptes.error, "Impossible de charger les comptes.")}</p>
       ) : comptes.isLoading ? (
         <p className="text-sm text-muted-foreground">Chargement…</p>
+      ) : estTelephone ? (
+        <div className="flex flex-col gap-3">
+          {filtered.map((u) => (
+            <CarteCompte key={u.id} u={u} gestes={gestes} reinitialisationEnCours={reinitialisation.isPending}
+              etatEnCours={etat.isPending} />
+          ))}
+        </div>
       ) : (
         <Card className="overflow-hidden rounded-2xl border-border/60 shadow-sm">
           <CardContent className="p-0">
@@ -300,67 +420,28 @@ export default function GestionComptes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((u) => {
-                  const nomComplet = `${u.prenom} ${u.nom}`
-                  return (
-                    <TableRow key={u.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                            {`${u.prenom[0] ?? ""}${u.nom[0] ?? ""}`.toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="font-semibold">{nomComplet}</div>
-                            <div className="text-[11px] text-muted-foreground">
-                              {u.email}{u.promotion ? ` · ${u.promotion}` : ""}
-                            </div>
+                {filtered.map((u) => (
+                  <TableRow key={u.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Initiales u={u} />
+                        <div>
+                          <div className="font-semibold">{`${u.prenom} ${u.nom}`}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {u.email}{u.promotion ? ` · ${u.promotion}` : ""}
                           </div>
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`rounded-full text-[11px] font-semibold ${ROLE_CLS[u.role]}`}>
-                          {ROLE_LABEL[u.role]}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={`inline-flex items-center gap-1.5 rounded-full text-[11px] font-semibold ${u.actif ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
-                        >
-                          <span className="size-1.5 rounded-full bg-current" />
-                          {u.actif ? "Actif" : "Désactivé"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{formatDate(u.derniereConnexion)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" aria-label={`Modifier : ${nomComplet}`} onClick={() => modifier(u)}>
-                            <Pencil className="size-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" aria-label={`Réinitialiser le mot de passe : ${nomComplet}`}
-                            disabled={reinitialisation.isPending}
-                            onClick={() => {
-                              if (window.confirm(`Générer un nouveau mot de passe provisoire pour ${nomComplet} ? L'ancien ne fonctionnera plus.`)) {
-                                reinitialisation.mutate({ id: u.id, email: u.email })
-                              }
-                            }}>
-                            <KeyRound className="size-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon"
-                            aria-label={`${u.actif ? "Désactiver" : "Réactiver"} : ${nomComplet}`}
-                            disabled={etat.isPending}
-                            onClick={() => {
-                              if (!u.actif || window.confirm(`Désactiver le compte de ${nomComplet} ? Il ne pourra plus se connecter.`)) {
-                                etat.mutate({ id: u.id, actif: !u.actif })
-                              }
-                            }}>
-                            <Power className="size-3.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )
-                })}
+                      </div>
+                    </TableCell>
+                    <TableCell><BadgeRole role={u.role} /></TableCell>
+                    <TableCell><BadgeStatut actif={u.actif} /></TableCell>
+                    <TableCell className="text-sm text-muted-foreground">{formatDate(u.derniereConnexion)}</TableCell>
+                    <TableCell className="text-right">
+                      <ActionsCompte u={u} gestes={gestes} reinitialisationEnCours={reinitialisation.isPending}
+                        etatEnCours={etat.isPending} className="flex justify-end gap-1" />
+                    </TableCell>
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </CardContent>

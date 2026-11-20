@@ -92,3 +92,20 @@ test("administrateur : toutes les pages de l'espace tiennent dans l'écran", asy
   await verifierPages(page, ["/admin", "/admin/comptes", "/admin/supervision", "/admin/statistiques",
     "/admin/parametres"])
 })
+
+test("Mes évaluations sur téléphone : une carte par évaluation, avec ses actions, pas de tableau", async ({ page }) => {
+  await connecter(page, "prof@ept.sn", "prof123")
+  await page.goto("/enseignant/evaluations")
+  const evaluation = page.getByRole("article", { name: "Structures de données — QCM" })
+  await expect(evaluation).toBeVisible()
+  await expect(evaluation.getByRole("link", { name: /Statistiques|Supervision/ }).first()).toBeVisible()
+  await expect(page.getByRole("table")).toHaveCount(0)
+})
+
+test("Gestion des comptes sur téléphone : une carte par compte, avec ses actions, pas de tableau", async ({ page }) => {
+  await connecter(page, "admin@ept.sn", "admin123")
+  await page.goto("/admin/comptes")
+  await expect(page.getByRole("article").first()).toBeVisible()
+  await expect(page.getByRole("button", { name: /^Modifier :/ }).first()).toBeVisible()
+  await expect(page.getByRole("table")).toHaveCount(0)
+})

@@ -203,3 +203,43 @@ describe("gestion des comptes (DS-16)", () => {
     expect(screen.getByRole("button", { name: /Télécharger les mots de passe provisoires/ })).toBeTruthy()
   })
 })
+
+describe("gestion des comptes sur téléphone : une carte par compte, mêmes informations et mêmes actions", () => {
+  const largeurInitiale = window.innerWidth
+
+  beforeEach(() => {
+    vi.mocked(listerComptes).mockResolvedValue([compte(1), compte(4, { actif: false })])
+    vi.mocked(listerPromotions).mockResolvedValue([{ id: 1, nom: "DIC2", annee: "2026", nbEtudiants: 10 }])
+    vi.spyOn(window, "confirm").mockReturnValue(true)
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 })
+  })
+  afterEach(() => {
+    cleanup(); vi.clearAllMocks(); vi.restoreAllMocks()
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: largeurInitiale })
+  })
+
+  it("pas de tableau : chaque compte est une carte avec rôle, statut, e-mail et promotion", async () => {
+    afficher()
+    const carte = await screen.findByRole("article", { name: "Prenom1 Nom1" })
+    expect(screen.queryByRole("table")).toBeNull()
+    expect(within(carte).getByText("Étudiant")).toBeTruthy()
+    expect(within(carte).getByText("Actif")).toBeTruthy()
+    expect(within(carte).getByText(/u1@ept\.sn/)).toBeTruthy()
+    expect(within(carte).getByText(/DIC2/)).toBeTruthy()
+    expect(within(screen.getByRole("article", { name: "Prenom4 Nom4" })).getByText("Désactivé")).toBeTruthy()
+  })
+
+  it("les actions de la carte appellent les mêmes routes : désactiver après confirmation, réactiver sans", async () => {
+    vi.mocked(changerEtatCompte).mockResolvedValue(compte(1, { actif: false }))
+    afficher()
+    const actif = await screen.findByRole("article", { name: "Prenom1 Nom1" })
+
+    fireEvent.click(within(actif).getByRole("button", { name: "Désactiver : Prenom1 Nom1" }))
+    await waitFor(() => expect(changerEtatCompte).toHaveBeenCalledWith(1, false))
+    expect(window.confirm).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(within(screen.getByRole("article", { name: "Prenom4 Nom4" })).getByRole("button", { name: "Réactiver : Prenom4 Nom4" }))
+    await waitFor(() => expect(changerEtatCompte).toHaveBeenCalledWith(4, true))
+    expect(window.confirm).toHaveBeenCalledTimes(1)
+  })
+})
