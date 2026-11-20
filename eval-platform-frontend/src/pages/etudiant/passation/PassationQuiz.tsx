@@ -11,6 +11,7 @@ import { useExamTimer } from "@/hooks/useExamTimer"
 import { estCopieVerrouillee, messageErreur, questionQuizSuivante } from "@/lib/passation"
 import EtatPassation from "./EtatPassation"
 import type { QuestionExamen } from "@/types"
+import MentionPenalite from "./MentionPenalite"
 import { Clock, Timer, ChevronRight, Send, Eye } from "lucide-react"
 
 type ReponsesQuiz = Record<number, number[]> // questionId -> choixIds cochés (question en cours seulement)
@@ -218,6 +219,7 @@ export default function PassationQuiz() {
 
         <CardContent className="flex flex-col gap-5">
           <p className="text-base font-medium">{question.enonce}</p>
+          <MentionPenalite penalite={question.penalite} />
 
           {question.estChoixMultiple ? (
             <div className="flex flex-col gap-3">

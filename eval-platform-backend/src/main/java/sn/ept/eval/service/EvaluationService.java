@@ -25,6 +25,7 @@ import sn.ept.eval.model.QuestionQCM;
 import sn.ept.eval.model.QuestionQuiz;
 import sn.ept.eval.model.Utilisateur;
 import sn.ept.eval.model.enums.StatutEvaluation;
+import sn.ept.eval.model.enums.TypeQuestion;
 import sn.ept.eval.repository.AmenagementTempsRepository;
 import sn.ept.eval.repository.EtudiantRepository;
 import sn.ept.eval.repository.EvaluationRepository;
@@ -266,6 +267,10 @@ public class EvaluationService {
 
     /** Retourne le message de la première règle violée par la question, ou null si elle est valide. */
     private String erreurQuestion(QuestionRequestDTO q) {
+        String erreurPenalite = erreurPenalite(q);
+        if (erreurPenalite != null) {
+            return erreurPenalite;
+        }
         switch (q.getType()) {
             case QCM -> {
                 return erreurChoix(q);
@@ -295,6 +300,24 @@ public class EvaluationService {
                 return "type de question non géré.";
             }
         }
+    }
+
+    /** Barème négatif : QCM et quiz seulement, entre 0 et les points de la question (une erreur ne coûte pas plus qu'elle ne rapporte). */
+    private String erreurPenalite(QuestionRequestDTO q) {
+        Double penalite = q.getPenalite();
+        if (penalite == null || penalite == 0) {
+            return null;
+        }
+        if (q.getType() != TypeQuestion.QCM && q.getType() != TypeQuestion.QUIZ_CHRONOMETREE) {
+            return "une pénalité ne s'applique qu'aux QCM et aux quiz.";
+        }
+        if (penalite.isNaN() || penalite < 0) {
+            return "la pénalité ne peut pas être négative (indiquez les points retirés, par exemple 0,5).";
+        }
+        if (q.getPoints() != null && penalite > q.getPoints()) {
+            return "la pénalité ne peut pas dépasser les points de la question.";
+        }
+        return null;
     }
 
     private String erreurChoix(QuestionRequestDTO q) {
@@ -345,11 +368,13 @@ public class EvaluationService {
         switch (q.getType()) {
             case QCM -> {
                 QuestionQCM question = new QuestionQCM(q.getEnonce(), ordre, q.getPoints(), multiple);
+                question.setPenalite(q.getPenalite());
                 q.getChoix().forEach(c -> question.addChoix(new ChoixReponse(c.getTexte(), c.getEstCorrect())));
                 return question;
             }
             case QUIZ_CHRONOMETREE -> {
                 QuestionQuiz question = new QuestionQuiz(q.getEnonce(), ordre, q.getPoints(), multiple, q.getDureeQuestion());
+                question.setPenalite(q.getPenalite());
                 q.getChoix().forEach(c -> question.addChoix(new ChoixReponse(c.getTexte(), c.getEstCorrect())));
                 return question;
             }
@@ -403,6 +428,7 @@ public class EvaluationService {
         dto.setPoints(question.getPoints());
         if (reelle instanceof QuestionQCM qcm) {
             dto.setEstChoixMultiple(qcm.getEstChoixMultiple());
+            dto.setPenalite(qcm.getPenalite());
             dto.setChoix(qcm.getChoix().stream().map(c -> new ChoixDTO(c.getTexte(), c.getEstCorrect())).toList());
         }
         if (reelle instanceof QuestionQuiz quiz) {

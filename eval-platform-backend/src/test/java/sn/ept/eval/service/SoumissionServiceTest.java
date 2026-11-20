@@ -271,6 +271,24 @@ class SoumissionServiceTest {
     }
 
     @Test
+    @DisplayName("Barème négatif : la pénalité d'un QCM est envoyée à l'étudiant (il décide de répondre ou non), sans la bonne réponse")
+    void versDetail_QcmPenaliteVisible() {
+        sn.ept.eval.model.QuestionQCM qcm = new sn.ept.eval.model.QuestionQCM("Structure LIFO ?", 1, 2.0, false);
+        qcm.setId(21L);
+        qcm.setPenalite(0.5);
+        sn.ept.eval.model.ChoixReponse a = new sn.ept.eval.model.ChoixReponse("Pile", true);
+        a.setId(1L);
+        qcm.addChoix(a);
+        when(questionRepository.findByEvaluationIdOrderByOrdreAsc(10L)).thenReturn(List.of(qcm));
+        when(reponseEtudiantRepository.findBySoumissionId(100L)).thenReturn(List.of());
+
+        QuestionExamenDto dto = soumissionMapper.versDetail(soumission).getQuestions().get(0);
+
+        assertThat(dto.getPenalite()).isEqualTo(0.5);
+        assertThat(dto.getChoixPossibles()).extracting(c -> c.getTexte()).containsExactly("Pile");
+    }
+
+    @Test
     @DisplayName("Reprise : une copie remise est renvoyée avec son statut, sans questions, même après la fermeture")
     void demarrer_CopieRemise_StatutSansQuestions() {
         evaluation.setDateOuverture(MAINTENANT.minusDays(2));

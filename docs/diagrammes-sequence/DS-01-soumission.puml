@@ -89,9 +89,9 @@ D --> C -- : copie
 alt statut ≠ SOUMIS (déjà corrigée)
   note right of C : sans effet : la note de l'enseignant est conservée
 else statut = SOUMIS
-  C -> C : corrige les réponses QCM et quiz ;\ncode exécuté par Judge0, noté au prorata des cas réussis (DS-12)
+  C -> C : corrige les réponses QCM et quiz (sélection exacte : points ; aucune case : 0 ;\nsinon : moins la pénalité du barème négatif, V16) ;\ncode exécuté par Judge0, noté au prorata des cas réussis (DS-12)
   alt QCM, quiz et code, tout noté automatiquement
-    C -> D : UPDATE Soumission SET noteFinale, statut = 'EVALUE'
+    C -> D : UPDATE Soumission SET noteFinale = max(0, somme des notes), statut = 'EVALUE'
   else questions ouvertes, ou code sans cas de test
     C -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
     note right of C : correction par l'enseignant (module d'Aminou)

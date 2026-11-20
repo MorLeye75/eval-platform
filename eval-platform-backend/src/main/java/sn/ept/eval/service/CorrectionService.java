@@ -226,12 +226,7 @@ public class CorrectionService {
         boolean toutEstNote = noterCode(soumission, execution.notes());
 
         if (toutEstNote) {
-            double note = soumission.getReponses().stream()
-                    .map(ReponseEtudiant::getNoteObtenue)
-                    .filter(Objects::nonNull)
-                    .mapToDouble(Double::doubleValue)
-                    .sum();
-            soumission.setNoteFinale(arrondi(note));
+            soumission.setNoteFinale(noteFinale(soumission.getReponses()));
             soumission.setStatut(StatutSoumission.EVALUE);
             // Résultats déjà publiés (copie remise ou corrigée tard) : l'étudiant est prévenu, dans cette
             // transaction (DS-15 : la notification suit l'événement s'il est annulé)
@@ -314,6 +309,30 @@ public class CorrectionService {
         reponse.setCommentaireProf("Correction automatique : " + reussis + "/" + resultats.size() + " cas de test réussis.");
     }
 
+    /**
+     * Sélection exacte : les points ; aucune case cochée : 0 ; toute autre sélection (fausse, incomplète ou avec un
+     * choix en trop) : moins la pénalité du barème négatif (0 par défaut). Pas de points partiels.
+     */
+    static double noteQcm(Set<Long> idsCorrects, Set<Long> idsCoches, QuestionQCM question) {
+        if (idsCorrects.equals(idsCoches)) return question.getPoints();
+        if (idsCoches.isEmpty()) return 0.0;
+        double penalite = question.getPenalite() == null ? 0.0 : question.getPenalite();
+        return penalite == 0 ? 0.0 : -penalite;
+    }
+
+    /**
+     * Note finale d'une copie : somme des notes des réponses, arrondie, jamais négative (le barème négatif retire des
+     * points question par question, mais une copie ne descend pas sous 0). Utilisée aussi par CorrectionIAService.
+     */
+    static double noteFinale(Collection<ReponseEtudiant> reponses) {
+        double somme = reponses.stream()
+                .map(ReponseEtudiant::getNoteObtenue)
+                .filter(Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .sum();
+        return Math.max(0.0, arrondi(somme));
+    }
+
     private void corrigerQuestionQcm(ReponseQCM reponseQCM, QuestionQCM questionQcm) {
         Set<Long> idsCorrects = questionQcm.getChoix().stream()
                 .filter(ChoixReponse::getEstCorrect)
@@ -324,7 +343,7 @@ public class CorrectionService {
                 .map(ChoixReponse::getId)
                 .collect(Collectors.toSet());
 
-        reponseQCM.setNoteObtenue(idsCorrects.equals(idsCoches) ? questionQcm.getPoints() : 0.0);
+        reponseQCM.setNoteObtenue(noteQcm(idsCorrects, idsCoches, questionQcm));
         reponseQCM.setValideeParProf(true);
         reponseQCM.setCommentaireProf("Correction automatique QCM.");
     }

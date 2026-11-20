@@ -179,6 +179,8 @@ export default function Previsualisation() {
                   {q.type === "CODE" && ` · ${q.casTests?.length ?? 0} cas de test`}
                   {(q.type === "QCM" || q.type === "QUIZ_CHRONOMETREE") && ` · ${q.choix?.length ?? 0} choix`}
                   {q.type === "QUIZ_CHRONOMETREE" && ` · ${q.dureeQuestion ?? 30} s`}
+                  {(q.type === "QCM" || q.type === "QUIZ_CHRONOMETREE") && (q.penalite ?? 0) > 0 &&
+                    ` · −${(q.penalite ?? 0).toLocaleString("fr-FR")} pt si faux`}
                 </p>
               </div>
               <span className="shrink-0 text-sm font-bold">{q.points} pts</span>

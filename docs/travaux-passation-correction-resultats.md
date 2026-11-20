@@ -160,6 +160,11 @@ Diagramme : [`DS-14-connexion.puml`](diagrammes-sequence/DS-14-connexion.puml). 
   nouvelle demande invalide les liens précédents. `POST /auth/reinitialiser-mot-de-passe` change le mot de passe,
   coupe les sessions ouvertes et lève un mot de passe provisoire. Envoi SMTP si `SPRING_MAIL_HOST` est défini
   (en arrière-plan, après la validation de la transaction) ; sinon le lien est écrit dans les logs.
+- barème négatif optionnel (20 novembre, cahier des charges 4.4) : pénalité par question de QCM ou de quiz
+  (V16, 0 par défaut), saisie dans le constructeur et annoncée à l'étudiant pendant l'épreuve. Sélection exacte :
+  les points ; aucune case cochée : 0 ; toute autre sélection (fausse, incomplète, choix en trop) : moins la
+  pénalité. Les notes par question peuvent être négatives, la note finale d'une copie jamais (même calcul,
+  `CorrectionService.noteFinale`, pour la correction automatique et pour la dernière note posée à la main).
 
 ## 7. Migrations Flyway ajoutées
 

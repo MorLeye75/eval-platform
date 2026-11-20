@@ -21,6 +21,8 @@ function questionVersRequete(q: QuestionLocal): QuestionRequete {
       ...base,
       estChoixMultiple: q.estChoixMultiple ?? false,
       ...(q.type === "QUIZ_CHRONOMETREE" ? { dureeQuestion: q.dureeQuestion ?? 30 } : {}),
+      // Barème négatif : envoyé seulement s'il est fixé (absent = 0 pour le serveur)
+      ...(q.penalite ? { penalite: q.penalite } : {}),
       choix: (q.choix ?? []).map((c) => ({ texte: c.texte.trim(), estCorrect: c.estCorrect })),
     }
   }
@@ -61,6 +63,7 @@ function questionVersLocale(q: QuestionApi, index: number): QuestionLocal {
       ...base,
       estChoixMultiple: q.estChoixMultiple ?? false,
       ...(q.type === "QUIZ_CHRONOMETREE" ? { dureeQuestion: q.dureeQuestion ?? 30 } : {}),
+      ...(q.penalite ? { penalite: q.penalite } : {}),
       choix: q.choix.map((c, i) => ({ id: (index + 1) * 1000 + i + 1, texte: c.texte, estCorrect: c.estCorrect })),
     }
   }

@@ -130,6 +130,7 @@ Si le schéma et les entités divergent, l'application ne démarre pas et Hibern
 | `V13__mot_de_passe_modifie_le.sql` | date du dernier changement de mot de passe : les jetons émis avant sont refusés |
 | `V14__mot_de_passe_provisoire.sql` | mot de passe provisoire attribué par l'administrateur, à changer avant tout autre usage (DS-16) |
 | `V15__jetons_reinitialisation.sql` | liens de réinitialisation du mot de passe (empreinte SHA-256 seulement, usage unique, 30 min) |
+| `V16__penalite_qcm.sql` | barème négatif optionnel des QCM et quiz : points retirés pour une mauvaise réponse (0 par défaut) |
 
 ## API
 
@@ -152,7 +153,7 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | GET | `/etudiant/evaluations` | étudiant | évaluations de sa promotion et état de sa copie |
 | GET | `/etudiant/evaluations/{id}` | étudiant | détail d'une évaluation (durée effective, durée par question du quiz, dates, état de la copie) ; 404 pour un brouillon, 403 hors de sa promotion |
 | GET | `/promotions` | enseignant, admin | promotions et effectifs, année la plus récente d'abord (assistant de création, DS-03) |
-| POST | `/enseignant/evaluations` | enseignant | crée un brouillon avec ses questions (DS-03) |
+| POST | `/enseignant/evaluations` | enseignant | crée un brouillon avec ses questions (DS-03) ; QCM et quiz : `penalite` facultative (barème négatif, entre 0 et les points de la question) |
 | GET | `/enseignant/evaluations` | enseignant | ses évaluations, sans les questions, avec `nbCopies` et `nbAttendus` |
 | GET | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | détail avec questions, bonnes réponses, aménagements, `nbCopies` et `nbAttendus` |
 | PUT | `/enseignant/evaluations/{id}` | enseignant (propriétaire) | modifie un brouillon (questions remplacées en bloc) |

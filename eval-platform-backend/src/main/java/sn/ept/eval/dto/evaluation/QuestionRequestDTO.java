@@ -31,6 +31,12 @@ public class QuestionRequestDTO {
     /** QCM et quiz uniquement. */
     private Boolean estChoixMultiple = false;
 
+    /**
+     * QCM et quiz uniquement : points retirés pour une mauvaise réponse (barème négatif). Absente = 0 ;
+     * entre 0 et les points de la question (vérifié par EvaluationService).
+     */
+    private Double penalite;
+
     /** Quiz chronométré uniquement : secondes par question. */
     private Integer dureeQuestion;
 
@@ -53,6 +59,9 @@ public class QuestionRequestDTO {
 
     public Boolean getEstChoixMultiple() { return estChoixMultiple; }
     public void setEstChoixMultiple(Boolean estChoixMultiple) { this.estChoixMultiple = estChoixMultiple; }
+
+    public Double getPenalite() { return penalite; }
+    public void setPenalite(Double penalite) { this.penalite = penalite; }
 
     public Integer getDureeQuestion() { return dureeQuestion; }
     public void setDureeQuestion(Integer dureeQuestion) { this.dureeQuestion = dureeQuestion; }

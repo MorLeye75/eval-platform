@@ -15,6 +15,8 @@ public class QuestionResponseDTO {
     private Double points;
     private Boolean estChoixMultiple;
     private Integer dureeQuestion;
+    /** QCM et quiz : points retirés pour une mauvaise réponse (0 = pas de barème négatif) ; null pour les autres types. */
+    private Double penalite;
     private List<ChoixDTO> choix = new ArrayList<>();
     private List<CasDeTestDTO> casTests = new ArrayList<>();
 
@@ -40,6 +42,9 @@ public class QuestionResponseDTO {
 
     public Integer getDureeQuestion() { return dureeQuestion; }
     public void setDureeQuestion(Integer dureeQuestion) { this.dureeQuestion = dureeQuestion; }
+
+    public Double getPenalite() { return penalite; }
+    public void setPenalite(Double penalite) { this.penalite = penalite; }
 
     public List<ChoixDTO> getChoix() { return choix; }
     public void setChoix(List<ChoixDTO> choix) { this.choix = choix; }

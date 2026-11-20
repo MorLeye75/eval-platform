@@ -159,6 +159,7 @@ export interface QuestionExamen {
   casDeTestsVisibles: { id: number; entree: string; sortieAttendue: string }[]
   reponseActuelle: ReponseItem | null
   dureeQuestion?: number | null // secondes (quiz chronométré)
+  penalite?: number | null // QCM et quiz : points retirés pour une mauvaise réponse (barème négatif)
 }
 
 /** Quiz chronométré : position de la copie (le serveur n'envoie que la question en cours). */

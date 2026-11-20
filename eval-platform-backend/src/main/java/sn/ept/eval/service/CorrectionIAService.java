@@ -28,7 +28,6 @@ import sn.ept.eval.service.ia.CorrecteurIA.Proposition;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * Correction assistée par IA et validation par l'enseignant (DS-08). L'IA propose ; seule la décision de l'enseignant
@@ -235,8 +234,8 @@ public class CorrectionIAService {
         boolean toutEstNote = copie.getReponses().stream().allMatch(r -> Boolean.TRUE.equals(r.getValideeParProf()));
         Double noteFinale = null;
         if (toutEstNote) {
-            noteFinale = arrondi(copie.getReponses().stream().map(ReponseEtudiant::getNoteObtenue)
-                    .filter(Objects::nonNull).mapToDouble(Double::doubleValue).sum());
+            // Même calcul que la correction automatique : jamais sous 0 (barème négatif des QCM)
+            noteFinale = CorrectionService.noteFinale(copie.getReponses());
             copie.setNoteFinale(noteFinale);
             copie.setStatut(StatutSoumission.EVALUE);
             soumissionRepository.save(copie);

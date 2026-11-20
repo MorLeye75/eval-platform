@@ -294,15 +294,29 @@ export default function BuilderQuestions() {
                     {/* ── Choix : QCM et quiz chronométré ── */}
                     {(q.type === "QCM" || q.type === "QUIZ_CHRONOMETREE") && (
                       <div className="flex flex-col gap-3">
-                        <div className="flex items-center gap-2">
-                          <Label>Choix multiples ?</Label>
-                          <input
-                            type="checkbox"
-                            aria-label={`Choix multiples, question ${idx + 1}`}
-                            checked={q.estChoixMultiple ?? false}
-                            onChange={(e) => updateQuestion(q.localId, basculerChoixMultiple(q, e.target.checked))}
-                            className="size-4 accent-primary"
-                          />
+                        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+                          <div className="flex items-center gap-2">
+                            <Label>Choix multiples ?</Label>
+                            <input
+                              type="checkbox"
+                              aria-label={`Choix multiples, question ${idx + 1}`}
+                              checked={q.estChoixMultiple ?? false}
+                              onChange={(e) => updateQuestion(q.localId, basculerChoixMultiple(q, e.target.checked))}
+                              className="size-4 accent-primary"
+                            />
+                          </div>
+                          {/* Barème négatif (facultatif) : 0 = une mauvaise réponse vaut 0, comme une absence de réponse */}
+                          <div className="flex items-center gap-2">
+                            <Label>Pénalité si faux</Label>
+                            <Input
+                              aria-label={`Pénalité si mauvaise réponse, question ${idx + 1}`}
+                              type="number" min={0} max={q.points} step={0.25}
+                              value={q.penalite ?? 0}
+                              onChange={(e) => updateQuestion(q.localId, { penalite: Number(e.target.value) })}
+                              className="w-24 rounded-xl"
+                            />
+                            <span className="text-[11px] text-muted-foreground">pt retirés (0 = aucune)</span>
+                          </div>
                         </div>
                         <div className="flex flex-col gap-2">
                           {q.choix?.map((c) => (
