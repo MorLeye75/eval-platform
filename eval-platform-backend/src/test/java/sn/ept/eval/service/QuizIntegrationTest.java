@@ -228,6 +228,15 @@ class QuizIntegrationTest {
         return transactionTemplate.execute(tx -> soumissionRepository.findById(soumissionId).orElseThrow());
     }
 
+    /**
+     * Copie remise par la clôture. La clôture lance la correction en arrière-plan : un quiz (QCM seulement) est corrigé
+     * en quelques millisecondes et peut déjà être EVALUE quand le test relit la copie (vu en CI le 20 novembre).
+     */
+    private static void assertRemise(Soumission copie) {
+        assertThat(copie.getStatut()).isIn(StatutSoumission.SOUMIS, StatutSoumission.EVALUE);
+        assertThat(copie.getDateRemise()).isNotNull();
+    }
+
     @Test
     @DisplayName("Quiz abandonné : la copie est clôturée à la fin du quiz + 2 min, pas à la fin de la durée standard")
     void quizAbandonne_ClotureALaFinDuQuiz() {
@@ -237,7 +246,7 @@ class QuizIntegrationTest {
         clotureCopiesService.cloturerCopiesExpirees();
 
         Soumission copie = copie(soumissionId);
-        assertThat(copie.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertRemise(copie);
         // Remise datée de la fin réelle du quiz (début + 90 s), comme une remise à l'heure
         assertThat(copie.getDateRemise()).isCloseTo(copie.getDateDebut().plusSeconds(DUREE_QUIZ),
                 org.assertj.core.api.Assertions.within(1, ChronoUnit.SECONDS));
@@ -267,7 +276,7 @@ class QuizIntegrationTest {
         clotureCopiesService.cloturerCopiesExpirees();
 
         Soumission copie = copie(soumissionId);
-        assertThat(copie.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertRemise(copie);
         assertThat(copie.getDateRemise()).isEqualTo(copie.getDebutQuestionQuiz());
     }
 
@@ -301,7 +310,7 @@ class QuizIntegrationTest {
         clotureCopiesService.cloturerCopiesExpirees();
 
         Soumission copie = copie(soumissionId);
-        assertThat(copie.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertRemise(copie);
         assertThat(copie.getDateRemise()).isEqualTo(copie.getDateDebut().plusMinutes(1));
     }
 
