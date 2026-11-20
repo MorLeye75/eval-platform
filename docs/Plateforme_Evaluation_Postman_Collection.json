@@ -374,6 +374,93 @@
               ]
             }
           }
+        },
+        {
+          "name": "1.7 Mot de passe oublié : demander un lien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('202, que le compte existe ou non (on ne révèle pas qui a un compte)', () => {",
+                  "    pm.response.to.have.status(202);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"personne@ept.sn\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/mot-de-passe-oublie",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "mot-de-passe-oublie"
+              ]
+            },
+            "description": "Route publique. Envoie un lien valable 30 minutes (usage unique) à l'adresse du compte : par SMTP si SPRING_MAIL_HOST est défini, sinon le lien est écrit dans les logs du backend (démonstration locale). Réponse 202 identique pour un compte inconnu ou désactivé ; au plus 3 e-mails par compte en 15 minutes. Adresse absente ou mal formée : 400.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "1.8 Mot de passe oublié : lien invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 JETON_INVALIDE', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().code).to.eql('JETON_INVALIDE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"lien-inconnu\",\n  \"motDePasse\": \"NouveauMotDePasse1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reinitialiser-mot-de-passe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reinitialiser-mot-de-passe"
+              ]
+            },
+            "description": "Route publique. Choisit un nouveau mot de passe avec le jeton du lien reçu (FRONTEND_URL/reset-password/<jeton>) : 204. Les sessions ouvertes du compte sont coupées et un mot de passe provisoire est levé. Lien inconnu, expiré, déjà utilisé ou remplacé par une demande plus récente : 400 avec le code JETON_INVALIDE.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
         }
       ]
     },

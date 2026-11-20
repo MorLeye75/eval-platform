@@ -73,6 +73,9 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `JUDGE0_URL` | oui, pour corriger le code | `http://localhost:2358` | Judge0 auto-hébergé, sur le réseau interne uniquement (DS-12) |
 | `JUDGE0_TOKEN` | si Judge0 en exige un | vide | jeton envoyé dans l'en-tête `X-Auth-Token` (`AUTHN_TOKEN` de Judge0) |
 | `JUDGE0_CONCURRENCE` | non | `2` | corrections avec du code simultanées : le nombre de workers Judge0 |
+| `FRONTEND_URL` | **oui**, pour le mot de passe oublié | `http://localhost:5173` | adresse du front dans le lien envoyé par e-mail (`FRONTEND_URL/reset-password/<jeton>`) |
+| `SPRING_MAIL_HOST` | **oui** en production | aucun | serveur SMTP ; avec `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` et `SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true`. Sans lui, les liens de réinitialisation sont écrits dans les logs (démonstration locale seulement : ils donnent accès au compte) |
+| `MAIL_EXPEDITEUR` | non | `no-reply@ept.sn` | adresse d'expédition des e-mails |
 | `FORWARD_HEADERS_STRATEGY` | derrière un proxy | `none` | `native` derrière un reverse proxy (nginx, traefik…) pour lire l'IP réelle du client dans `X-Forwarded-For` ; laisser `none` sans proxy (sinon un client pourrait inventer son IP) |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.
@@ -123,6 +126,10 @@ Si le schéma et les entités divergent, l'application ne démarre pas et Hibern
 | `V9__evaluation_version.sql` | `evaluations.version` : verrou optimiste (`@Version`), pour qu'un « modifier » et un « publier » simultanés ne s'écrasent pas |
 | `V10__jetons_revoques.sql` | jetons révoqués à la déconnexion (DS-14), purgés une fois expirés |
 | `V11__emails_en_minuscules.sql` | emails en minuscules et sans espaces, unicité insensible à la casse |
+| `V12__notifications_liens_et_index.sql` | notifications : liens vers l'évaluation et la copie, index du compteur et de la purge (DS-15) |
+| `V13__mot_de_passe_modifie_le.sql` | date du dernier changement de mot de passe : les jetons émis avant sont refusés |
+| `V14__mot_de_passe_provisoire.sql` | mot de passe provisoire attribué par l'administrateur, à changer avant tout autre usage (DS-16) |
+| `V15__jetons_reinitialisation.sql` | liens de réinitialisation du mot de passe (empreinte SHA-256 seulement, usage unique, 30 min) |
 
 ## API
 
@@ -133,6 +140,15 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 |---|---|---|---|
 | POST | `/auth/login` | public | authentification, renvoie le jeton JWT |
 | GET | `/auth/me` | connecté | profil de l'utilisateur connecté |
+| POST | `/auth/logout` | connecté | révoque le jeton de cette session (V10, DS-14) |
+| POST | `/auth/mot-de-passe-oublie` | public | envoie un lien de réinitialisation valable 30 min (V15) ; 202 que le compte existe ou non, au plus 3 e-mails par compte en 15 min |
+| POST | `/auth/reinitialiser-mot-de-passe` | public | nouveau mot de passe depuis le lien (usage unique) ; coupe les sessions ouvertes ; 400 `JETON_INVALIDE` si le lien est inconnu, expiré ou remplacé |
+| GET | `/profil` | connecté | identité en lecture seule (gérée par l'administrateur) |
+| PUT | `/profil/mot-de-passe` | connecté | change son mot de passe (actuel exigé, échecs comptés avec la connexion) ; coupe les autres sessions et renvoie le nouveau jeton de celle-ci (`{token}`) |
+| GET | `/notifications` | connecté | ses notifications, les plus récentes d'abord (DS-15) |
+| GET | `/notifications/non-lues/nombre` | connecté | nombre de non lues (compteur de la barre latérale) |
+| PUT | `/notifications/{id}/lire` | connecté | marque une notification comme lue |
+| PUT | `/notifications/lire-tout` | connecté | marque toutes ses notifications comme lues |
 | GET | `/etudiant/evaluations` | étudiant | évaluations de sa promotion et état de sa copie |
 | GET | `/etudiant/evaluations/{id}` | étudiant | détail d'une évaluation (durée effective, durée par question du quiz, dates, état de la copie) ; 404 pour un brouillon, 403 hors de sa promotion |
 | GET | `/promotions` | enseignant, admin | promotions et effectifs, année la plus récente d'abord (assistant de création, DS-03) |

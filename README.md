@@ -45,7 +45,7 @@ flowchart TD
     end
 
     subgraph Data ["Persistence Layer (PostgreSQL 17 / Flyway)"]
-        N["PostgreSQL 17 (Flyway V1 -> V14 Migration Schema)"]
+        N["PostgreSQL 17 (Flyway V1 -> V15 Migration Schema)"]
         O["HikariCP Connection Pool (Short Tx Isolation)"]
     end
 
@@ -143,7 +143,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=h2-dev
 # Create local database
 createdb eval_platform_db
 
-# Run Spring Boot (Flyway automatically applies the V1..V14 migrations)
+# Run Spring Boot (Flyway automatically applies the V1..V15 migrations)
 mvn spring-boot:run
 ```
 

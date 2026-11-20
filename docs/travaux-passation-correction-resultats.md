@@ -154,6 +154,12 @@ Diagramme : [`DS-14-connexion.puml`](diagrammes-sequence/DS-14-connexion.puml). 
 - changement de mot de passe (20 novembre) : `PUT /profil/mot-de-passe` pose `motDePasseModifieLe` (V13, même
   mécanisme que la réinitialisation par l'administrateur, DS-16) ; les jetons émis avant sont refusés, donc les
   autres appareils sont déconnectés. La session en cours continue avec le nouveau jeton renvoyé (200 `{token}`).
+- mot de passe oublié (20 novembre, cahier des charges 4.1) : `POST /auth/mot-de-passe-oublie` envoie un lien
+  `FRONTEND_URL/reset-password/<jeton>` valable 30 minutes, à usage unique (V15 : seule l'empreinte SHA-256 du jeton
+  est stockée) ; même réponse 202 que le compte existe ou non, au plus 3 e-mails par compte en 15 minutes, une
+  nouvelle demande invalide les liens précédents. `POST /auth/reinitialiser-mot-de-passe` change le mot de passe,
+  coupe les sessions ouvertes et lève un mot de passe provisoire. Envoi SMTP si `SPRING_MAIL_HOST` est défini
+  (en arrière-plan, après la validation de la transaction) ; sinon le lien est écrit dans les logs.
 
 ## 7. Migrations Flyway ajoutées
 

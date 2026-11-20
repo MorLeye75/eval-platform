@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { GraduationCap, ArrowLeft, MailCheck, Send } from "lucide-react"
+import { demanderReinitialisation } from "@/lib/motDePasseOublie"
+import { messageErreur } from "@/lib/passation"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -22,11 +24,11 @@ export default function ForgotPasswordPage() {
 
     setChargement(true)
     try {
-      // TODO backend : POST /api/auth/mot-de-passe-oublie { email }
-      await new Promise((r) => setTimeout(r, 800)) // simulation
+      await demanderReinitialisation(email.trim())
       setEnvoye(true)
-    } catch {
-      setErreur("Une erreur est survenue. Veuillez réessayer.")
+    } catch (err) {
+      // Adresse mal formée (400) : message du serveur ; sinon (réseau, serveur) : message générique
+      setErreur(messageErreur(err, "Une erreur est survenue. Veuillez réessayer."))
     } finally {
       setChargement(false)
     }

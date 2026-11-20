@@ -168,6 +168,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return problem;
     }
 
+    /** Lien de réinitialisation inutilisable : un code distinct pour que le front propose une nouvelle demande. */
+    @ExceptionHandler(JetonReinitialisationInvalideException.class)
+    public ProblemDetail handleJetonReinitialisation(JetonReinitialisationInvalideException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Lien de réinitialisation invalide");
+        problem.setType(URI.create(ERROR_BASE_URL + "jeton-invalide"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "JETON_INVALIDE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
     /** Échec du login : message volontairement générique pour ne pas révéler si l'email existe. */
     @ExceptionHandler(AuthenticationException.class)
     public ProblemDetail handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
