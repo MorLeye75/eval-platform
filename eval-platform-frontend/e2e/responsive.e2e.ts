@@ -109,3 +109,22 @@ test("Gestion des comptes sur téléphone : une carte par compte, avec ses actio
   await expect(page.getByRole("button", { name: /^Modifier :/ }).first()).toBeVisible()
   await expect(page.getByRole("table")).toHaveCount(0)
 })
+
+/** Menu latéral sur téléphone : il s'ouvre par le bouton en haut à gauche et se replie dès qu'on choisit une page. */
+for (const [espace, email, motDePasse, lien, url] of [
+  ["étudiant", "etudiant@ept.sn", "etudiant123", "Mes évaluations", /\/etudiant\/evaluations$/],
+  ["enseignant", "prof@ept.sn", "prof123", "Mes évaluations", /\/enseignant\/evaluations$/],
+  ["administrateur", "admin@ept.sn", "admin123", "Gestion des comptes", /\/admin\/comptes$/],
+] as const) {
+  test(`menu latéral (${espace}) sur téléphone : il se replie après le choix d'une page`, async ({ page }) => {
+    await connecter(page, email, motDePasse)
+    await page.getByRole("button", { name: "Toggle Sidebar" }).first().click()
+    const menu = page.getByRole("dialog")
+    await expect(menu).toBeVisible()
+
+    await menu.getByRole("link", { name: lien }).click()
+
+    await expect(page).toHaveURL(url)
+    await expect(page.getByRole("dialog")).toHaveCount(0)
+  })
+}
