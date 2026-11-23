@@ -93,8 +93,20 @@ r = await appel(prof, "POST", `/enseignant/evaluations/${evalId}/resultats/publi
 verifier("publier des résultats avant la fin → refusé (409)", r.statut === 409)
 
 // ---------------------------------------------------------------- 4. Étudiant : passation (évaluation de démonstration ouverte)
-titre("4. Étudiant de démonstration : passation d'un QCM")
-const etu = (await connexion("etudiant@ept.sn", "etudiant123")).token
+titre("4. Étudiant : passation d'un QCM")
+// Un étudiant neuf de la promotion des évaluations de démonstration : le script reste rejouable (la copie d'un étudiant
+// ne se refait pas une fois remise).
+r = await appel(prof, "GET", "/promotions")
+const promotionDemo = r.donnees.find((p) => p.nom === "DIC2 Informatique")
+verifier("la promotion des évaluations de démonstration existe", !!promotionDemo)
+const emailPassation = `passation-${suffixe}@ept.sn`
+r = await appel(admin, "POST", "/admin/utilisateurs", {
+  nom: "Fall", prenom: "Awa", email: emailPassation, role: "ETUDIANT", promotionId: promotionDemo.id, numEtudiant: `PASS-${suffixe}`,
+})
+const provisoirePassation = r.donnees.motDePasseProvisoire
+const premierePassation = await connexion(emailPassation, provisoirePassation)
+await appel(premierePassation.token, "PUT", "/profil/mot-de-passe", { motDePasseActuel: provisoirePassation, nouveauMotDePasse: "MotDePassePassation2026" })
+const etu = (await connexion(emailPassation, "MotDePassePassation2026")).token
 r = await appel(etu, "POST", "/soumissions/evaluations/1/demarrer")
 verifier("démarrer l'épreuve", r.statut === 200 || r.statut === 201, `copie ${r.donnees?.id}`)
 const copie = r.donnees

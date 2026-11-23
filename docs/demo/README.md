@@ -1,6 +1,6 @@
 # Démonstration de la plateforme
 
-Deux façons de la dérouler : le **script** (vérifie tout par l'API, 31 étapes) et le **parcours à l'écran** (ce qu'on montre).
+Deux façons de la dérouler : le **script** (vérifie tout par l'API, 32 étapes) et le **parcours à l'écran** (ce qu'on montre).
 
 ## Préparer
 
@@ -28,7 +28,7 @@ La base H2 repart de zéro à chaque démarrage : relancer le backend remet la d
 node docs/demo/parcours-demo.mjs        # attend le backend sur http://localhost:8080/api
 ```
 
-Le script crée ses propres données (suffixe unique) : il peut être relancé sans redémarrer le backend. Il se termine par `31/31 étapes réussies`.
+Le script crée ses propres données (suffixe unique) : il peut être relancé sans redémarrer le backend. Il se termine par `31/32 étapes réussies`.
 
 ## Parcours à l'écran (environ 10 minutes)
 
