@@ -109,7 +109,7 @@ else
     B -> D : UPDATE Réponse SET noteObtenue = :note, valideeParProf = true, commentaireProf = :commentaire
     B -> B : toutesLesReponsesNotees(copie) ?\n(chaque réponse valideeParProf = true et noteObtenue non nulle)
     alt dernière note posée
-      B -> D : UPDATE Soumission SET noteFinale = arrondi(somme des notes, 2 décimales), statut = 'EVALUE'
+      B -> D : UPDATE Soumission SET noteFinale = max(0, arrondi(somme des notes, 2 décimales)), statut = 'EVALUE'
       B -> N ++ : resultatPublie(copie)
       alt resultatsPublies = true et copie EVALUE
         N -> D : INSERT Notification RESULTAT_PUBLIE (soumissionId), sans doublon

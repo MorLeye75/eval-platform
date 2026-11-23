@@ -54,7 +54,7 @@ deactivate B
 == Publication différée (programmer, annuler, déclenchement) ==
 note over E, D
   L'enseignant peut **programmer** la publication à une date au lieu de cliquer le jour même. Rien n'est publié à la
-  programmation : seule la date est enregistrée (colonne publication_resultats_prevue_le, migration V15). La publication
+  programmation : seule la date est enregistrée (colonne publication_resultats_prevue_le, migration V17). La publication
   elle-même passe par la **même** bascule atomique que le clic manuel : mêmes règles, une seule notification par copie.
 end note
 

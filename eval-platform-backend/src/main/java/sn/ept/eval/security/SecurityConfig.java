@@ -79,7 +79,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 // Laisse passer le dispatch d'erreur pour ne pas transformer chaque erreur serveur en 401
                 auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
-                auth.requestMatchers("/auth/login", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
+                auth.requestMatchers("/auth/login", "/auth/mot-de-passe-oublie", "/auth/reinitialiser-mot-de-passe",
+                        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                 if (h2ConsoleEnabled) {
                     auth.requestMatchers("/h2-console/**").permitAll();
                 }

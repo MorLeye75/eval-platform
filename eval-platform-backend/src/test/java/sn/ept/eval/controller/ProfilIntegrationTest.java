@@ -112,12 +112,31 @@ class ProfilIntegrationTest {
     }
 
     @Test
-    @DisplayName("Changement réussi : 204, la connexion se fait avec le nouveau mot de passe, plus avec l'ancien")
+    @DisplayName("Changement réussi : 200 avec un nouveau jeton, la connexion se fait avec le nouveau mot de passe, plus avec l'ancien")
     void changementReussi() throws Exception {
-        changer(bearer(), MOT_DE_PASSE, "nouveauMotDePasse").andExpect(status().isNoContent());
+        changer(bearer(), MOT_DE_PASSE, "nouveauMotDePasse")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.token").isString());
 
         connexion("nouveauMotDePasse").andExpect(status().isOk());
         connexion(MOT_DE_PASSE).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("Changement réussi : les autres sessions sont coupées (401), la session en cours continue avec le jeton renvoyé")
+    void changementCoupeLesAutresSessions() throws Exception {
+        String autreAppareil = bearer();
+        String appareilCourant = bearer();
+        mockMvc.perform(get("/profil").header("Authorization", autreAppareil)).andExpect(status().isOk());
+
+        Thread.sleep(1100); // le jeton est daté à la seconde : un jeton émis dans la même seconde que le changement reste valable
+        String reponse = changer(appareilCourant, MOT_DE_PASSE, "nouveauMotDePasse")
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        String jetonRenvoye = "Bearer " + JsonPath.read(reponse, "$.token");
+
+        mockMvc.perform(get("/profil").header("Authorization", autreAppareil)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/profil").header("Authorization", appareilCourant)).andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/profil").header("Authorization", jetonRenvoye)).andExpect(status().isOk());
     }
 
     @Test

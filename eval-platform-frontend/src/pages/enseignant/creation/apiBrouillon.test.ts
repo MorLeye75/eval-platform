@@ -56,6 +56,22 @@ describe("versRequete : brouillon de l'assistant → corps du POST / PUT (DS-03)
     expect(requete.questions[0]).not.toHaveProperty("dureeQuestion")
   })
 
+  it("barème négatif : la pénalité d'un QCM ou d'un quiz est envoyée quand elle est fixée, jamais pour les autres types", () => {
+    const avecPenalite = versRequete({
+      ...BROUILLON,
+      questions: [
+        { ...BROUILLON.questions[0], penalite: 0.5 },
+        { ...BROUILLON.questions[1], penalite: 0.25 },
+        { ...BROUILLON.questions[3], penalite: 1 },
+      ],
+    })
+    expect(avecPenalite.questions[0]).toMatchObject({ type: "QCM", penalite: 0.5 })
+    expect(avecPenalite.questions[1]).toMatchObject({ type: "QUIZ_CHRONOMETREE", penalite: 0.25 })
+    expect(avecPenalite.questions[2]).not.toHaveProperty("penalite")
+    // Sans pénalité (0 ou absente) : rien n'est envoyé, le serveur prend 0
+    expect(requete.questions[0]).not.toHaveProperty("penalite")
+  })
+
   it("code : une entrée vide est envoyée comme absente (entrée facultative), la sortie attendue est conservée", () => {
     expect(requete.questions[2].casTests).toEqual([
       { entree: "2 3", sortieAttendue: "5", estMasque: false },
@@ -118,6 +134,13 @@ describe("versBrouillon : détail du serveur → brouillon d'édition", () => {
     ])
     expect(requete.dureeStandard).toBe(90)
     expect(requete.promotionIds).toEqual([2])
+  })
+
+  it("barème négatif : la pénalité du serveur est relue et renvoyée telle quelle (modification, duplication)", () => {
+    const detail = { ...DETAIL, questions: DETAIL.questions.map((q) => (q.type === "QCM" ? { ...q, penalite: 0.5 } : q)) }
+    const relu = versBrouillon(detail)
+    expect(relu.questions[0]).toMatchObject({ type: "QCM", penalite: 0.5 })
+    expect(versRequete(relu).questions[0]).toMatchObject({ type: "QCM", penalite: 0.5 })
   })
 })
 

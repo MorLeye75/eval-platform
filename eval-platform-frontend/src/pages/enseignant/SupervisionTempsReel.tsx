@@ -98,13 +98,13 @@ export default function SupervisionTempsReel() {
           <h1 className="text-3xl font-extrabold tracking-tight">Supervision en temps réel</h1>
           <p className="mt-1 text-muted-foreground">{s.titre}{terminee ? " — évaluation terminée" : ""}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 max-w-full items-center gap-2">
           <label htmlFor="supervision-evaluation" className="text-sm font-medium">Évaluation :</label>
           <select
             id="supervision-evaluation"
             value={choisie}
             onChange={(e) => navigate(`/enseignant/supervision/${e.target.value}`)}
-            className="h-9 rounded-lg border border-input bg-background px-3 text-sm"
+            className="h-9 min-w-0 max-w-full rounded-lg border border-input bg-background px-3 text-sm"
           >
             {ouvertes.map((e) => <option key={e.id} value={e.id}>{e.titre}</option>)}
           </select>

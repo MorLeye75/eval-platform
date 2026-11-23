@@ -260,6 +260,42 @@ class CorrectionIAIntegrationTest {
     }
 
     @Test
+    @DisplayName("Barème négatif : la dernière note posée à la main ne fait jamais descendre la copie sous 0")
+    void baremeNegatif_CopieJamaisSousZero() throws Exception {
+        Cas cas = copieAvecDeuxReponses(StatutEvaluation.TERMINEE, false);
+        // QCM déjà corrigé automatiquement avec une mauvaise réponse pénalisée : −1
+        transactionTemplate.executeWithoutResult(tx -> {
+            Soumission copie = soumissionRepository.findById(cas.copieId()).orElseThrow();
+            Evaluation evaluation = copie.getEvaluation();
+            QuestionQCM qcm = new QuestionQCM("QCM pénalisé", 3, 1.0, false);
+            qcm.setPenalite(1.0);
+            qcm.addChoix(new ChoixReponse("A", true));
+            qcm.addChoix(new ChoixReponse("B", false));
+            evaluation.addQuestion(qcm);
+            // La fusion enregistre une copie de la question : on rattache la réponse à celle-là
+            Question enregistree = evaluationRepository.saveAndFlush(evaluation).getQuestions().stream()
+                    .filter(q -> "QCM pénalisé".equals(q.getEnonce())).findFirst().orElseThrow();
+            ReponseQCM reponse = new ReponseQCM();
+            reponse.setQuestion(enregistree);
+            reponse.setNoteObtenue(-1.0);
+            reponse.setValideeParProf(true);
+            copie.addReponse(reponse);
+            soumissionRepository.saveAndFlush(copie);
+        });
+        String prof = bearer("prof@ept.sn", "prof123");
+
+        mockMvc.perform(put("/enseignant/reponses/" + cas.reponseIds().get(0) + "/note").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"note\":0}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(put("/enseignant/reponses/" + cas.reponseIds().get(1) + "/note").header("Authorization", prof)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"note\":0}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.copieEvaluee").value(true))
+                .andExpect(jsonPath("$.noteFinale").value(0.0));
+        assertThat(soumissionRepository.findById(cas.copieId()).orElseThrow().getNoteFinale()).isZero();
+    }
+
+    @Test
     @DisplayName("Deux générations successives : une seule proposition par réponse (idempotence)")
     void proposerDeuxFois() {
         Cas cas = copieAvecDeuxReponses(StatutEvaluation.TERMINEE, false);

@@ -54,10 +54,11 @@ export function CreationStepper({ step }: { step: 1 | 2 | 3 }) {
             >
               {s.n}
             </div>
+            {/* Sur téléphone, seul le libellé de l'étape en cours est affiché (les autres gardent leur numéro) */}
             <span
               className={[
                 "text-sm font-medium",
-                step === s.n ? "text-foreground" : "text-muted-foreground",
+                step === s.n ? "text-foreground" : "hidden text-muted-foreground sm:inline",
               ].join(" ")}
             >
               {s.label}

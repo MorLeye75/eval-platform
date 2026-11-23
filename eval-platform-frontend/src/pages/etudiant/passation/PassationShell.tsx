@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { messageSansReponse, numerosSansReponse } from "@/lib/passation"
 import type { QuestionExamen } from "@/types"
+import MentionPenalite from "./MentionPenalite"
 import { ChevronLeft, ChevronRight, CircleCheck, Clock, Eye, Info, Save, Send } from "lucide-react"
 
 /** Sous ce seuil (5 min), le chrono passe en rouge. */
@@ -153,6 +154,7 @@ export default function PassationShell({
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
           <p className="text-base font-medium leading-relaxed">{question.enonce}</p>
+          <MentionPenalite penalite={question.penalite} />
           {children}
         </CardContent>
       </Card>

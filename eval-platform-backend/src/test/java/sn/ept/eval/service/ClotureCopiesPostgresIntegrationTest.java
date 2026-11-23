@@ -109,14 +109,14 @@ class ClotureCopiesPostgresIntegrationTest {
             Future<Integer> passage = pool.submit(() -> clotureCopiesService.cloturerCopiesExpirees());
 
             assertThat(passage.get(5, TimeUnit.SECONDS)).as("la clôture n'attend pas le verrou").isGreaterThanOrEqualTo(1);
-            assertThat(statut(libre)).isEqualTo(StatutSoumission.SOUMIS);
+            assertThat(statut(libre)).isIn(StatutSoumission.SOUMIS, StatutSoumission.EVALUE); // correction lancée en arrière-plan
             assertThat(statut(bloquee)).isEqualTo(StatutSoumission.EN_COURS);
 
             // Verrou relâché : la copie est clôturée au passage suivant
             liberer.countDown();
             detenteur.get(10, TimeUnit.SECONDS);
             clotureCopiesService.cloturerCopiesExpirees();
-            assertThat(statut(bloquee)).isEqualTo(StatutSoumission.SOUMIS);
+            assertThat(statut(bloquee)).isIn(StatutSoumission.SOUMIS, StatutSoumission.EVALUE);
         } finally {
             liberer.countDown();
             pool.shutdownNow();

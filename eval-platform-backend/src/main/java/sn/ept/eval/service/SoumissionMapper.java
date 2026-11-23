@@ -131,6 +131,7 @@ public class SoumissionMapper {
 
         if (q instanceof QuestionQCM qQcm) {
             qDto.setEstChoixMultiple(qQcm.getEstChoixMultiple());
+            qDto.setPenalite(qQcm.getPenalite());
             qDto.setChoixPossibles(qQcm.getChoix().stream()
                     .map(c -> new ChoixItemDto(c.getId(), c.getTexte()))
                     .collect(Collectors.toList()));

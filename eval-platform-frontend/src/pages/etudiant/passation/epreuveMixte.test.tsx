@@ -69,6 +69,16 @@ describe("écran unique : épreuve mêlant QCM, question ouverte et code", () =>
     expect(screen.getByText("2 3")).toBeTruthy() // cas de test visible
   })
 
+  it("barème négatif : la pénalité d'un QCM est annoncée à l'étudiant ; sans pénalité, aucune mention", () => {
+    etat.questions = [{ ...question(11, 1, "QCM"), penalite: 0.5 }, { ...question(12, 2, "QCM"), penalite: 0 }]
+    afficher()
+
+    expect(screen.getByText(/Mauvaise réponse : −0,5 pt/)).toBeTruthy()
+    expect(screen.getByText(/sans réponse : 0/)).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: /Suivant/ }))
+    expect(screen.queryByText(/Mauvaise réponse/)).toBeNull()
+  })
+
   it("aucune question perdue : les réponses de chaque type partent au serveur dans leur format", () => {
     etat.questions = [question(11, 1, "QCM"), question(12, 2, "OUVERTE"), question(13, 3, "CODE")]
     afficher()

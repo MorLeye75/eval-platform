@@ -33,6 +33,8 @@ export interface QuestionApi {
   points: number
   estChoixMultiple: boolean | null
   dureeQuestion: number | null
+  /** QCM et quiz : points retirés pour une mauvaise réponse (0 = pas de barème négatif) ; null pour les autres types. */
+  penalite?: number | null
   choix: ChoixApi[]
   casTests: CasTestApi[]
 }
@@ -72,6 +74,7 @@ export interface QuestionRequete {
   points: number
   estChoixMultiple?: boolean
   dureeQuestion?: number
+  penalite?: number
   choix?: ChoixApi[]
   casTests?: CasTestApi[]
 }

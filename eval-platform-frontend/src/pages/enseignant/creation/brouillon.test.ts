@@ -61,6 +61,14 @@ describe("QCM : choix unique ou multiple", () => {
     expect(erreurQuestion(questionQcm(false, [true, true]))).toBe("Un choix unique ne peut avoir qu'une bonne réponse.")
     expect(erreurQuestion(questionQcm(true, [true, true]))).toBeNull()
   })
+
+  it("barème négatif : pénalité entre 0 et les points de la question (2 points ici)", () => {
+    const q = questionQcm(false, [true, false])
+    expect(erreurQuestion({ ...q, penalite: 0.5 })).toBeNull()
+    expect(erreurQuestion({ ...q, penalite: 2 })).toBeNull()
+    expect(erreurQuestion({ ...q, penalite: -0.5 })).toBe("La pénalité ne peut pas être négative.")
+    expect(erreurQuestion({ ...q, penalite: 2.5 })).toBe("La pénalité ne peut pas dépasser les points de la question.")
+  })
 })
 
 function infos(extra: Partial<InfosGeneralesForm> = {}): InfosGeneralesForm {

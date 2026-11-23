@@ -23,6 +23,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 const menuItems = [
@@ -43,6 +44,10 @@ export function EnseignantSidebar() {
   const initiales = user
     ? `${user.prenom?.[0] ?? ""}${user.nom?.[0] ?? ""}`.toUpperCase()
     : "EN"
+
+  // Sur téléphone, le menu est un panneau par-dessus la page : il se replie dès qu'on choisit une page
+  const { isMobile, setOpenMobile } = useSidebar()
+  const replierSurTelephone = () => { if (isMobile) setOpenMobile(false) }
 
   return (
     <Sidebar className="border-r border-border/60">
@@ -75,7 +80,7 @@ export function EnseignantSidebar() {
                       isActive={isActive}
                       className="group h-10 rounded-xl font-medium transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary hover:bg-muted"
                       render={
-                        <Link to={item.url}>
+                        <Link to={item.url} onClick={replierSurTelephone}>
                           <item.icon className="size-4 transition-colors group-data-[active=true]:text-primary" />
                           <span>{item.title}</span>
                         </Link>

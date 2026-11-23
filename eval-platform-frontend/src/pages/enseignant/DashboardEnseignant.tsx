@@ -61,7 +61,7 @@ export default function DashboardEnseignant() {
     <div className="mx-auto flex max-w-5xl flex-col gap-7">
 
       {/* En-tête */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-3xl font-extrabold tracking-tight">
             Bonjour, {user?.prenom} <span className="text-2xl">👋</span>

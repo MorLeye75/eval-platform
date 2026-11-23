@@ -187,6 +187,46 @@ class CorrectionServiceTest {
     }
 
     @Test
+    @DisplayName("Barème négatif : réponse fausse = −pénalité, aucune case cochée = 0, réponse exacte = points")
+    void baremeNegatif_FauxVideJuste() throws Exception {
+        simple.setPenalite(0.5);
+        multiple.setPenalite(1.0);
+        QuestionQCM troisieme = new QuestionQCM("Complexité d'une pile ?", 3, 1.0, false);
+        troisieme.setId(3L);
+        troisieme.setPenalite(0.25);
+        troisieme.addChoix(choix(6, true));
+        troisieme.addChoix(choix(7, false));
+        evaluation.addQuestion(troisieme);
+        ReponseQCM fausse = reponse(simple, b);
+        ReponseQCM exacte = reponse(multiple, c, d);
+        ReponseQCM vide = reponse(troisieme);
+
+        corriger();
+
+        assertThat(fausse.getNoteObtenue()).isEqualTo(-0.5);
+        assertThat(exacte.getNoteObtenue()).isEqualTo(3.0);
+        assertThat(vide.getNoteObtenue()).isZero();
+        assertThat(soumission.getNoteFinale()).isEqualTo(2.5);
+        assertThat(soumission.getStatut()).isEqualTo(StatutSoumission.EVALUE);
+    }
+
+    @Test
+    @DisplayName("Barème négatif, choix multiples : sélection incomplète ou en partie fausse = réponse fausse ; copie jamais sous 0")
+    void baremeNegatif_SelectionInexacteEtPlancher() throws Exception {
+        simple.setPenalite(0.5);
+        multiple.setPenalite(1.0);
+        ReponseQCM enTrop = reponse(simple, a, b); // A est juste, B en trop
+        ReponseQCM partielle = reponse(multiple, c); // C sans D
+
+        corriger();
+
+        assertThat(enTrop.getNoteObtenue()).isEqualTo(-0.5);
+        assertThat(partielle.getNoteObtenue()).isEqualTo(-1.0);
+        // Les notes par question restent négatives (feedback), la note finale est ramenée à 0
+        assertThat(soumission.getNoteFinale()).isZero();
+    }
+
+    @Test
     @DisplayName("Question sans réponse : aucune note pour elle, les autres comptent")
     void questionSansReponse() throws Exception {
         reponse(simple, a);

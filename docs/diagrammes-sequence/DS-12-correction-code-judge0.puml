@@ -85,18 +85,18 @@ alt Judge0 indisponible (ou phase 2 trop longue)
     CS -> D : UPDATE Soumission SET tentatives_correction = tentatives_correction + 1,\ncorrection_demarree_le = NULL,\nprochaine_tentative_le = :maintenant + délai (1, 2, 4 puis 8 min)
     note right of D : la copie reste SOUMIS :\nreprise par la relance planifiée
   else 5e tentative échouée (tentatives_correction + 1 = 5)
-    CS -> D : UPDATE notes QCM (bonne réponse exacte ou 0, DS-01) ; code sans note
+    CS -> D : UPDATE notes QCM (exacte : points, vide : 0, sinon moins la pénalité, DS-01) ; code sans note
     CS -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
     note right of D : correction manuelle par l'enseignant\n(repli prévu par le cahier des charges)
   end
 else exécutions abouties
-  CS -> D : UPDATE notes QCM (bonne réponse exacte ou 0, DS-01)
+  CS -> D : UPDATE notes QCM (exacte : points, vide : 0, sinon moins la pénalité, DS-01)
   CS -> D : DELETE anciens ResultatCasTest des réponses de code (correction précédente)
   CS -> D : INSERT ResultatCasTest (estValide, verdict, sortieObtenue, tempsExecution, messageErreur) par cas
   note right of D : verdict (V8) : REUSSI, MAUVAISE_REPONSE, TEMPS_DEPASSE,\nERREUR_COMPILATION, ERREUR_EXECUTION ; seule information\nmontrée à l'étudiant pour un cas masqué (DS-13)
   CS -> D : UPDATE ReponseCode SET noteObtenue =\narrondi(points × cas réussis / nombre de cas, 2 décimales) ; code vide : 0
   alt que des QCM et du code, tout noté automatiquement
-    CS -> D : UPDATE Soumission SET noteFinale = somme des notes, statut = 'EVALUE'
+    CS -> D : UPDATE Soumission SET noteFinale = max(0, somme des notes), statut = 'EVALUE'
   else questions ouvertes, ou question de code sans cas de test
     CS -> D : UPDATE Soumission SET statut = 'EN_CORRECTION'
     note right of D : le reste est corrigé par l'enseignant\n(questions ouvertes : correction assistée IA, puis validation)

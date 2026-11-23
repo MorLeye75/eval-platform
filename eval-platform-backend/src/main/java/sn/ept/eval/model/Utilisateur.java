@@ -36,7 +36,10 @@ public class Utilisateur extends AuditableEntity {
 
     private LocalDateTime derniereConnexion;
 
-    /** Posée quand un administrateur attribue un mot de passe provisoire : les jetons émis avant sont refusés. */
+    /**
+     * Posée à chaque changement de mot de passe (réinitialisation par un administrateur, ou changement par
+     * l'utilisateur depuis son profil) : les jetons émis avant sont refusés.
+     */
     private LocalDateTime motDePasseModifieLe;
 
     /** Vrai tant que l'utilisateur n'a pas remplacé le mot de passe attribué par un administrateur. */

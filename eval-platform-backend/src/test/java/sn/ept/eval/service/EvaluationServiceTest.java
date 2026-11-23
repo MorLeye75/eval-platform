@@ -12,6 +12,7 @@ import sn.ept.eval.dto.evaluation.ChoixDTO;
 import sn.ept.eval.dto.evaluation.CreateEvaluationRequest;
 import sn.ept.eval.dto.evaluation.EvaluationResponse;
 import sn.ept.eval.dto.evaluation.QuestionRequestDTO;
+import sn.ept.eval.dto.evaluation.QuestionResponseDTO;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.EvaluationNonModifiableException;
 import sn.ept.eval.exception.RessourceNonTrouveeException;
@@ -152,6 +153,46 @@ class EvaluationServiceTest {
         requete.setQuestions(List.of(qcm(true, new ChoixDTO("A", true), new ChoixDTO("B", true), new ChoixDTO("C", false))));
 
         assertThat(service.creer(requete, "prof@ept.sn").getNbQuestions()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Barème négatif : pénalité enregistrée pour un QCM et un quiz, renvoyée avec la question ; absente = 0")
+    void creer_PenaliteEnregistree() {
+        when(promotionRepository.findAllById(any())).thenReturn(List.of(dic2));
+        when(evaluationRepository.save(any(Evaluation.class))).thenAnswer(i -> i.getArgument(0));
+        QuestionRequestDTO qcm = qcm(false, new ChoixDTO("A", true), new ChoixDTO("B", false));
+        qcm.setPenalite(0.5);
+        QuestionRequestDTO quiz = qcm(false, new ChoixDTO("A", true), new ChoixDTO("B", false));
+        quiz.setType(TypeQuestion.QUIZ_CHRONOMETREE);
+        quiz.setDureeQuestion(30);
+        quiz.setPenalite(2.0); // égale aux points : acceptée
+        QuestionRequestDTO sansPenalite = qcm(false, new ChoixDTO("A", true), new ChoixDTO("B", false));
+        CreateEvaluationRequest requete = requeteValide();
+        requete.setQuestions(List.of(qcm, quiz, sansPenalite));
+
+        EvaluationResponse r = service.creer(requete, "prof@ept.sn");
+
+        ArgumentCaptor<Evaluation> captor = ArgumentCaptor.forClass(Evaluation.class);
+        verify(evaluationRepository).save(captor.capture());
+        assertThat(captor.getValue().getQuestions()).extracting(q -> ((QuestionQCM) q).getPenalite())
+                .containsExactly(0.5, 2.0, 0.0);
+        assertThat(r.getQuestions()).extracting(QuestionResponseDTO::getPenalite).containsExactly(0.5, 2.0, 0.0);
+    }
+
+    @Test
+    @DisplayName("Barème négatif : pénalité négative, supérieure aux points, ou sur une question ouverte → 400")
+    void creer_PenaliteRefusee() {
+        QuestionRequestDTO negative = qcm(false, new ChoixDTO("A", true), new ChoixDTO("B", false));
+        negative.setPenalite(-0.5);
+        assertQuestionRejetee(negative, "pénalité");
+
+        QuestionRequestDTO tropForte = qcm(false, new ChoixDTO("A", true), new ChoixDTO("B", false));
+        tropForte.setPenalite(2.5); // la question vaut 2 points
+        assertQuestionRejetee(tropForte, "pénalité");
+
+        QuestionRequestDTO ouverte = ouverte();
+        ouverte.setPenalite(1.0);
+        assertQuestionRejetee(ouverte, "pénalité");
     }
 
     @Test

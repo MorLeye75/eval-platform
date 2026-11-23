@@ -45,6 +45,7 @@ export interface QuestionLocal {
   // QCM et QUIZ_CHRONOMETREE
   estChoixMultiple?: boolean
   choix?: ChoixLocal[]
+  penalite?: number  // barème négatif : points retirés pour une mauvaise réponse (0 ou absente = aucun)
   // CODE
   casTests?: CasTestLocal[]
   // QUIZ_CHRONOMETREE
@@ -142,6 +143,10 @@ export function erreurQuestion(q: QuestionLocal): string | null {
     if (!choix.some((c) => c.estCorrect)) return "Cochez au moins une bonne réponse."
     if (!q.estChoixMultiple && choix.filter((c) => c.estCorrect).length > 1)
       return "Un choix unique ne peut avoir qu'une bonne réponse."
+    // Mêmes règles que le serveur : une erreur ne coûte pas plus que ce que la question rapporte
+    const penalite = q.penalite ?? 0
+    if (Number.isNaN(penalite) || penalite < 0) return "La pénalité ne peut pas être négative."
+    if (penalite > q.points) return "La pénalité ne peut pas dépasser les points de la question."
   }
   if (q.type === "QUIZ_CHRONOMETREE" && !((q.dureeQuestion ?? 0) >= 5))
     return "La durée de la question doit être d'au moins 5 secondes."

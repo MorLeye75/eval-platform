@@ -13,6 +13,13 @@ public class QuestionQCM extends Question {
     @Column(nullable = false)
     private Boolean estChoixMultiple = false;
 
+    /**
+     * Barème négatif : points retirés pour une mauvaise réponse (sélection qui n'est pas exactement la bonne).
+     * 0 = pas de pénalité. Une question sans réponse vaut toujours 0.
+     */
+    @Column(nullable = false)
+    private Double penalite = 0.0;
+
     // Ordre de création, garanti : sans ORDER BY, la base rend les lignes dans l'ordre qu'elle veut (PostgreSQL :
     // ordre physique, qui change après une mise à jour), et les choix changeraient de place d'un affichage à l'autre
     @OneToMany(mappedBy = "question", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -31,6 +38,9 @@ public class QuestionQCM extends Question {
 
     public Boolean getEstChoixMultiple() { return estChoixMultiple; }
     public void setEstChoixMultiple(Boolean estChoixMultiple) { this.estChoixMultiple = estChoixMultiple; }
+
+    public Double getPenalite() { return penalite; }
+    public void setPenalite(Double penalite) { this.penalite = penalite == null ? 0.0 : penalite; }
 
     public List<ChoixReponse> getChoix() { return choix; }
     public void setChoix(List<ChoixReponse> choix) { this.choix = choix; }
