@@ -12,6 +12,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -28,7 +29,8 @@ class TentativesConnexionServiceTest {
         @Override public Instant instant() { return instant; }
     }
 
-    private static final String CLE = TentativesConnexionService.cle("Etudiant@ept.sn", "10.0.0.1");
+    private static final String EMAIL = "Etudiant@ept.sn";
+    private static final String IP = "10.0.0.1";
 
     private HorlogeManuelle horloge;
     private TentativesConnexionService service;
@@ -36,12 +38,13 @@ class TentativesConnexionServiceTest {
     @BeforeEach
     void setUp() {
         horloge = new HorlogeManuelle();
-        service = new TentativesConnexionService(horloge, 5, 15, 15);
+        // 5 échecs par couple, fenêtre et blocage de 15 min, 1000 entrées au plus
+        service = new TentativesConnexionService(horloge, 5, 15, 15, 1000);
     }
 
     private void echouer(int fois) {
         for (int i = 0; i < fois; i++) {
-            service.enregistrerEchec(CLE);
+            service.reserverTentative(EMAIL, IP);
         }
     }
 
@@ -49,10 +52,10 @@ class TentativesConnexionServiceTest {
     @DisplayName("Blocage au 5e échec, avec le délai restant")
     void bloqueApresCinqEchecs() {
         echouer(4);
-        assertThatCode(() -> service.verifierNonBloque(CLE)).doesNotThrowAnyException();
+        assertThatCode(() -> service.verifierNonBloque(EMAIL, IP)).doesNotThrowAnyException();
 
-        service.enregistrerEchec(CLE);
-        assertThatThrownBy(() -> service.verifierNonBloque(CLE))
+        service.reserverTentative(EMAIL, IP);
+        assertThatThrownBy(() -> service.verifierNonBloque(EMAIL, IP))
                 .isInstanceOf(TropDeTentativesException.class)
                 .extracting(e -> ((TropDeTentativesException) e).getSecondesAvantNouvelEssai())
                 .isEqualTo(15 * 60L);
@@ -64,7 +67,7 @@ class TentativesConnexionServiceTest {
         echouer(5);
         horloge.avancer(Duration.ofMinutes(15).plusSeconds(1));
 
-        assertThatCode(() -> service.verifierNonBloque(CLE)).doesNotThrowAnyException();
+        assertThatCode(() -> service.verifierNonBloque(EMAIL, IP)).doesNotThrowAnyException();
     }
 
     @Test
@@ -74,27 +77,51 @@ class TentativesConnexionServiceTest {
         horloge.avancer(Duration.ofMinutes(16));
         echouer(4);
 
-        assertThatCode(() -> service.verifierNonBloque(CLE)).doesNotThrowAnyException();
+        assertThatCode(() -> service.verifierNonBloque(EMAIL, IP)).doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("Une connexion réussie remet le compteur à zéro")
+    @DisplayName("Une connexion réussie remet le compteur du couple à zéro")
     void reussiteReinitialise() {
         echouer(4);
-        service.reinitialiser(CLE);
+        service.reinitialiser(EMAIL, IP);
         echouer(4);
 
-        assertThatCode(() -> service.verifierNonBloque(CLE)).doesNotThrowAnyException();
+        assertThatCode(() -> service.verifierNonBloque(EMAIL, IP)).doesNotThrowAnyException();
     }
 
     @Test
-    @DisplayName("La clé ignore la casse de l'email et distingue les adresses IP")
+    @DisplayName("Le couple ignore la casse de l'email et distingue les adresses IP")
     void cleNormalisee() {
         echouer(5);
 
-        assertThatThrownBy(() -> service.verifierNonBloque(TentativesConnexionService.cle(" ETUDIANT@ept.sn", "10.0.0.1")))
+        assertThatThrownBy(() -> service.verifierNonBloque(" ETUDIANT@ept.sn", IP))
                 .isInstanceOf(TropDeTentativesException.class);
-        assertThatCode(() -> service.verifierNonBloque(TentativesConnexionService.cle("etudiant@ept.sn", "10.0.0.2")))
-                .doesNotThrowAnyException();
+        assertThatCode(() -> service.verifierNonBloque("etudiant@ept.sn", "10.0.0.2")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("Campus derrière un NAT : beaucoup d'échecs depuis une même IP, sur des comptes différents, ne bloquent pas les autres comptes")
+    void memeIpComptesDifferents_PasDeBlocageCollectif() {
+        for (int i = 0; i < 200; i++) {
+            service.reserverTentative("compte" + i + "@ept.sn", IP); // un seul essai par compte
+        }
+
+        assertThatCode(() -> service.verifierNonBloque("autre@ept.sn", IP)).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("Mémoire bornée : des milliers d'emails inventés ne font pas grossir les compteurs sans limite")
+    void memoireBornee() {
+        TentativesConnexionService borne = new TentativesConnexionService(horloge, 5, 15, 15, 50);
+        for (int i = 0; i < 5; i++) borne.reserverTentative(EMAIL, IP); // couple bloqué, à conserver
+
+        for (int i = 0; i < 5_000; i++) {
+            borne.reserverTentative("invente" + i + "@ept.sn", "10.1." + (i / 250) + "." + (i % 250));
+        }
+
+        assertThat(borne.nombreDeCompteurs()).isLessThanOrEqualTo(50);
+        // Un blocage en cours n'est pas évincé au profit des nouvelles entrées
+        assertThatThrownBy(() -> borne.verifierNonBloque(EMAIL, IP)).isInstanceOf(TropDeTentativesException.class);
     }
 }

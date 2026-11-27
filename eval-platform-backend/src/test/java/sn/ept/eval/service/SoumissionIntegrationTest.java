@@ -7,19 +7,24 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
+import sn.ept.eval.dto.etudiant.EvaluationEtudiantResponse;
 import sn.ept.eval.dto.soumission.ReponseItemDto;
 import sn.ept.eval.dto.soumission.SauvegardeReponsesRequest;
 import sn.ept.eval.dto.soumission.SoumissionDetailResponse;
+import sn.ept.eval.dto.soumission.SoumissionResponse;
 import sn.ept.eval.exception.AccesRefuseException;
 import sn.ept.eval.exception.TempsEcouleException;
+import sn.ept.eval.exception.VersionObsoleteException;
 import sn.ept.eval.model.*;
 import sn.ept.eval.model.enums.StatutEvaluation;
 import sn.ept.eval.model.enums.StatutSoumission;
+import sn.ept.eval.model.enums.TypeQuestion;
 import sn.ept.eval.repository.*;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -42,6 +47,12 @@ class SoumissionIntegrationTest {
 
     @Autowired
     private ClotureCopiesService clotureCopiesService;
+
+    @Autowired
+    private CorrectionService correctionService;
+
+    @Autowired
+    private EvaluationEtudiantService evaluationEtudiantService;
 
     @Autowired
     private SoumissionRepository soumissionRepository;
@@ -158,6 +169,36 @@ class SoumissionIntegrationTest {
     }
 
     @Test
+    @DisplayName("Consultation : une fois sa copie remise, l'étudiant ne récupère plus les énoncés ; l'enseignant si")
+    void getDetail_CopieRemise_SansEnoncesPourLEtudiant() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        assertThat(soumissionService.getDetail(soumissionId, emailEtudiant).getQuestions()).isNotEmpty();
+
+        soumissionService.soumettreCopie(soumissionId, emailEtudiant);
+
+        // D'autres étudiants (tiers-temps) peuvent encore composer : le sujet ne doit plus sortir par l'API
+        SoumissionDetailResponse pourEtudiant = soumissionService.getDetail(soumissionId, emailEtudiant);
+        assertThat(pourEtudiant.getId()).isEqualTo(soumissionId);
+        assertThat(pourEtudiant.getStatut()).isNotEqualTo(StatutSoumission.EN_COURS);
+        assertThat(pourEtudiant.getQuestions()).isNullOrEmpty();
+        assertThat(soumissionService.getDetail(soumissionId, "prof@ept.sn").getQuestions()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("Consultation : une copie encore EN_COURS mais expirée ne renvoie plus les énoncés à l'étudiant")
+    void getDetail_CopieExpireeNonCloturee_SansEnoncesPourLEtudiant() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        // Temps écoulé, mais la tâche planifiée n'est pas encore passée : la copie est toujours EN_COURS
+        jdbcTemplate.update("update soumissions set date_debut = ? where id = ?", LocalDateTime.now().minusMinutes(60), soumissionId);
+
+        SoumissionDetailResponse pourEtudiant = soumissionService.getDetail(soumissionId, emailEtudiant);
+
+        assertThat(pourEtudiant.getStatut()).isEqualTo(StatutSoumission.EN_COURS);
+        assertThat(pourEtudiant.getQuestions()).isNullOrEmpty();
+        assertThat(soumissionService.getDetail(soumissionId, "prof@ept.sn").getQuestions()).isNotEmpty();
+    }
+
+    @Test
     @DisplayName("Quiz chronométré : les choix cochés sont enregistrés et corrigés automatiquement")
     void quizChronometre_SauvegardeEtCorrection() throws InterruptedException {
         Long evalQuizId = creerEvaluationQuiz();
@@ -247,6 +288,111 @@ class SoumissionIntegrationTest {
     }
 
     @Test
+    @DisplayName("DS-10 : une copie rouverte après expiration est clôturée sans alerte, puis corrigée")
+    void reprise_CopieExpiree_ClotureeSansAlerte() throws InterruptedException {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        jdbcTemplate.update("update soumissions set date_debut = ? where id = ?", LocalDateTime.now().minusMinutes(60), soumissionId);
+
+        SoumissionDetailResponse reprise = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant);
+
+        assertThat(reprise.getStatut()).isEqualTo(StatutSoumission.SOUMIS);
+        assertThat(reprise.getQuestions()).isEmpty();
+        assertThat(alerteAntiTricheRepository.findBySoumissionId(soumissionId)).isEmpty();
+        assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
+    }
+
+    @Test
+    @DisplayName("DS-10 : la version renvoyée par la sauvegarde est celle relue en base à la reprise")
+    void reprise_VersionDeSauvegardeIdentique() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+
+        Integer version = soumissionService
+                .sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(reponsesCorrectes()), emailEtudiant)
+                .getVersionReponses();
+
+        SoumissionDetailResponse reprise = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant);
+        assertThat(version).isEqualTo(1);
+        assertThat(reprise.getVersionReponses()).isEqualTo(version);
+        assertThat(reprise.getQuestions()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("DS-02 : une sauvegarde saisie sur une version périmée est refusée sans écraser les réponses")
+    void sauvegarde_VersionObsolete_Refusee() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        List<ReponseItemDto> bonnes = reponsesCorrectes();
+
+        // Onglet A : sauvegarde sur la version 0 -> version 1
+        soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(bonnes, 0), emailEtudiant);
+
+        // Onglet B, resté sur la version 0, tente d'effacer les réponses
+        Long q1Id = bonnes.get(0).getQuestionId();
+        SauvegardeReponsesRequest perimee = new SauvegardeReponsesRequest(
+                List.of(new ReponseItemDto(q1Id, null, null, List.of())), 0);
+        assertThatThrownBy(() -> soumissionService.sauvegarderReponses(soumissionId, perimee, emailEtudiant))
+                .isInstanceOf(VersionObsoleteException.class);
+
+        SoumissionDetailResponse copie = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant);
+        assertThat(copie.getVersionReponses()).isEqualTo(1);
+        assertThat(copie.getQuestions().get(0).getReponseActuelle().getChoixIds()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("DS-01 : deux soumissions simultanées d'une même copie n'en remettent qu'une")
+    void soumission_Simultanee_UneSeuleRemise() throws Exception {
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+            CountDownLatch depart = new CountDownLatch(1);
+            Callable<SoumissionResponse> soumettre = () -> {
+                depart.await();
+                return soumissionService.soumettreCopie(soumissionId, emailEtudiant);
+            };
+            Future<SoumissionResponse> premier = pool.submit(soumettre);
+            Future<SoumissionResponse> second = pool.submit(soumettre);
+            depart.countDown();
+
+            // Le verrou sérialise les deux appels : le second voit la copie déjà transmise
+            assertThat(List.of(premier.get().getMessage(), second.get().getMessage()))
+                    .containsExactlyInAnyOrder("Copie soumise avec succès.", "Cette copie a déjà été transmise.");
+            assertThat(attendreStatut(soumissionId, StatutSoumission.EVALUE)).isEqualTo(StatutSoumission.EVALUE);
+        } finally {
+            pool.shutdownNow();
+        }
+    }
+
+    @Test
+    @DisplayName("Correction : une copie déjà corrigée n'est pas recorrigée (note de l'enseignant conservée)")
+    void correction_Idempotente() throws Exception {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+        jdbcTemplate.update("update soumissions set statut = 'EVALUE', note_finale = 12.0 where id = ?", soumissionId);
+
+        correctionService.corrigerSoumissionAsync(soumissionId).get();
+
+        Soumission soumission = soumissionRepository.findById(soumissionId).orElseThrow();
+        assertThat(soumission.getStatut()).isEqualTo(StatutSoumission.EVALUE);
+        assertThat(soumission.getNoteFinale()).isEqualTo(12.0);
+    }
+
+    @Test
+    @DisplayName("DS-10 : l'étudiant voit les évaluations de sa promotion et l'état de sa copie")
+    void liste_EvaluationsDeLaPromotion() {
+        List<EvaluationEtudiantResponse> avant = evaluationEtudiantService.mesEvaluations(emailEtudiant);
+        EvaluationEtudiantResponse qcm = avant.stream().filter(e -> e.getId().equals(evalQcmId)).findFirst().orElseThrow();
+        assertThat(qcm.getTypesQuestions()).containsExactly(TypeQuestion.QCM);
+        assertThat(qcm.getNbQuestions()).isEqualTo(2);
+        assertThat(qcm.getDureeMinutes()).isEqualTo(45);
+        assertThat(qcm.getSoumissionId()).isNull();
+
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalQcmId, emailEtudiant).getId();
+
+        EvaluationEtudiantResponse apres = evaluationEtudiantService.mesEvaluations(emailEtudiant).stream()
+                .filter(e -> e.getId().equals(evalQcmId)).findFirst().orElseThrow();
+        assertThat(apres.getSoumissionId()).isEqualTo(soumissionId);
+        assertThat(apres.getStatutSoumission()).isEqualTo(StatutSoumission.EN_COURS);
+    }
+
+    @Test
     @DisplayName("Audit : un utilisateur créé reçoit sa date de création et son créateur")
     void audit_Utilisateur() {
         Utilisateur utilisateur = utilisateurRepository.findByEmail(emailEtudiant).orElseThrow();
@@ -265,7 +411,7 @@ class SoumissionIntegrationTest {
             evaluation.setDateFermeture(LocalDateTime.now().plusHours(2));
             evaluation.setStatut(StatutEvaluation.EN_COURS);
             evaluation.setEnseignant((Enseignant) utilisateurRepository.findByEmail("prof@ept.sn").orElseThrow());
-            evaluation.setPromotions(List.of(promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
+            evaluation.setPromotions(Set.of(promotionRepository.findByNom("DIC2 Informatique").orElseThrow()));
 
             QuestionQuiz quiz = new QuestionQuiz("Complexité d'une recherche dichotomique ?", 1, 4.0, false, 30);
             quiz.addChoix(new ChoixReponse("O(n)", false));
@@ -302,5 +448,21 @@ class SoumissionIntegrationTest {
             QuestionQCM q = (QuestionQCM) questionRepository.findByEvaluationIdOrderByOrdreAsc(evalQcmId).get(indexQuestion);
             return q.getChoix().stream().map(ChoixReponse::getId).toList();
         });
+    }
+
+    @Test
+    @DisplayName("Code : le langage choisi est enregistré avec la réponse et restitué à la reprise")
+    void code_LangageEnregistre() {
+        Long soumissionId = soumissionService.demarrerOuReprendre(evalCodeId, emailEtudiant).getId();
+        Long questionCodeId = questionRepository.findByEvaluationIdOrderByOrdreAsc(evalCodeId).get(0).getId();
+        ReponseItemDto reponse = new ReponseItemDto(questionCodeId, null, "print(42)", null);
+        reponse.setLangage("python");
+
+        soumissionService.sauvegarderReponses(soumissionId, new SauvegardeReponsesRequest(List.of(reponse)), emailEtudiant);
+
+        ReponseItemDto restituee = soumissionService.demarrerOuReprendre(evalCodeId, emailEtudiant)
+                .getQuestions().get(0).getReponseActuelle();
+        assertThat(restituee.getCodeSoumis()).isEqualTo("print(42)");
+        assertThat(restituee.getLangage()).isEqualTo("python");
     }
 }

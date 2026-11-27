@@ -16,8 +16,9 @@ public class Notification {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
+    /** Fixée par NotificationServiceEnBase avec l'horloge de l'application (Clock), testable. */
     @Column(nullable = false)
-    private LocalDateTime dateEnvoi = LocalDateTime.now();
+    private LocalDateTime dateEnvoi;
 
     @Column(nullable = false)
     private Boolean lue = false;
@@ -29,6 +30,16 @@ public class Notification {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "utilisateur_id", nullable = false)
     private Utilisateur destinataire;
+
+    /** Évaluation concernée (V12), nulle si la notification n'en a pas. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "evaluation_id")
+    private Evaluation evaluation;
+
+    /** Copie concernée (V12) : le front ouvre directement ses résultats (DS-13). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "soumission_id")
+    private Soumission soumission;
 
     public Notification() {}
 
@@ -49,4 +60,10 @@ public class Notification {
 
     public Utilisateur getDestinataire() { return destinataire; }
     public void setDestinataire(Utilisateur destinataire) { this.destinataire = destinataire; }
+
+    public Evaluation getEvaluation() { return evaluation; }
+    public void setEvaluation(Evaluation evaluation) { this.evaluation = evaluation; }
+
+    public Soumission getSoumission() { return soumission; }
+    public void setSoumission(Soumission soumission) { this.soumission = soumission; }
 }

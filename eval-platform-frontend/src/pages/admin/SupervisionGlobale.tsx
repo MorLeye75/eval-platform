@@ -1,62 +1,64 @@
-import { Eye, Users, AlertTriangle, FileText, Clock } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { Eye, Users, AlertTriangle, FileText } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import type { EvaluationEnCours, AlerteAntiTriche, NiveauAlerte } from "@/types"
+import type { NiveauAlerte } from "@/types"
 import { StatCard } from "@/components/admin/AdminWidgets"
+import { CLE_ADMIN_SUPERVISION, INTERVALLE_SUPERVISION_GLOBALE_MS, supervisionGlobale, type AlerteGlobaleApi } from "@/lib/adminVue"
+import { messageErreur } from "@/lib/passation"
+import { pourcentage } from "@/lib/supervision"
 
-/* ---------------------------------------------------------------
-   Données mockées — à remplacer par :
-   const { data } = useQuery({
-     queryKey: ["admin-supervision"],
-     queryFn: () => api.get("/admin/supervision"),
-     refetchInterval: 30_000,   // polling toutes les 30s
-   })
-   Le badge "live" s'affichera une fois le polling réel branché.
---------------------------------------------------------------- */
-const MOCK_EVALS: EvaluationEnCours[] = [
-  { id: 1, titre: "Structures de données — QCM",      enseignant: { nom: "Sarr",  prenom: "Fatou"   }, nbSoumis: 42, nbAttendus: 45, dateDebut: "2026-07-20T08:00:00", dateFin: "2026-07-20T09:00:00" },
-  { id: 2, titre: "Algorithmique — exercice de code", enseignant: { nom: "Fall",  prenom: "Ibrahima" }, nbSoumis: 28, nbAttendus: 40, dateDebut: "2026-07-20T09:00:00", dateFin: "2026-07-20T10:30:00" },
-  { id: 3, titre: "Réseaux — questions ouvertes",     enseignant: { nom: "Mbaye", prenom: "Sokhna"  }, nbSoumis: 15, nbAttendus: 38, dateDebut: "2026-07-20T10:00:00", dateFin: "2026-07-20T11:00:00" },
-]
-
-const MOCK_ALERTES: AlerteAntiTriche[] = [
-  { id: 1, etudiantId: 217, evaluationId: 3, description: "Changement d'onglet répété (4 fois)",  niveau: "MODERE", date: "2026-07-20T10:42:00" },
-  { id: 2, etudiantId: 142, evaluationId: 2, description: "Perte de focus prolongée — 2 minutes", niveau: "ELEVE",  date: "2026-07-20T09:38:00" },
-  { id: 3, etudiantId: 89,  evaluationId: 1, description: "Soumission auto à expiration du timer", niveau: "INFO",   date: "2026-07-20T08:58:00" },
-]
+// Supervision globale (DS-18) : toutes les évaluations en cours de la plateforme, relues toutes les 30 s. Lecture seule ;
+// les alertes sont des indices, pas des preuves.
 
 const ALERTE_CLS: Record<NiveauAlerte, string> = {
-  INFO:    "bg-muted text-muted-foreground",
-  MODERE:  "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
-  ELEVE:   "bg-destructive/10 text-destructive",
+  INFO: "bg-muted text-muted-foreground",
+  MODERE: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
+  ELEVE: "bg-destructive/10 text-destructive",
 }
-const ALERTE_LABEL: Record<NiveauAlerte, string> = {
-  INFO: "Info", MODERE: "Modéré", ELEVE: "Élevé",
-}
+const ALERTE_LABEL: Record<NiveauAlerte, string> = { INFO: "Info", MODERE: "Modéré", ELEVE: "Élevé" }
 
 export default function SupervisionGlobale() {
-  const nbConnectes = MOCK_EVALS.reduce((acc, e) => acc + e.nbSoumis, 0)
-  const nbAttendus  = MOCK_EVALS.reduce((acc, e) => acc + e.nbAttendus, 0)
+  const requete = useQuery({
+    queryKey: CLE_ADMIN_SUPERVISION,
+    queryFn: supervisionGlobale,
+    refetchInterval: INTERVALLE_SUPERVISION_GLOBALE_MS,
+  })
+  const d = requete.data
+  const commences = d?.evaluations.reduce((n, e) => n + e.nbCommences, 0)
+  const attendus = d?.evaluations.reduce((n, e) => n + e.nbAttendus, 0)
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div>
-        <h1 className="text-3xl font-extrabold tracking-tight">Supervision en temps réel</h1>
-        <p className="mt-1 text-muted-foreground">Suivi des évaluations actuellement en cours de passation.</p>
+        <h1 className="text-3xl font-extrabold tracking-tight">Supervision globale</h1>
+        <p className="mt-1 text-muted-foreground">
+          Évaluations en cours de passation, actualisées toutes les 30 secondes. Les alertes sont des indices, pas des preuves.
+        </p>
       </div>
 
-      {/* Stats */}
+      {requete.isError && (
+        <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {messageErreur(requete.error, "Impossible de charger la supervision.")}
+          {d && " Données non actualisées : dernier état connu affiché."}
+        </p>
+      )}
+
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Évaluations en cours" value={String(MOCK_EVALS.length)} icon={Eye}           hint="en cours"        dir="up"   />
-        <StatCard label="Étudiants connectés"  value={String(nbConnectes)}        icon={Users}         hint={`sur ${nbAttendus} attendus`}        />
-        <StatCard label="Alertes anti-triche"  value={String(MOCK_ALERTES.length)} icon={AlertTriangle} hint="à surveiller"  dir="down" />
+        <StatCard label="Évaluations en cours" value={d ? String(d.evaluations.length) : "—"} icon={Eye} />
+        <StatCard label="Copies commencées" value={commences === undefined ? "—" : String(commences)} icon={Users}
+                  hint={attendus === undefined ? undefined : `sur ${attendus} attendues`} />
+        <StatCard label="Alertes récentes" value={d ? String(d.alertes.length) : "—"} icon={AlertTriangle}
+                  hint="20 dernières" dir={d && d.alertes.length > 0 ? "down" : undefined} />
       </div>
 
-      {/* Évaluations */}
       <div className="flex flex-col gap-3">
         <h2 className="font-semibold">Évaluations en cours</h2>
-        {MOCK_EVALS.map((e) => {
-          const pct = e.nbAttendus > 0 ? Math.round((e.nbSoumis / e.nbAttendus) * 100) : 0
+        {d && d.evaluations.length === 0 && (
+          <p className="text-sm text-muted-foreground">Aucune évaluation n'est en cours actuellement.</p>
+        )}
+        {(d?.evaluations ?? []).map((e) => {
+          const pct = pourcentage(e.nbCommences, e.nbAttendus)
           return (
             <Card key={e.id} className="rounded-2xl border-border/60 shadow-sm">
               <CardContent className="flex items-center gap-4 p-4">
@@ -66,16 +68,12 @@ export default function SupervisionGlobale() {
                 <div className="min-w-0 flex-1">
                   <div className="font-semibold">{e.titre}</div>
                   <div className="mt-0.5 text-[11px] text-muted-foreground">
-                    {e.enseignant.prenom} {e.enseignant.nom} · {e.nbSoumis} / {e.nbAttendus} soumissions
+                    {e.enseignant} · {e.nbCommences} / {e.nbAttendus} copies commencées · {e.nbSoumis} remise{e.nbSoumis > 1 ? "s" : ""}
                   </div>
-                  {/* shadcn Progress */}
                   <Progress value={pct} className="mt-2 h-1.5" />
                 </div>
                 <div className="shrink-0 text-right">
                   <div className="text-xl font-extrabold">{pct}%</div>
-                  <button className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] font-semibold transition-colors hover:bg-muted">
-                    <Eye className="size-3.5" /> Détails
-                  </button>
                 </div>
               </CardContent>
             </Card>
@@ -83,35 +81,28 @@ export default function SupervisionGlobale() {
         })}
       </div>
 
-      {/* Alertes */}
       <Card className="rounded-2xl border-border/60 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-bold">Alertes anti-triche récentes</CardTitle>
         </CardHeader>
         <CardContent className="px-6 pb-4">
-          {MOCK_ALERTES.map((a) => (
-            <AlertRow key={a.id} alerte={a} />
-          ))}
+          {d && d.alertes.length === 0 && <p className="py-4 text-sm text-muted-foreground">Aucune alerte.</p>}
+          {(d?.alertes ?? []).map((a) => <LigneAlerte key={a.id} alerte={a} />)}
         </CardContent>
       </Card>
     </div>
   )
 }
 
-/* ── Sous-composants ───────────────────────────────────────── */
-
-function AlertRow({ alerte }: { alerte: AlerteAntiTriche }) {
-  const IconComp = alerte.niveau === "INFO" ? Clock : AlertTriangle
+function LigneAlerte({ alerte }: { alerte: AlerteGlobaleApi }) {
   return (
     <div className="flex items-center gap-3 border-b border-border py-3 last:border-none">
       <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-primary">
-        <IconComp className="size-[18px]" />
+        <AlertTriangle className="size-[18px]" />
       </span>
       <div className="min-w-0 flex-1">
         <div className="text-[13px] font-semibold">{alerte.description}</div>
-        <div className="mt-0.5 text-[11px] text-muted-foreground">
-          Étudiant #{alerte.etudiantId} · Éval #{alerte.evaluationId}
-        </div>
+        <div className="mt-0.5 text-[11px] text-muted-foreground">{alerte.etudiant} · {alerte.evaluation}</div>
       </div>
       <span className={`inline-flex items-center rounded-full px-2.5 py-[3px] text-[11px] font-semibold ${ALERTE_CLS[alerte.niveau]}`}>
         {ALERTE_LABEL[alerte.niveau]}

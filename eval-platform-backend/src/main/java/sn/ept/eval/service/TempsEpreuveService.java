@@ -2,16 +2,23 @@ package sn.ept.eval.service;
 
 import org.springframework.stereotype.Service;
 import sn.ept.eval.model.AmenagementTemps;
+import sn.ept.eval.model.QuestionQuiz;
 import sn.ept.eval.model.Soumission;
 import sn.ept.eval.repository.AmenagementTempsRepository;
 
 import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Règles de temps d'une épreuve : durée effective (aménagement inclus), fin plafonnée par la fermeture
- * de l'évaluation, marge de tolérance et temps restant. Source unique pour la passation, la clôture
+ * de l'évaluation et par la fin du quiz chronométré, marge de tolérance et temps restant. Source unique pour la passation, la clôture
  * automatique des copies et, à terme, la supervision enseignant.
  */
 @Service
@@ -40,19 +47,58 @@ public class TempsEpreuveService {
                 .orElse(soumission.getEvaluation().getDureeStandard());
     }
 
-    /** Fin de l'épreuve : début + durée effective, plafonnée par la fermeture de l'évaluation. */
-    public LocalDateTime finEpreuve(Soumission soumission) {
-        LocalDateTime fin = soumission.getDateDebut().plusMinutes(dureeEffectiveMinutes(soumission));
+    /**
+     * Fin de l'épreuve : début + durée effective, plafonnée par la fermeture de l'évaluation et, pour un quiz
+     * chronométré, par la fin de sa dernière question (un quiz abandonné n'attend pas la durée standard).
+     *
+     * @param questionsQuiz questions du quiz ({@link QuizService#questionsQuiz}), vide si l'évaluation n'en est pas un
+     */
+    public LocalDateTime finEpreuve(Soumission soumission, List<QuestionQuiz> questionsQuiz) {
+        return finEpreuve(soumission, dureeEffectiveMinutes(soumission), questionsQuiz);
+    }
+
+    /** Variante pour un appelant qui connaît déjà la durée effective (évite de relire l'aménagement). */
+    public LocalDateTime finEpreuve(Soumission soumission, int dureeEffectiveMinutes, List<QuestionQuiz> questionsQuiz) {
+        LocalDateTime fin = soumission.getDateDebut().plusMinutes(dureeEffectiveMinutes);
         LocalDateTime fermeture = soumission.getEvaluation().getDateFermeture();
-        return (fermeture != null && fermeture.isBefore(fin)) ? fermeture : fin;
+        if (fermeture != null && fermeture.isBefore(fin)) fin = fermeture;
+        if (!questionsQuiz.isEmpty()) {
+            LocalDateTime finQuiz = QuizService.finQuiz(soumission, questionsQuiz);
+            if (finQuiz.isBefore(fin)) fin = finQuiz;
+        }
+        return fin;
     }
 
-    /** Vrai si la fin de l'épreuve, marge de tolérance comprise, est dépassée. */
-    public boolean estExpiree(Soumission soumission) {
-        return maintenant().isAfter(finEpreuve(soumission).plusMinutes(MARGE_TOLERANCE_MINUTES));
+    /**
+     * Durées effectives d'un lot de copies (id de copie → minutes), avec une seule requête sur les aménagements
+     * des évaluations concernées. L'évaluation de chaque copie doit être chargée.
+     */
+    public Map<Long, Integer> dureesEffectivesMinutes(Collection<Soumission> soumissions) {
+        if (soumissions.isEmpty()) return Map.of();
+        Set<Long> evaluationIds = soumissions.stream().map(s -> s.getEvaluation().getId()).collect(Collectors.toSet());
+        Map<String, Integer> amenagements = new HashMap<>();
+        for (AmenagementTemps a : amenagementTempsRepository.findByEvaluationIdIn(evaluationIds)) {
+            amenagements.put(cle(a.getEtudiant().getId(), a.getEvaluation().getId()), a.getDureePersonnalisee());
+        }
+        Map<Long, Integer> durees = new HashMap<>();
+        for (Soumission s : soumissions) {
+            Integer amenagee = amenagements.get(cle(s.getEtudiant().getId(), s.getEvaluation().getId()));
+            durees.put(s.getId(), amenagee != null ? amenagee : s.getEvaluation().getDureeStandard());
+        }
+        return durees;
     }
 
-    public long tempsRestantSecondes(Soumission soumission) {
-        return Math.max(0, Duration.between(maintenant(), finEpreuve(soumission)).getSeconds());
+    private static String cle(Long etudiantId, Long evaluationId) {
+        return etudiantId + ":" + evaluationId;
+    }
+
+    /** Vrai si cette fin d'épreuve ({@link #finEpreuve}), marge de tolérance comprise, est dépassée. */
+    public boolean estDepassee(LocalDateTime finEpreuve) {
+        return maintenant().isAfter(finEpreuve.plusMinutes(MARGE_TOLERANCE_MINUTES));
+    }
+
+    /** Secondes restantes jusqu'à cette fin d'épreuve (0 si elle est passée). */
+    public long tempsRestantSecondes(LocalDateTime finEpreuve) {
+        return Math.max(0, Duration.between(maintenant(), finEpreuve).getSeconds());
     }
 }

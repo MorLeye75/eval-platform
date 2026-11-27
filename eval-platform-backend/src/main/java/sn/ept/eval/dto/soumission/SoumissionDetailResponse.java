@@ -15,10 +15,13 @@ public class SoumissionDetailResponse {
     private StatutSoumission statut;
     private LocalDateTime dateDebut;
     private LocalDateTime dateRemise;
+    private Integer versionReponses;
     private Integer dureeMinutes;
     private Long tempsRestantSecondes;
     private Integer nbChangementsOnglet;
     private List<QuestionExamenDto> questions = new ArrayList<>();
+    /** Quiz chronométré seulement : position dans le quiz (les questions ne contiennent que celle en cours). */
+    private EtatQuizDto quiz;
 
     public SoumissionDetailResponse() {}
 
@@ -43,6 +46,9 @@ public class SoumissionDetailResponse {
     public LocalDateTime getDateRemise() { return dateRemise; }
     public void setDateRemise(LocalDateTime dateRemise) { this.dateRemise = dateRemise; }
 
+    public Integer getVersionReponses() { return versionReponses; }
+    public void setVersionReponses(Integer versionReponses) { this.versionReponses = versionReponses; }
+
     public Integer getDureeMinutes() { return dureeMinutes; }
     public void setDureeMinutes(Integer dureeMinutes) { this.dureeMinutes = dureeMinutes; }
 
@@ -54,4 +60,7 @@ public class SoumissionDetailResponse {
 
     public List<QuestionExamenDto> getQuestions() { return questions; }
     public void setQuestions(List<QuestionExamenDto> questions) { this.questions = questions; }
+
+    public EtatQuizDto getQuiz() { return quiz; }
+    public void setQuiz(EtatQuizDto quiz) { this.quiz = quiz; }
 }

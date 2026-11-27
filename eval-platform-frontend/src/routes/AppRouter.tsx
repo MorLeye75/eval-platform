@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react"
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom"
 import { ProtectedRoute } from "./ProtectedRoute"
 import { useAuth } from "@/context/AuthContext"
 import { accueilPour } from "@/lib/roles"
@@ -22,9 +22,7 @@ const ResultatsDetail = lazy(() => import("@/pages/etudiant/ResultatsDetail"))
 const TableauBordPerformance = lazy(() => import("@/pages/etudiant/TableauBordPerformance"))
 
 // Passation
-const PassationQCM = lazy(() => import("@/pages/etudiant/passation/PassationQCM"))
-const PassationOuverte = lazy(() => import("@/pages/etudiant/passation/PassationOuverte"))
-const PassationCode = lazy(() => import("@/pages/etudiant/passation/PassationCode"))
+const PassationEpreuve = lazy(() => import("@/pages/etudiant/passation/PassationEpreuve"))
 const PassationQuiz = lazy(() => import("@/pages/etudiant/passation/PassationQuiz"))
 const ConfirmationSoumission = lazy(() => import("@/pages/etudiant/passation/ConfirmationSoumission"))
 const ExpirationScreen = lazy(() => import("@/pages/etudiant/passation/ExpirationScreen"))
@@ -35,11 +33,14 @@ const ListeEvaluationsEnseignant = lazy(() => import("@/pages/enseignant/ListeEv
 const InfosGenerales = lazy(() => import("@/pages/enseignant/creation/InfosGenerales"))
 const BuilderQuestions = lazy(() => import("@/pages/enseignant/creation/BuilderQuestions"))
 const Previsualisation = lazy(() => import("@/pages/enseignant/creation/Previsualisation"))
+const TiersTemps = lazy(() => import("@/pages/enseignant/TiersTemps"))
 const SupervisionTempsReel = lazy(() => import("@/pages/enseignant/SupervisionTempsReel"))
 const ValidationIA = lazy(() => import("@/pages/enseignant/ValidationIA"))
 const StatistiquesEvaluation = lazy(() => import("@/pages/enseignant/StatistiquesEvaluation"))
+const ComparaisonEvaluations = lazy(() => import("@/pages/enseignant/ComparaisonEvaluations"))
 const PublicationResultats = lazy(() => import("@/pages/enseignant/PublicationResultats"))
 const ExportResultats = lazy(() => import("@/pages/enseignant/ExportResultats"))
+const CopieEnseignant = lazy(() => import("@/pages/enseignant/CopieEnseignant"))
 
 // Partagé
 const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"))
@@ -56,6 +57,12 @@ function IndexRedirect() {
   const { user, isAuthenticated } = useAuth()
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />
   return <Navigate to={accueilPour(user.role)} replace />
+}
+
+/** Anciennes adresses par type d'épreuve (/qcm, /ouverte, /code) : toutes passent par l'écran unique. */
+function RedirectionEpreuve() {
+  const { id } = useParams<{ id: string }>()
+  return <Navigate to={`/examen/${id}/epreuve`} replace />
 }
 
 export function AppRouter() {
@@ -97,9 +104,11 @@ export function AppRouter() {
               </ProtectedRoute>
             }
           >
-            <Route path=":id/qcm" element={<PassationQCM />} />
-            <Route path=":id/ouverte" element={<PassationOuverte />} />
-            <Route path=":id/code" element={<PassationCode />} />
+            {/* Écran unique (QCM, ouvertes, code ou mélange) ; anciennes adresses redirigées */}
+            <Route path=":id/epreuve" element={<PassationEpreuve />} />
+            <Route path=":id/qcm" element={<RedirectionEpreuve />} />
+            <Route path=":id/ouverte" element={<RedirectionEpreuve />} />
+            <Route path=":id/code" element={<RedirectionEpreuve />} />
             <Route path=":id/quiz" element={<PassationQuiz />} />
             <Route path=":id/confirmation" element={<ConfirmationSoumission />} />
             <Route path=":id/expiration" element={<ExpirationScreen />} />
@@ -123,11 +132,14 @@ export function AppRouter() {
             <Route path="evaluations/:id/edition" element={<InfosGenerales />} />
             <Route path="evaluations/:id/edition/questions" element={<BuilderQuestions />} />
             <Route path="evaluations/:id/edition/previsualisation" element={<Previsualisation />} />
+            <Route path="evaluations/:id/tiers-temps" element={<TiersTemps />} />
             <Route path="supervision/:id?" element={<SupervisionTempsReel />} />
             <Route path="validation-ia" element={<ValidationIA />} />
             <Route path="statistiques/:id?" element={<StatistiquesEvaluation />} />
+            <Route path="comparaison" element={<ComparaisonEvaluations />} />
             <Route path="publication" element={<PublicationResultats />} />
             <Route path="export" element={<ExportResultats />} />
+            <Route path="copies/:id" element={<CopieEnseignant />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="profil" element={<ProfilePage />} />
           </Route>

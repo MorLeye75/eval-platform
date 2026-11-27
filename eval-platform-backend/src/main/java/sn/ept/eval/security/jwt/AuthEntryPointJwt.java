@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URI;
+import java.time.Clock;
 import java.time.LocalDateTime;
 
 /**
@@ -24,9 +25,12 @@ public class AuthEntryPointJwt implements AuthenticationEntryPoint {
     private static final Logger logger = LoggerFactory.getLogger(AuthEntryPointJwt.class);
 
     private final ObjectMapper objectMapper;
+    /** Horloge de l'application, comme pour les autres erreurs (GlobalExceptionHandler). */
+    private final Clock clock;
 
-    public AuthEntryPointJwt(ObjectMapper objectMapper) {
+    public AuthEntryPointJwt(ObjectMapper objectMapper, Clock clock) {
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     @Override
@@ -40,7 +44,7 @@ public class AuthEntryPointJwt implements AuthenticationEntryPoint {
         problem.setType(URI.create("https://eval.ept.sn/errors/non-authentifie"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "NON_AUTHENTIFIE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
 
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);

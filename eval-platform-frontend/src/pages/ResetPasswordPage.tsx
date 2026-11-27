@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
+import { isAxiosError } from "axios"
+import { reinitialiserMotDePasse } from "@/lib/motDePasseOublie"
+import { messageErreur } from "@/lib/passation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +29,7 @@ export default function ResetPasswordPage() {
   const [chargement, setChargement] = useState(false)
   const [erreur, setErreur] = useState<string | null>(null)
   const [succes, setSucces] = useState(false)
+  const [lienInvalide, setLienInvalide] = useState(false)
 
   // Redirection après succès, annulée si l'utilisateur quitte la page
   useEffect(() => {
@@ -58,11 +62,12 @@ export default function ResetPasswordPage() {
 
     setChargement(true)
     try {
-      // TODO backend : POST /api/auth/reinitialiser { token, motDePasse }
-      await new Promise((r) => setTimeout(r, 800)) // simulation
+      await reinitialiserMotDePasse(token!, motDePasse)
       setSucces(true)
-    } catch {
-      setErreur("Le lien est invalide ou a expiré. Veuillez refaire une demande.")
+    } catch (err) {
+      // Lien expiré, déjà utilisé ou remplacé (JETON_INVALIDE) : proposer une nouvelle demande
+      setLienInvalide(isAxiosError(err) && err.response?.data?.code === "JETON_INVALIDE")
+      setErreur(messageErreur(err, "Le mot de passe n'a pas pu être modifié. Vérifiez votre connexion puis réessayez."))
     } finally {
       setChargement(false)
     }
@@ -225,6 +230,11 @@ export default function ResetPasswordPage() {
             </div>
 
             {erreur && <p className="text-sm text-destructive">{erreur}</p>}
+            {lienInvalide && (
+              <Link to="/forgot-password" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                Faire une nouvelle demande
+              </Link>
+            )}
 
             <Button
               className="w-full shadow-sm"

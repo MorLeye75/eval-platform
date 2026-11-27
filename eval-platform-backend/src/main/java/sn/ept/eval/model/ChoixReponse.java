@@ -46,4 +46,21 @@ public class ChoixReponse {
 
     public java.util.List<ReponseQCM> getReponsesCochees() { return reponsesCochees; }
     public void setReponsesCochees(java.util.List<ReponseQCM> reponsesCochees) { this.reponsesCochees = reponsesCochees; }
+
+    /**
+     * Égalité par identifiant (motif Hibernate) : deux instances de la même ligne, proxy compris, sont égales.
+     * hashCode constant par classe pour rester stable quand l'identifiant est attribué à l'enregistrement.
+     */
+    @Override
+    public final boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || org.hibernate.Hibernate.getClass(this) != org.hibernate.Hibernate.getClass(o)) return false;
+        Long autreId = ((ChoixReponse) o).getId();
+        return getId() != null && getId().equals(autreId);
+    }
+
+    @Override
+    public final int hashCode() {
+        return org.hibernate.Hibernate.getClass(this).hashCode();
+    }
 }

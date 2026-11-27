@@ -5,7 +5,9 @@ import sn.ept.eval.model.enums.StatutEvaluation;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "evaluations")
@@ -14,6 +16,10 @@ public class Evaluation extends AuditableEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /** Verrou optimiste (DS-03, DS-04) : un « modifier » et un « publier » concurrents ne s'écrasent pas. */
+    @Version
+    private Long version;
 
     @Column(nullable = false)
     private String titre;
@@ -37,6 +43,9 @@ public class Evaluation extends AuditableEntity {
     @Column(nullable = false)
     private Boolean resultatsPublies = false;
 
+    /** Date de publication automatique des résultats choisie par l'enseignant (DS-07) ; null = rien de programmé. */
+    private java.time.LocalDateTime publicationResultatsPrevueLe;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "enseignant_id", nullable = false)
     private Enseignant enseignant;
@@ -47,7 +56,8 @@ public class Evaluation extends AuditableEntity {
         joinColumns = @JoinColumn(name = "evaluation_id"),
         inverseJoinColumns = @JoinColumn(name = "promotion_id")
     )
-    private List<Promotion> promotions = new ArrayList<>();
+    // Set et non List : pas de doublon, et ajout/retrait d'une promotion sans réécrire toute la table de liaison
+    private Set<Promotion> promotions = new HashSet<>();
 
     @OneToMany(mappedBy = "evaluation", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("ordre ASC")
@@ -63,6 +73,8 @@ public class Evaluation extends AuditableEntity {
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
+
+    public Long getVersion() { return version; }
 
     public String getTitre() { return titre; }
     public void setTitre(String titre) { this.titre = titre; }
@@ -86,11 +98,14 @@ public class Evaluation extends AuditableEntity {
     public Boolean getResultatsPublies() { return resultatsPublies; }
     public void setResultatsPublies(Boolean resultatsPublies) { this.resultatsPublies = resultatsPublies; }
 
+    public java.time.LocalDateTime getPublicationResultatsPrevueLe() { return publicationResultatsPrevueLe; }
+    public void setPublicationResultatsPrevueLe(java.time.LocalDateTime publicationResultatsPrevueLe) { this.publicationResultatsPrevueLe = publicationResultatsPrevueLe; }
+
     public Enseignant getEnseignant() { return enseignant; }
     public void setEnseignant(Enseignant enseignant) { this.enseignant = enseignant; }
 
-    public List<Promotion> getPromotions() { return promotions; }
-    public void setPromotions(List<Promotion> promotions) { this.promotions = promotions; }
+    public Set<Promotion> getPromotions() { return promotions; }
+    public void setPromotions(Set<Promotion> promotions) { this.promotions = new HashSet<>(promotions); }
 
     public List<Question> getQuestions() { return questions; }
     public void setQuestions(List<Question> questions) { this.questions = questions; }

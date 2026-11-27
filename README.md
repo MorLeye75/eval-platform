@@ -9,9 +9,9 @@
 [![Testing: Testcontainers](https://img.shields.io/badge/Testing-Testcontainers-black.svg)](https://testcontainers.com/)
 [![Sandbox: Judge0](https://img.shields.io/badge/Sandbox-Judge0-red.svg)](https://judge0.com/)
 
-**EvalPlatform** is an enterprise-grade, open-source digital assessment, automated code-grading, and academic integrity platform designed for higher education. 
+**EvalPlatform** is an open-source digital assessment, automated code-grading, and academic integrity platform currently under active development at **École Polytechnique de Thiès (EPT, Senegal)** as a transversal engineering project (DIC1-GIT).
 
-Initially engineered for **École Polytechnique de Thiès (EPT, Senegal)**, EvalPlatform addresses the high licensing costs, lack of infrastructure resilience (network packet loss, campus NAT bottlenecks), and monolithic limitations of commercial proctoring tools by offering a sovereign, reliable, and modern examination system.
+It is designed to address the high licensing costs, lack of infrastructure resilience (network packet loss, campus NAT bottlenecks), and fragmented workflows of existing tools by offering a sovereign, reliable, and self-hosted examination system for computer science education.
 
 ---
 
@@ -45,7 +45,7 @@ flowchart TD
     end
 
     subgraph Data ["Persistence Layer (PostgreSQL 17 / Flyway)"]
-        N["PostgreSQL 17 (Flyway V1 -> V4 Migration Schema)"]
+        N["PostgreSQL 17 (Flyway V1 -> V17 Migration Schema)"]
         O["HikariCP Connection Pool (Short Tx Isolation)"]
     end
 
@@ -83,7 +83,20 @@ flowchart TD
 - **Network-Fault Tolerance**: Dual-buffer auto-save guarantees that local draft changes survive browser crashes or Wi-Fi packet drops.
 
 ### 5. 🤖 AI-Assisted Open Question Evaluation
-- Built-in data architecture (`PropositionIA`) designed for LLM-assisted grading of essay answers, suggesting rubric-aligned grades and constructive justifications for teacher validation.
+- Built-in data architecture (`PropositionIA`) designed for LLM-assisted grading of essay answers, suggesting rubric-aligned grades and constructive justifications for teacher validation. The teacher validates, edits or rejects each proposal; answers without a proposal can be graded by hand (`GET /enseignant/corrections-manuelles`).
+- The LLM connector sits behind the `CorrecteurIA` interface; a real provider is still to be plugged in.
+
+### 6. 👩‍🏫 Teacher Space
+- **Assessment builder**: wizard (general info → questions → preview) saving drafts server-side; QCM, open, code and timed-quiz questions; **duplicate** an assessment into a new draft; publish / unpublish / delete.
+- **Extra time (tiers-temps)**: per-student duration override, locked once the student has started.
+- **Live supervision** (read-only, 15 s polling): who has started / submitted, anti-cheat alerts as indications, never as proof.
+- **Results**: statistics, per-student grades (same rows as the CSV export), CSV export, per-question detail export and PDF report, **comparison of 2 to 6 assessments** (grades normalised to /20), controlled publication to students — immediately or **scheduled** at a chosen date (published automatically once the tolerance margin has passed).
+
+### 7. 🛠️ Administrator Space
+- **Accounts** (never deleted, only deactivated): create, edit, deactivate / reactivate, CSV import of students (all-or-nothing, with a per-line error report).
+- **Provisional passwords**: generated server-side, shown once, stored hashed. A provisional password must be replaced at first login (the server answers `403 MOT_DE_PASSE_A_CHANGER` on every route except `/auth` and `/profil`); resetting a password cuts the account's open sessions.
+- **Promotions**: create, rename, delete when empty.
+- **Overview**: dashboard, global supervision (30 s polling) and global statistics (grades normalised to /20, `null` — never 0 — when there is no data). The system-settings page shows the configuration the server actually applies, read-only, with the source of each value (code or deployment) and never a secret.
 
 ---
 
@@ -130,7 +143,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=h2-dev
 # Create local database
 createdb eval_platform_db
 
-# Run Spring Boot (Flyway automatically applies V1..V4 migrations)
+# Run Spring Boot (Flyway automatically applies the V1..V17 migrations)
 mvn spring-boot:run
 ```
 
@@ -158,8 +171,19 @@ cd ../eval-platform-frontend
 npm run test
 ```
 
-- **25+ Backend Integration Test Suites**: Covering concurrency, pessimistic locks, token lifecycles, and N+1 query regression traps.
-- **10+ Frontend Vitest Suites**: Testing passation hooks (`usePassation`, `useAutoSave`), timer synchronization, and anti-cheat hooks.
+- **Backend (~380 tests)**: integration suites on H2 and on real PostgreSQL (Testcontainers, run by CI), covering concurrency, pessimistic locks, token lifecycles, RBAC and N+1 query regression traps.
+- **Frontend (~340 Vitest tests)**: passation hooks (`usePassation`, `useAutoSave`), timers, anti-cheat, and the teacher / admin screens.
+- **API contract**: a Postman collection (`docs/Plateforme_Evaluation_Postman_Collection.json`, run locally with Newman: ~70 requests, 100+ assertions).
+
+---
+
+## 📚 Documentation
+
+- [`docs/diagrammes-sequence/`](docs/diagrammes-sequence/README.md): one PlantUML sequence diagram per feature (DS-01 … DS-18). The code follows them; any change starts there.
+- [`eval-platform-backend/README.md`](eval-platform-backend/README.md): routes, services, configuration, migrations.
+- [`eval-platform-frontend/README.md`](eval-platform-frontend/README.md): screens and the API they use.
+- [`docs/strategie-deploiement.md`](docs/strategie-deploiement.md): deployment strategy (target architecture, choices, main steps, security, backups, risks).
+- [`docs/demo/`](docs/demo/README.md): demo dataset, on-screen walkthrough and presentation plan.
 
 ---
 

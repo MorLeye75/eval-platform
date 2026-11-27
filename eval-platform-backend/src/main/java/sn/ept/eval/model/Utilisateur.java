@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import sn.ept.eval.model.enums.Role;
 
 import java.time.LocalDateTime;
+import java.util.Locale;
 
 @Entity
 @Table(name = "utilisateurs")
@@ -35,6 +36,16 @@ public class Utilisateur extends AuditableEntity {
 
     private LocalDateTime derniereConnexion;
 
+    /**
+     * Posée à chaque changement de mot de passe (réinitialisation par un administrateur, ou changement par
+     * l'utilisateur depuis son profil) : les jetons émis avant sont refusés.
+     */
+    private LocalDateTime motDePasseModifieLe;
+
+    /** Vrai tant que l'utilisateur n'a pas remplacé le mot de passe attribué par un administrateur. */
+    @Column(nullable = false)
+    private boolean motDePasseProvisoire = false;
+
     @OneToMany(mappedBy = "destinataire", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<Notification> notifications = new java.util.ArrayList<>();
 
@@ -50,7 +61,16 @@ public class Utilisateur extends AuditableEntity {
     public void setPrenom(String prenom) { this.prenom = prenom; }
 
     public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    /** Enregistré en minuscules et sans espaces autour : la connexion et l'unicité ne dépendent pas de la casse. */
+    public void setEmail(String email) { this.email = normaliserEmail(email); }
+
+    /**
+     * Forme unique d'un email (minuscules, sans espaces autour), pour l'enregistrer et pour le rechercher. Un
+     * téléphone qui met une majuscule au début ne doit pas faire échouer la connexion.
+     */
+    public static String normaliserEmail(String email) {
+        return email == null ? null : email.trim().toLowerCase(Locale.ROOT);
+    }
 
     public String getMotDePasse() { return motDePasse; }
     public void setMotDePasse(String motDePasse) { this.motDePasse = motDePasse; }
@@ -61,6 +81,12 @@ public class Utilisateur extends AuditableEntity {
     public Boolean getActif() { return actif; }
     public void setActif(Boolean actif) { this.actif = actif; }
 
+
+    public boolean isMotDePasseProvisoire() { return motDePasseProvisoire; }
+    public void setMotDePasseProvisoire(boolean motDePasseProvisoire) { this.motDePasseProvisoire = motDePasseProvisoire; }
+
+    public LocalDateTime getMotDePasseModifieLe() { return motDePasseModifieLe; }
+    public void setMotDePasseModifieLe(LocalDateTime motDePasseModifieLe) { this.motDePasseModifieLe = motDePasseModifieLe; }
 
     public LocalDateTime getDerniereConnexion() { return derniereConnexion; }
     public void setDerniereConnexion(LocalDateTime derniereConnexion) { this.derniereConnexion = derniereConnexion; }

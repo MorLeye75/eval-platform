@@ -14,7 +14,15 @@ public class QuestionExamenDto {
     private TypeQuestion type;
     private Boolean estChoixMultiple;
     private List<ChoixItemDto> choixPossibles = new ArrayList<>();
+    private List<CasDeTestVisibleDto> casDeTestsVisibles = new ArrayList<>();
     private ReponseItemDto reponseActuelle;
+    /** Secondes accordées à la question (quiz chronométré seulement). */
+    private Integer dureeQuestion;
+    /**
+     * QCM et quiz : points retirés pour une mauvaise réponse, affichés à l'étudiant pour qu'il choisisse de répondre
+     * ou de laisser vide (0 = pas de barème négatif ; null pour les autres types).
+     */
+    private Double penalite;
 
     public QuestionExamenDto() {}
 
@@ -39,6 +47,15 @@ public class QuestionExamenDto {
     public List<ChoixItemDto> getChoixPossibles() { return choixPossibles; }
     public void setChoixPossibles(List<ChoixItemDto> choixPossibles) { this.choixPossibles = choixPossibles; }
 
+    public List<CasDeTestVisibleDto> getCasDeTestsVisibles() { return casDeTestsVisibles; }
+    public void setCasDeTestsVisibles(List<CasDeTestVisibleDto> casDeTestsVisibles) { this.casDeTestsVisibles = casDeTestsVisibles; }
+
     public ReponseItemDto getReponseActuelle() { return reponseActuelle; }
     public void setReponseActuelle(ReponseItemDto reponseActuelle) { this.reponseActuelle = reponseActuelle; }
+
+    public Integer getDureeQuestion() { return dureeQuestion; }
+    public void setDureeQuestion(Integer dureeQuestion) { this.dureeQuestion = dureeQuestion; }
+
+    public Double getPenalite() { return penalite; }
+    public void setPenalite(Double penalite) { this.penalite = penalite; }
 }

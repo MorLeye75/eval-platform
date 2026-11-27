@@ -2,7 +2,7 @@
   "info": {
     "name": "Plateforme d'Évaluation EPT — API Collection",
     "_postman_id": "c1f7b889-8d54-4362-9e90-eval-ept-2026",
-    "description": "Collection complète pour tester les endpoints de la Plateforme d'Évaluation EPT (DIC1-GIT).\nInclut l'authentification JWT automatique et les deux diagrammes de séquence (DS-01 et DS-02).",
+    "description": "Collection des endpoints de la Plateforme d'Évaluation EPT (DIC1-GIT), avec authentification JWT automatique.\nDiagrammes de séquence couverts : DS-01 et DS-02 (passation et remise), DS-10 (liste et démarrage), DS-12 (épreuve de code corrigée par Judge0), DS-13 (résultats), DS-14 (connexion, /auth/me).\nChaque login range son jeton : {{token}} (étudiant, utilisé par les dossiers 02 à 04), {{tokenEnseignant}}, {{tokenAdmin}}. La collection se joue d'un bout à l'autre sur une base neuve (profil h2-dev), comme en CI.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -25,6 +25,80 @@
       "key": "evaluationId",
       "value": "1",
       "type": "string"
+    },
+    {
+      "key": "versionReponses",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "codeEvaluationId",
+      "value": "2",
+      "type": "string"
+    },
+    {
+      "key": "soumissionCodeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "questionCodeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "versionCode",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "tokenEnseignant",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenAdmin",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "tokenDeconnexion",
+      "value": ""
+    },
+    {
+      "key": "evaluationEnseignantId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "etudiantId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "promotionId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "adminId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "compteId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "emailCompte",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "motDePasseProvisoire",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -39,11 +113,13 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('token', jsonData.token);",
-                  "    console.log('Token JWT étudiant enregistré avec succès.');",
-                  "}"
+                  "pm.test('200 : jeton étudiant', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string');",
+                  "    pm.expect(pm.response.json().role).to.equal('ETUDIANT');",
+                  "});",
+                  "pm.collectionVariables.set('token', pm.response.json().token);",
+                  "pm.collectionVariables.set('etudiantId', pm.response.json().id);"
                 ],
                 "type": "text/javascript"
               }
@@ -63,8 +139,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           }
         },
@@ -75,11 +156,12 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('token', jsonData.token);",
-                  "    console.log('Token JWT enseignant enregistré.');",
-                  "}"
+                  "pm.test('200 : jeton enseignant', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string');",
+                  "    pm.expect(pm.response.json().role).to.equal('ENSEIGNANT');",
+                  "});",
+                  "pm.collectionVariables.set('tokenEnseignant', pm.response.json().token);"
                 ],
                 "type": "text/javascript"
               }
@@ -99,8 +181,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
             }
           }
         },
@@ -111,11 +198,13 @@
               "listen": "test",
               "script": {
                 "exec": [
-                  "var jsonData = pm.response.json();",
-                  "if (jsonData.token) {",
-                  "    pm.collectionVariables.set('token', jsonData.token);",
-                  "    console.log('Token JWT admin enregistré.');",
-                  "}"
+                  "pm.test('200 : jeton administrateur', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().token).to.be.a('string');",
+                  "    pm.expect(pm.response.json().role).to.equal('ADMIN');",
+                  "});",
+                  "pm.collectionVariables.set('tokenAdmin', pm.response.json().token);",
+                  "pm.collectionVariables.set('adminId', pm.response.json().id);"
                 ],
                 "type": "text/javascript"
               }
@@ -135,17 +224,297 @@
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.4 Profil de l'utilisateur connecté (/auth/me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : profil de l\\'utilisateur du jeton', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const u = pm.response.json();",
+                  "    pm.expect(u.email).to.be.a('string');",
+                  "    pm.expect(['ETUDIANT', 'ENSEIGNANT', 'ADMIN']).to.include(u.role);",
+                  "    pm.expect(u.token).to.equal(null); // le jeton n'est jamais renvoyé ici",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Revalide la session au démarrage du front (DS-14) : l'utilisateur gardé dans le navigateur n'est qu'un cache. 401 NON_AUTHENTIFIE si le jeton est absent, invalide ou expiré, ou si le compte a été désactivé.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.5 Mon profil (lecture seule)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : identité, matricule et promotion de l'étudiant, sans mot de passe\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.role).to.equal('ETUDIANT');",
+                  "    pm.expect(p.numEtudiant).to.be.a('string');",
+                  "    pm.expect(p.promotion).to.be.a('string');",
+                  "    pm.expect(p).to.not.have.property('motDePasse');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/profil",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profil"
+              ]
+            },
+            "description": "Profil de l'utilisateur connecté, tous rôles. Identité en lecture seule : elle est gérée par l'administrateur. numEtudiant et promotion pour un étudiant seulement.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.6 Changer son mot de passe : mot de passe actuel faux",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 (pas 401, qui déconnecterait le front) avec un message', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().detail).to.include('actuel');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"motDePasseActuel\": \"pas-le-bon\",\n  \"nouveauMotDePasse\": \"nouveauMotDePasse\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/profil/mot-de-passe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "profil",
+                "mot-de-passe"
+              ]
+            },
+            "description": "Changement de son mot de passe : 200 si le mot de passe actuel est bon, avec un nouveau jeton (token) : les jetons émis avant le changement sont refusés (autres appareils déconnectés), la session en cours continue avec celui-ci. Nouveau : 8 caractères au moins, 72 octets au plus (BCrypt), différent de l'actuel. Les échecs comptent avec ceux de la connexion : 429 après 5 échecs en 15 min.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.7 Mot de passe oublié : demander un lien",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('202, que le compte existe ou non (on ne révèle pas qui a un compte)', () => {",
+                  "    pm.response.to.have.status(202);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"personne@ept.sn\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/mot-de-passe-oublie",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "mot-de-passe-oublie"
+              ]
+            },
+            "description": "Route publique. Envoie un lien valable 30 minutes (usage unique) à l'adresse du compte : par SMTP si SPRING_MAIL_HOST est défini, sinon le lien est écrit dans les logs du backend (démonstration locale). Réponse 202 identique pour un compte inconnu ou désactivé ; au plus 3 e-mails par compte en 15 minutes. Adresse absente ou mal formée : 400.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "1.8 Mot de passe oublié : lien invalide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('400 JETON_INVALIDE', () => {",
+                  "    pm.response.to.have.status(400);",
+                  "    pm.expect(pm.response.json().code).to.eql('JETON_INVALIDE');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"lien-inconnu\",\n  \"motDePasse\": \"NouveauMotDePasse1\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reinitialiser-mot-de-passe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reinitialiser-mot-de-passe"
+              ]
+            },
+            "description": "Route publique. Choisit un nouveau mot de passe avec le jeton du lien reçu (FRONTEND_URL/reset-password/<jeton>) : 204. Les sessions ouvertes du compte sont coupées et un mot de passe provisoire est levé. Lien inconnu, expiré, déjà utilisé ou remplacé par une demande plus récente : 400 avec le code JETON_INVALIDE.",
+            "auth": {
+              "type": "noauth"
             }
           }
         }
       ]
     },
     {
-      "name": "02 - Passation & Soumission (Vos Diagrammes DS-01 et DS-02)",
+      "name": "02 - Passation & Soumission (DS-01, DS-02, DS-10)",
       "description": "Endpoints de gestion d'une copie d'examen, de l'auto-save toutes les 30s et de la soumission finale.",
       "item": [
+        {
+          "name": "2.0 DS-10: Mes évaluations (étudiant)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var liste = pm.response.json();",
+                  "pm.test('200 : liste des évaluations', function () { pm.response.to.have.status(200); });",
+                  "var ouverte = function (e) { return e.statut === 'EN_COURS' || e.statut === 'PUBLIEE'; };",
+                  "// Le dossier 02 envoie des réponses QCM : il lui faut une évaluation 100 % QCM (la liste est triée",
+                  "// par date d'ouverture, la première n'est pas forcément un QCM). Le dossier 03 prend l'évaluation de code.",
+                  "var qcm = liste.find(function (e) { return ouverte(e) && e.typesQuestions.length === 1 && e.typesQuestions[0] === 'QCM'; });",
+                  "var code = liste.find(function (e) { return ouverte(e) && e.typesQuestions.indexOf('CODE') !== -1; });",
+                  "if (qcm) { pm.collectionVariables.set('evaluationId', qcm.id); console.log('Évaluation QCM : ' + qcm.id); }",
+                  "if (code) { pm.collectionVariables.set('codeEvaluationId', code.id); console.log('Évaluation de code : ' + code.id); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/etudiant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "etudiant",
+                "evaluations"
+              ]
+            },
+            "description": "Évaluations publiées, en cours ou terminées de la promotion de l'étudiant, avec durée effective (tiers-temps), types de questions et état de sa copie. Retient l'évaluation QCM (evaluationId, dossier 02) et l'évaluation de code (codeEvaluationId, dossier 03)."
+          }
+        },
         {
           "name": "2.1 Démarrer ou Reprendre l'épreuve",
           "event": [
@@ -157,6 +526,9 @@
                   "if (jsonData.id) {",
                   "    pm.collectionVariables.set('soumissionId', jsonData.id);",
                   "    console.log('Soumission ID enregistrée: ' + jsonData.id);",
+                  "}",
+                  "if (jsonData.versionReponses !== undefined) {",
+                  "    pm.collectionVariables.set('versionReponses', jsonData.versionReponses);",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -183,13 +555,36 @@
             ],
             "url": {
               "raw": "{{baseUrl}}/soumissions/evaluations/{{evaluationId}}/demarrer",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "evaluations", "{{evaluationId}}", "demarrer"]
-            }
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "evaluations",
+                "{{evaluationId}}",
+                "demarrer"
+              ]
+            },
+            "description": "Crée la copie ou reprend celle qui existe. Copie expirée : clôturée et renvoyée avec le statut SOUMIS. Copie remise : statut seul, sans questions. Retient soumissionId et versionReponses."
           }
         },
         {
           "name": "2.2 Consulter le Sujet et l'état de la Copie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie encore en cours', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('soumissionId')));",
+                  "    pm.expect(pm.response.json().statut).to.equal('EN_COURS');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -204,8 +599,13 @@
             "method": "GET",
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}"
+              ]
             }
           }
         },
@@ -231,17 +631,59 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"reponses\": [\n    {\n      \"questionId\": 1,\n      \"choixIds\": [2]\n    },\n    {\n      \"questionId\": 2,\n      \"choixIds\": [5, 7, 8]\n    }\n  ]\n}"
+              "raw": "{\n  \"reponses\": [\n    {\n      \"questionId\": 1,\n      \"choixIds\": [\n        2\n      ]\n    },\n    {\n      \"questionId\": 2,\n      \"choixIds\": [\n        5,\n        7,\n        8\n      ]\n    }\n  ],\n  \"versionAttendue\": {{versionReponses}}\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/sauvegarder",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}", "sauvegarder"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "sauvegarder"
+              ]
+            },
+            "description": "versionAttendue = version des réponses sur laquelle le client a saisi (facultative). Si la copie a été enregistrée entre-temps ailleurs : 409 VERSION_OBSOLETE avec versionActuelle."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : sauvegarde acceptée, nouvelle version', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().versionReponses).to.be.above(Number(pm.collectionVariables.get('versionReponses')));",
+                  "    pm.expect(pm.response.json().dateSauvegarde).to.be.a('string');",
+                  "});",
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.versionReponses !== undefined) {",
+                  "    pm.collectionVariables.set('versionReponses', jsonData.versionReponses);",
+                  "} else if (jsonData.versionActuelle !== undefined) {",
+                  "    pm.collectionVariables.set('versionReponses', jsonData.versionActuelle);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
             }
-          }
+          ]
         },
         {
           "name": "2.4 Anti-Triche: Signaler Changement d'Onglet",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : sortie comptée par le serveur', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().nbChangementsOnglet).to.be.at.least(1);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -256,13 +698,34 @@
             "method": "POST",
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/changement-onglet",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}", "changement-onglet"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "changement-onglet"
+              ]
             }
           }
         },
         {
           "name": "2.5 DS-01: Soumission Finale de la Copie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie remise', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().statut).to.equal('SOUMIS');",
+                  "    pm.expect(pm.response.json().dateRemise).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "auth": {
               "type": "bearer",
@@ -277,9 +740,3150 @@
             "method": "POST",
             "url": {
               "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/soumettre",
-              "host": ["{{baseUrl}}"],
-              "path": ["soumissions", "{{soumissionId}}", "soumettre"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "soumettre"
+              ]
             }
+          }
+        },
+        {
+          "name": "2.6 Quiz : passer à la question suivante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('200 : copie sur sa question en cours', () => {",
+                  "        pm.expect(pm.response.json().quiz).to.be.an('object');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('Refus au format RFC 7807 avec un code', () => {",
+                  "        pm.expect(pm.response.code).to.be.oneOf([400, 409]);",
+                  "        pm.expect(pm.response.json().code).to.be.a('string');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/quiz/suivante",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "quiz",
+                "suivante"
+              ]
+            },
+            "description": "Quiz chronométré (V5) : l'ordre et le temps des questions sont imposés par le serveur. N'avance que si la copie est encore sur `indexActuel` (un double clic n'avance pas deux fois) et renvoie la copie sur sa question en cours, avec `quiz` (indexQuestion, nbQuestions, dureeQuestion, tempsRestantQuestionSecondes). Les données de démonstration ne contiennent pas de quiz : sur la copie QCM, la requête est refusée.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"indexActuel\": 0\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Épreuve de code (DS-12)",
+      "description": "Copie de l'évaluation de code de démonstration (codeEvaluationId = 2). Le langage est enregistré avec la réponse (V6) ; la remise déclenche la correction automatique par Judge0 (DS-12). Sans Judge0 joignable, la copie reste SOUMIS et la correction est retentée 1, 2, 4 puis 8 min plus tard, puis passe en correction manuelle. Un exercice de code est un programme complet : entrée du cas de test sur l'entrée standard, sortie standard comparée à la sortie attendue. À lancer après 2.0 (qui retient codeEvaluationId) et sur une base neuve, comme le dossier 02 : une copie remise ne peut plus être modifiée.",
+      "item": [
+        {
+          "name": "3.1 Démarrer l'épreuve de code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie et question de code', () => pm.response.to.have.status(200));",
+                  "const copie = pm.response.json();",
+                  "pm.collectionVariables.set('soumissionCodeId', copie.id);",
+                  "if (copie.versionReponses !== undefined) pm.collectionVariables.set('versionCode', copie.versionReponses);",
+                  "if (copie.questions && copie.questions.length) pm.collectionVariables.set('questionCodeId', copie.questions[0].id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/evaluations/{{codeEvaluationId}}/demarrer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "evaluations",
+                "{{codeEvaluationId}}",
+                "demarrer"
+              ]
+            },
+            "description": "Retient la copie (soumissionCodeId), la question (questionCodeId) et la version des réponses (versionCode).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "3.2 Sauvegarder le code (avec son langage)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : sauvegarde acceptée', () => pm.response.to.have.status(200));",
+                  "if (pm.response.json().versionReponses !== undefined) {",
+                  "    pm.collectionVariables.set('versionCode', pm.response.json().versionReponses);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionCodeId}}/sauvegarder",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionCodeId}}",
+                "sauvegarder"
+              ]
+            },
+            "description": "`langage` : c, cpp, java, python ou javascript (identifiants de l'éditeur). Un langage absent ou inconnu laisse la question à corriger à la main.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reponses\": [\n    {\n      \"questionId\": {{questionCodeId}},\n      \"codeSoumis\": \"s = input()\\nprint('true' if s == s[::-1] else 'false')\",\n      \"langage\": \"python\"\n    }\n  ],\n  \"versionAttendue\": {{versionCode}}\n}"
+            }
+          }
+        },
+        {
+          "name": "3.3 Remettre la copie de code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : copie remise', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().statut).to.equal('SOUMIS');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionCodeId}}/soumettre",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionCodeId}}",
+                "soumettre"
+              ]
+            },
+            "description": "Statut SOUMIS ; la correction Judge0 part après le commit, sur l'exécuteur limité au nombre de workers Judge0.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - Résultats de l'étudiant (DS-13)",
+      "description": "Lecture seule. Aucune note avant la publication par l'enseignant ; bonnes réponses des QCM après la fermeture + 2 min ; cas de test masqués réduits à leur verdict ; moyenne de la promotion à partir de 5 copies notées.",
+      "item": [
+        {
+          "name": "4.1 Résultats d'une copie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 avec un état connu', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(['NON_REMISE', 'EN_ATTENTE', 'PUBLIES']).to.include(pm.response.json().etat);",
+                  "});",
+                  "pm.test('Aucune note tant que les résultats ne sont pas publiés', () => {",
+                  "    const r = pm.response.json();",
+                  "    if (r.etat !== 'PUBLIES') {",
+                  "        pm.expect(r.noteFinale).to.equal(null);",
+                  "        pm.expect(r.questions).to.be.empty;",
+                  "    }",
+                  "});",
+                  "pm.test('Moyenne seulement avec l\\'écart, jamais de rang', () => {",
+                  "    const r = pm.response.json();",
+                  "    pm.expect(r).to.not.have.property('rang');",
+                  "    if (r.moyennePromotion === null) pm.expect(r.ecartMoyenne).to.equal(null);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/soumissions/{{soumissionId}}/resultats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "soumissions",
+                "{{soumissionId}}",
+                "resultats"
+              ]
+            },
+            "description": "etat : NON_REMISE (copie en cours, renvoi vers l'épreuve), EN_ATTENTE (remise, résultats non publiés : aucune note) ou PUBLIES (note, moyenne, ecartMoyenne, corrigeVisible, détail par question). 403 pour la copie d'un autre étudiant, ou pour un autre rôle qu'étudiant.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "4.2 Mon tableau de bord (performances)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('200 : historique cohérent', () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const p = pm.response.json();",
+                  "    pm.expect(p.historique).to.be.an('array');",
+                  "    pm.expect(p.nbEvaluations).to.equal(p.historique.length);",
+                  "    if (p.nbEvaluations === 0) pm.expect(p.moyenneGenerale).to.equal(null);",
+                  "    p.historique.forEach(h => pm.expect(h.noteSur20).to.be.within(0, 20));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/etudiant/performances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "etudiant",
+                "performances"
+              ]
+            },
+            "description": "Évaluations notées et publiées, de la plus ancienne à la plus récente, notes sur 20. moyennePromotionSur20 est null sous 5 copies notées ; moyennePromotionGenerale et ecartMoyenne sont calculés sur les seules évaluations où la moyenne est connue.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Évaluations enseignant (DS-03 à DS-08)",
+      "description": "Lancer d'abord 1.2 (jeton enseignant, variable tokenEnseignant) ; la requête 5.11 utilise le jeton étudiant (1.1). Parcours : promotions → création → détail → modification → publication → dépublication → tiers-temps → publication des résultats (évaluation terminée uniquement). Les refus attendus sont des requêtes à part (409, 400). Dates de 2030 : ajuster pour tester la publication.",
+      "item": [
+        {
+          "name": "5.1 DS-03: Promotions (assistant de création)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.1 DS-03: Promotions (assistant de création)', function () { pm.response.to.have.status(200); });",
+                  "var l = pm.response.json();",
+                  "pm.test('au moins une promotion avec effectif', function () { pm.expect(l.length).to.be.above(0); pm.expect(l[0]).to.have.property('nbEtudiants'); });",
+                  "var dic2 = l.find(function (p) { return p.nom === 'DIC2 Informatique'; }) || l[0];",
+                  "pm.collectionVariables.set('promotionId', dic2.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/promotions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "promotions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.2 DS-03: Créer un brouillon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 : 5.2 DS-03: Créer un brouillon', function () { pm.response.to.have.status(201); });",
+                  "var e = pm.response.json();",
+                  "pm.test('brouillon avec ses 5 questions', function () { pm.expect(e.statut).to.eql('BROUILLON'); pm.expect(e.nbQuestions).to.eql(5); });",
+                  "pm.test('entrée facultative conservée comme absente', function () { pm.expect(e.questions[3].casTests[0].entree).to.eql(null); });",
+                  "pm.collectionVariables.set('evaluationEnseignantId', e.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "5.3 DS-03: Création refusée (cas de test sans sortie attendue)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 : 5.3 DS-03: Création refusée (cas de test sans sortie attendue)', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Refusée\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Q\",\n      \"points\": 1,\n      \"casTests\": [\n        {\n          \"entree\": \"1\",\n          \"sortieAttendue\": \"\",\n          \"estMasque\": false\n        }\n      ]\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "5.4 Mes évaluations (avec effectifs)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.4 Mes évaluations (avec effectifs)', function () { pm.response.to.have.status(200); });",
+                  "pm.test('nbCopies et nbAttendus présents', function () { var e = pm.response.json()[0]; pm.expect(e).to.have.property('nbCopies'); pm.expect(e).to.have.property('nbAttendus'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.5 Détail (questions et bonnes réponses)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.5 Détail (questions et bonnes réponses)', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.6 DS-03: Modifier le brouillon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.6 DS-03: Modifier le brouillon', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle (modifié)\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "5.7 DS-06: Tiers-temps plus long que la plage → refusé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 : 5.7 DS-06: Tiers-temps plus long que la plage → refusé', function () { pm.response.to.have.status(400); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements/{{etudiantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "amenagements",
+                "{{etudiantId}}"
+              ]
+            },
+            "description": "La plage fait 240 min : un tiers-temps de 300 min serait sans effet (fin plafonnée à la fermeture).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dureeMinutes\": 300\n}"
+            }
+          }
+        },
+        {
+          "name": "5.8 DS-06: Définir un tiers-temps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.8 DS-06: Définir un tiers-temps', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements/{{etudiantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "amenagements",
+                "{{etudiantId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dureeMinutes\": 80\n}"
+            }
+          }
+        },
+        {
+          "name": "5.8a DS-06: Lister les étudiants et leurs tiers-temps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : liste des tiers-temps\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"durée standard, plage et étudiants présents\", function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.dureeStandard).to.be.above(0);",
+                  "  pm.expect(j.plageMinutes).to.be.at.least(j.dureeStandard);",
+                  "  pm.expect(j.etudiants).to.be.an(\"array\").that.is.not.empty;",
+                  "});",
+                  "pm.test(\"le tiers-temps défini en 5.8 apparaît pour son étudiant\", function () {",
+                  "  var id = Number(pm.collectionVariables.get(\"etudiantId\"));",
+                  "  var e = pm.response.json().etudiants.filter(function (x) { return x.etudiantId === id; })[0];",
+                  "  pm.expect(e).to.not.equal(undefined);",
+                  "  pm.expect(e.dureeMinutes).to.not.equal(null);",
+                  "  pm.expect(e.modifiable).to.equal(true);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "amenagements"
+              ]
+            },
+            "description": "Étudiants attendus, durée standard, plage d'ouverture et tiers-temps de chacun (null = durée standard). modifiable = faux si la copie est commencée ou l'évaluation terminée."
+          }
+        },
+        {
+          "name": "5.9 DS-04: Publier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.9 DS-04: Publier', function () { pm.response.to.have.status(200); });",
+                  "pm.test('publiée', function () { pm.expect(pm.response.json().statut).to.eql('PUBLIEE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/publier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "publier"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.10 DS-03: Modifier une évaluation publiée → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 : 5.10 DS-03: Modifier une évaluation publiée → 409', function () { pm.response.to.have.status(409); });",
+                  "pm.test('code EVALUATION_NON_MODIFIABLE', function () { pm.expect(pm.response.json().code).to.eql('EVALUATION_NON_MODIFIABLE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"titre\": \"Réseaux — contrôle\",\n  \"description\": \"Contrôle de réseaux\",\n  \"dureeStandard\": 60,\n  \"dateOuverture\": \"2030-11-10T08:00:00\",\n  \"dateFermeture\": \"2030-11-10T12:00:00\",\n  \"promotionIds\": [{{promotionId}}],\n  \"questions\": [\n    {\n      \"type\": \"QCM\",\n      \"enonce\": \"Quel protocole assure la livraison fiable ?\",\n      \"points\": 2,\n      \"estChoixMultiple\": false,\n      \"choix\": [\n        {\n          \"texte\": \"TCP\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"UDP\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"QUIZ_CHRONOMETREE\",\n      \"enonce\": \"Port HTTPS ?\",\n      \"points\": 1,\n      \"estChoixMultiple\": false,\n      \"dureeQuestion\": 20,\n      \"choix\": [\n        {\n          \"texte\": \"443\",\n          \"estCorrect\": true\n        },\n        {\n          \"texte\": \"80\",\n          \"estCorrect\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Lire deux entiers et afficher leur somme (programme complet : entrée standard, sortie standard)\",\n      \"points\": 5,\n      \"casTests\": [\n        {\n          \"entree\": \"2 3\",\n          \"sortieAttendue\": \"5\",\n          \"estMasque\": false\n        },\n        {\n          \"entree\": \"10 32\",\n          \"sortieAttendue\": \"42\",\n          \"estMasque\": true\n        }\n      ]\n    },\n    {\n      \"type\": \"CODE\",\n      \"enonce\": \"Afficher « Bonjour » (le programme ne lit rien : entrée facultative)\",\n      \"points\": 2,\n      \"casTests\": [\n        {\n          \"sortieAttendue\": \"Bonjour\",\n          \"estMasque\": false\n        }\n      ]\n    },\n    {\n      \"type\": \"OUVERTE\",\n      \"enonce\": \"Expliquez le routage\",\n      \"points\": 4\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "5.11 Étudiant: détail de l'évaluation publiée",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.11 Étudiant: détail de l\\'évaluation publiée', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/etudiant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "etudiant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            },
+            "description": "Jeton étudiant (1.1). 404 tant que l'évaluation est un brouillon."
+          }
+        },
+        {
+          "name": "5.12 DS-04: Repasser en brouillon (dépublier)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : 5.12 DS-04: Repasser en brouillon (dépublier)', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/depublier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "depublier"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.13 DS-07: Publier les résultats (évaluation non terminée → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 : 5.13 DS-07: Publier les résultats (évaluation non terminée → 409)', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/resultats/publier",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "resultats",
+                "publier"
+              ]
+            },
+            "description": "Les résultats ne se publient qu'une fois l'évaluation TERMINEE et la marge de 2 min écoulée. Sur une évaluation terminée : 200 avec { nbCopies, nbCopiesNotees, nbCopiesEnAttente } ; un second appel renvoie 409."
+          }
+        },
+        {
+          "name": "5.13e DS-07: Programmer la publication (évaluation en brouillon → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 : une évaluation en brouillon n\\'a pas de résultats à publier', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/resultats/programmation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "resultats",
+                "programmation"
+              ]
+            },
+            "description": "La date doit être dans le futur et après la marge de tolérance (400 sinon).",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"datePublication\": \"2031-01-10T08:00:00\" }"
+            }
+          }
+        },
+        {
+          "name": "5.13f DS-07: Annuler la programmation (rien de programmé → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('409 : aucune publication programmée', function () { pm.response.to.have.status(409); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/resultats/programmation",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "resultats",
+                "programmation"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "5.13a DS-08: Générer les propositions IA (évaluation non terminée → 409)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 : génération refusée tant que l evaluation n est pas terminée\", function () { pm.response.to.have.status(409); });",
+                  "pm.test('code EVALUATION_NON_MODIFIABLE', function () { pm.expect(pm.response.json().code).to.eql('EVALUATION_NON_MODIFIABLE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/corrections-ia/generer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "corrections-ia",
+                "generer"
+              ]
+            },
+            "description": "Sur une évaluation TERMINEE : 202 avec { nbReponsesAProposer } ; les propositions arrivent ensuite par GET /enseignant/corrections-ia."
+          }
+        },
+        {
+          "name": "5.13b DS-08: Propositions IA de l'enseignant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : propositions listées', function () { pm.response.to.have.status(200); });",
+                  "pm.test('propositions et enCours présents', function () { var r = pm.response.json(); pm.expect(r.propositions).to.be.an('array'); pm.expect(r).to.have.property('enCours'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/corrections-ia",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "corrections-ia"
+              ]
+            },
+            "description": "Filtres facultatifs : evaluationId, statut (EN_ATTENTE, VALIDEE, REJETEE). enCours = réponses encore sans proposition."
+          }
+        },
+        {
+          "name": "5.13b2 DS-08: Réponses à noter à la main",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : liste des réponses à noter', function () { pm.response.to.have.status(200); });",
+                  "pm.test('tableau, chaque ligne a un barème et un étudiant', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j).to.be.an('array');",
+                  "  j.forEach(function (r) { pm.expect(r.pointsMax).to.be.above(0); pm.expect(r.etudiant).to.be.a('string'); });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/corrections-manuelles",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "corrections-manuelles"
+              ]
+            },
+            "description": "Réponses ouvertes sans proposition IA et pas encore notées (même critère que enCours)."
+          }
+        },
+        {
+          "name": "5.13c DS-08: Valider une proposition inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 : proposition inconnue', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/corrections-ia/999999/valider",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "corrections-ia",
+                "999999",
+                "valider"
+              ]
+            },
+            "description": "Valider sans corps reprend la note de l'IA ; rejeter exige { note }. 409 CORRECTION_NON_MODIFIABLE si la copie n'est plus en correction ou si la proposition est déjà traitée.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "5.13d DS-08: Note manuelle sur une réponse inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 : réponse inconnue', function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/reponses/999999/note",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "reponses",
+                "999999",
+                "note"
+              ]
+            },
+            "description": "Pour une réponse sans proposition (modèle indisponible, code sans cas de test). Note entre 0 et le barème.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"note\": 1 }"
+            }
+          }
+        },
+        {
+          "name": "5.14 DS-06: Supprimer le tiers-temps",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 : 5.14 DS-06: Supprimer le tiers-temps', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}/amenagements/{{etudiantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}",
+                "amenagements",
+                "{{etudiantId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "5.15 Supprimer le brouillon",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('204 : 5.15 Supprimer le brouillon', function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationEnseignantId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationEnseignantId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 - Déconnexion (DS-14)",
+      "description": "Révocation du jeton à la déconnexion. Session à part : le jeton {{token}} des autres dossiers reste valide.",
+      "item": [
+        {
+          "name": "6.1 Connexion d'une session à fermer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : jeton d'une session à part (les autres dossiers gardent {{token}})\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.collectionVariables.set('tokenDeconnexion', pm.response.json().token);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"etudiant@ept.sn\",\n  \"motDePasse\": \"etudiant123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.2 Se déconnecter",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204 : jeton de cette session révoqué\", () => {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Révoque le jeton de cette session jusqu'à son expiration (table jetons_revoques). Les autres sessions du compte restent valides.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDeconnexion}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "6.3 Jeton révoqué refusé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"401 : le jeton de la session fermée n'est plus accepté\", () => {",
+                  "    pm.response.to.have.status(401);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Le même jeton, encore loin de son expiration, est refusé après la déconnexion.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenDeconnexion}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 - Notifications (DS-15)",
+      "description": "Notifications internes de l'utilisateur connecté (ici l'étudiant, {{token}}). Le destinataire vient toujours du jeton.",
+      "item": [
+        {
+          "name": "7.1 Mes notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : page de notifications, les plus récentes d'abord\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const r = pm.response.json();",
+                  "    pm.expect(r.notifications).to.be.an('array');",
+                  "    pm.expect(r.total).to.be.a('number');",
+                  "    pm.expect(r.taille).to.equal(20);",
+                  "    r.notifications.forEach(n => pm.expect(['RESULTAT_PUBLIE', 'EVALUATION_OUVERTE', 'CORRECTION_VALIDEE']).to.include(n.type));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications?page=0&taille=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "taille",
+                  "value": "20"
+                }
+              ]
+            },
+            "description": "Taille de 1 à 50 (20 par défaut). Chaque notification porte evaluationId et soumissionId (nuls si sans objet).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.2 Nombre de non lues",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"200 : compteur de la cloche\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.json().nombre).to.be.a('number');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/non-lues/nombre",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "non-lues",
+                "nombre"
+              ]
+            },
+            "description": "Interrogé toutes les 60 s par le front (pas de WebSocket).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.3 Marquer une notification inexistante",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"404 : inexistante, ou notification d'un autre utilisateur (son existence n'est pas révélée)\", () => {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/999999/lire",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "999999",
+                "lire"
+              ]
+            },
+            "description": "204 pour une notification de l'utilisateur, 404 sinon.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "7.4 Tout marquer comme lu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"204, puis plus aucune non lue\", () => {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/notifications/lire-tout",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "notifications",
+                "lire-tout"
+              ]
+            },
+            "description": "Seulement les notifications de l'utilisateur connecté.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 - Administration (DS-16)",
+      "item": [
+        {
+          "name": "8.1 DS-16: Liste des comptes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : comptes listés\", function () { pm.response.to.have.status(200); });",
+                  "pm.test('aucun mot de passe dans la liste', function () { pm.expect(pm.response.text()).to.not.include('motDePasse'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs"
+              ]
+            },
+            "description": "Filtres facultatifs : role, actif, q. Réservé aux administrateurs."
+          }
+        },
+        {
+          "name": "8.2 DS-16: Créer une promotion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 : promotion créée\", function () { pm.response.to.have.status(201); });",
+                  "pm.collectionVariables.set('promotionAdminId', pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/promotions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "promotions"
+              ]
+            },
+            "description": "409 si une promotion du même nom existe déjà pour l'année.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"nom\": \"PM {{$timestamp}}\", \"annee\": \"2026-2027\" }"
+            }
+          }
+        },
+        {
+          "name": "8.2b DS-16: Renommer une promotion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : promotion renommée\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json().annee).to.eql('2027-2028'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/promotions/{{promotionAdminId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "promotions",
+                "{{promotionAdminId}}"
+              ]
+            },
+            "description": "409 si une autre promotion porte déjà ce nom pour cette année.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"nom\": \"PM renommée {{$timestamp}}\", \"annee\": \"2027-2028\" }"
+            }
+          }
+        },
+        {
+          "name": "8.2c DS-16: Supprimer une promotion vide",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"204 : promotion vide supprimée\", function () { pm.response.to.have.status(204); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/promotions/{{promotionAdminId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "promotions",
+                "{{promotionAdminId}}"
+              ]
+            },
+            "description": "409 si la promotion compte des étudiants ou des évaluations."
+          }
+        },
+        {
+          "name": "8.3 DS-16: Créer un étudiant (mot de passe provisoire)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.set('emailCompte', 'pm-' + Date.now() + '@ept.sn');"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"201 : compte créé\", function () { pm.response.to.have.status(201); });",
+                  "var r = pm.response.json();",
+                  "pm.test('mot de passe provisoire de 12 caractères, une seule fois', function () { pm.expect(r.motDePasseProvisoire).to.have.length(12); pm.expect(r.utilisateur).to.not.have.property('motDePasse'); });",
+                  "pm.collectionVariables.set('compteId', r.utilisateur.id);",
+                  "pm.collectionVariables.set('motDePasseProvisoire', r.motDePasseProvisoire);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs"
+              ]
+            },
+            "description": "L'e-mail est normalisé (minuscules). Un étudiant exige une promotion et un numéro d'étudiant.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"nom\": \"Test\", \"prenom\": \"Postman\", \"email\": \"{{emailCompte}}\", \"role\": \"ETUDIANT\", \"promotionId\": {{promotionId}}, \"numEtudiant\": \"PM-{{$timestamp}}\" }"
+            }
+          }
+        },
+        {
+          "name": "8.4 DS-16: Créer le même e-mail → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 : doublon refusé\", function () { pm.response.to.have.status(409); });",
+                  "pm.test('code COMPTE_OPERATION_REFUSEE', function () { pm.expect(pm.response.json().code).to.eql('COMPTE_OPERATION_REFUSEE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs"
+              ]
+            },
+            "description": "Un doublon d'e-mail est refusé quelle que soit la casse.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"nom\": \"Autre\", \"prenom\": \"Compte\", \"email\": \"{{emailCompte}}\", \"role\": \"ADMIN\" }"
+            }
+          }
+        },
+        {
+          "name": "8.5 DS-16: Modifier le compte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : compte modifié\", function () { pm.response.to.have.status(200); });",
+                  "pm.test('rôle inchangé', function () { pm.expect(pm.response.json().role).to.eql('ETUDIANT'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs/{{compteId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{compteId}}"
+              ]
+            },
+            "description": "Le rôle ne change jamais.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"nom\": \"Modifie\", \"prenom\": \"Postman\", \"email\": \"{{emailCompte}}\", \"promotionId\": {{promotionId}}, \"numEtudiant\": \"PM-MODIF-{{$timestamp}}\" }"
+            }
+          }
+        },
+        {
+          "name": "8.6 DS-16: Se connecter avec le mot de passe provisoire",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : connexion avec le mot de passe provisoire\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Le compte créé peut se connecter dès sa création.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{emailCompte}}\", \"motDePasse\": \"{{motDePasseProvisoire}}\" }"
+            }
+          }
+        },
+        {
+          "name": "8.7 DS-16: Désactiver le compte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : compte désactivé\", function () { pm.response.to.have.status(200); });",
+                  "pm.test('actif = false', function () { pm.expect(pm.response.json().actif).to.eql(false); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs/{{compteId}}/desactiver",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{compteId}}",
+                "desactiver"
+              ]
+            },
+            "description": "Effet immédiat : ses jetons sont refusés à la requête suivante. Un compte n'est jamais supprimé."
+          }
+        },
+        {
+          "name": "8.8 DS-16: Connexion d'un compte désactivé → 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"401 : connexion refusée\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Un compte désactivé ne peut plus se connecter.",
+            "body": {
+              "mode": "raw",
+              "raw": "{ \"email\": \"{{emailCompte}}\", \"motDePasse\": \"{{motDePasseProvisoire}}\" }"
+            }
+          }
+        },
+        {
+          "name": "8.9 DS-16: Réactiver le compte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : compte réactivé\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs/{{compteId}}/activer",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{compteId}}",
+                "activer"
+              ]
+            },
+            "description": "Réactiver n'est jamais bloqué."
+          }
+        },
+        {
+          "name": "8.10 DS-16: Réinitialiser le mot de passe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : nouveau mot de passe provisoire\", function () { pm.response.to.have.status(200); });",
+                  "pm.test('12 caractères', function () { pm.expect(pm.response.json().motDePasseProvisoire).to.have.length(12); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs/{{compteId}}/reinitialiser-mot-de-passe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{compteId}}",
+                "reinitialiser-mot-de-passe"
+              ]
+            },
+            "description": "Renvoyé une seule fois ; l'ancien mot de passe ne fonctionne plus."
+          }
+        },
+        {
+          "name": "8.11 DS-16: Désactiver son propre compte → 409",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"409 : refusé\", function () { pm.response.to.have.status(409); });",
+                  "pm.test('code COMPTE_OPERATION_REFUSEE', function () { pm.expect(pm.response.json().code).to.eql('COMPTE_OPERATION_REFUSEE'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs/{{adminId}}/desactiver",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs",
+                "{{adminId}}",
+                "desactiver"
+              ]
+            },
+            "description": "Un administrateur ne peut pas désactiver son propre compte, ni le dernier administrateur actif."
+          }
+        },
+        {
+          "name": "8.12 DS-16: Liste des comptes réservée aux administrateurs → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 : enseignant refusé\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/utilisateurs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "utilisateurs"
+              ]
+            },
+            "description": "Enseignants et étudiants n'ont accès à aucune route /admin."
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 - Statistiques et export (DS-09)",
+      "item": [
+        {
+          "name": "9.1 DS-09: Statistiques de l'évaluation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : statistiques calculées\", function () { pm.response.to.have.status(200); });",
+                  "var s = pm.response.json();",
+                  "pm.test('distribution en 10 tranches et effectifs cohérents', function () { pm.expect(s.distribution).to.have.length(10); pm.expect(s.nbNotees).to.be.at.most(s.nbCopies); pm.expect(s.questions).to.be.an('array'); });",
+                  "pm.test('aucune note : indicateurs null, jamais 0', function () { if (s.nbNotees === 0) { pm.expect(s.moyenneSur20).to.eql(null); } });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "statistiques"
+              ]
+            },
+            "description": "Calculées sur les copies notées (EVALUE), ramenées sur 20. 409 avant l'ouverture de l'évaluation."
+          }
+        },
+        {
+          "name": "9.2 DS-09: Export CSV des résultats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : fichier CSV\", function () { pm.response.to.have.status(200); });",
+                  "pm.test('en-têtes : pièce jointe CSV, jamais en cache', function () { pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv'); pm.expect(pm.response.headers.get('Content-Disposition')).to.include('attachment'); pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });",
+                  "pm.test('en-tête du fichier et une ligne par étudiant attendu', function () { var lignes = pm.response.text().replace(/^\\uFEFF/, '').trim().split('\\n'); pm.expect(lignes[0]).to.eql('numEtudiant;nom;prenom;email;promotion;etatCopie;note;bareme;noteSur20;dateRemise'); pm.expect(lignes.length).to.be.at.least(2); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "csv"
+              ]
+            },
+            "description": "UTF-8 avec BOM, séparateur « ; », une ligne par étudiant attendu (absents compris). Données personnelles : réservé au propriétaire de l'évaluation."
+          }
+        },
+        {
+          "name": "9.2b DS-09: Export du détail par question",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : CSV du détail, une ligne par étudiant et par question', function () { pm.response.to.have.status(200); var t = pm.response.text(); pm.expect(t).to.include('numEtudiant;nom;prenom;etatCopie;ordre;type;points;noteObtenue'); pm.expect(pm.response.headers.get('Content-Disposition')).to.include('detail-'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/detail-csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "detail-csv"
+              ]
+            },
+            "description": "UTF-8 avec BOM, séparateur « ; », une ligne par étudiant attendu (absents compris). Données personnelles : réservé au propriétaire de l'évaluation."
+          }
+        },
+        {
+          "name": "9.2c DS-09: Rapport PDF des résultats",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : document PDF', function () { pm.response.to.have.status(200); pm.expect(pm.response.headers.get('Content-Type')).to.include('application/pdf'); pm.expect(pm.response.text().slice(0, 5)).to.eql('%PDF-'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/pdf",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "pdf"
+              ]
+            },
+            "description": "UTF-8 avec BOM, séparateur « ; », une ligne par étudiant attendu (absents compris). Données personnelles : réservé au propriétaire de l'évaluation."
+          }
+        },
+        {
+          "name": "9.2d DS-19: Comparer deux évaluations",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : deux évaluations comparées, indicateurs null ou nombres', function () { pm.response.to.have.status(200); var j = pm.response.json(); pm.expect(j.evaluations).to.have.length(2); j.evaluations.forEach(function (e) { pm.expect(e.moyenneSur20 === null || typeof e.moyenneSur20 === 'number').to.eql(true); }); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/comparaison?ids={{evaluationId}},{{codeEvaluationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "comparaison"
+              ],
+              "query": [
+                {
+                  "key": "ids",
+                  "value": "{{evaluationId}},{{codeEvaluationId}}"
+                }
+              ]
+            },
+            "description": "Réservé à l'enseignant ; 2 à 6 évaluations ouvertes, dans l'ordre demandé."
+          }
+        },
+        {
+          "name": "9.2a DS-09: Notes par étudiant",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : notes par étudiant', function () { pm.response.to.have.status(200); });",
+                  "pm.test('lignes présentes, sans e-mail, note null (jamais 0) sans copie notée', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.lignes).to.be.an('array').that.is.not.empty;",
+                  "  pm.expect(pm.response.text()).to.not.include('@ept.sn');",
+                  "  j.lignes.forEach(function (l) { if (l.etat !== 'EVALUE') { pm.expect(l.note).to.equal(null); } });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/resultats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "resultats"
+              ]
+            },
+            "description": "Une ligne par étudiant attendu, mêmes données que l'export CSV, sans e-mail."
+          }
+        },
+        {
+          "name": "9.3 DS-09: Statistiques d'une évaluation inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 : évaluation inconnue\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/999999/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "999999",
+                "statistiques"
+              ]
+            },
+            "description": "404 pour une évaluation qui n'existe pas."
+          }
+        },
+        {
+          "name": "9.4 DS-09: Statistiques réservées à l'enseignant → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 : étudiant refusé\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "statistiques"
+              ]
+            },
+            "description": "Un étudiant n'a accès ni aux statistiques ni à l'export."
+          }
+        },
+        {
+          "name": "9.5 DS-09: Export réservé à l'enseignant → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 : étudiant refusé\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/evaluations/{{evaluationId}}/export/csv",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "evaluations",
+                "{{evaluationId}}",
+                "export",
+                "csv"
+              ]
+            },
+            "description": "Le fichier contient des données personnelles d'étudiants."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 - Supervision (DS-17)",
+      "item": [
+        {
+          "name": "10.1 DS-17: Supervision de l'évaluation en cours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"200 : avancement lu\", function () { pm.response.to.have.status(200); });",
+                  "var s = pm.response.json();",
+                  "pm.test('effectifs cohérents, étudiants listés, en lecture seule', function () { pm.expect(s.nbSoumis).to.be.at.most(s.nbCommences); pm.expect(s.nbCommences).to.be.at.most(s.nbAttendus); pm.expect(s.etudiants).to.be.an('array'); pm.expect(pm.response.text()).to.not.include('noteFinale'); });",
+                  "pm.test('jamais mis en cache', function () { pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/supervision/{{evaluationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "supervision",
+                "{{evaluationId}}"
+              ]
+            },
+            "description": "Lecture seule : état de chaque étudiant attendu, réponses réellement données, alertes anti-triche. À relire toutes les 15 s. 409 avant l'ouverture."
+          }
+        },
+        {
+          "name": "10.2 DS-17: Supervision d'une évaluation inconnue → 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"404 : évaluation inconnue\", function () { pm.response.to.have.status(404); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/supervision/999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "supervision",
+                "999999"
+              ]
+            },
+            "description": "404 pour une évaluation qui n'existe pas."
+          }
+        },
+        {
+          "name": "10.3 DS-17: Supervision réservée à l'enseignant → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"403 : étudiant refusé\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/enseignant/supervision/{{evaluationId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "enseignant",
+                "supervision",
+                "{{evaluationId}}"
+              ]
+            },
+            "description": "La vue contient l'identité des étudiants : réservée au propriétaire de l'évaluation."
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 - Vue d'ensemble admin (DS-18)",
+      "item": [
+        {
+          "name": "11.1 DS-18: Tableau de bord",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : tableau de bord', function () { pm.response.to.have.status(200); });",
+                  "pm.test('no-store et effectifs numériques', function () {",
+                  "  pm.expect(pm.response.headers.get('Cache-Control')).to.include('no-store');",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.nbUtilisateurs).to.be.at.least(3);",
+                  "  pm.expect(j.parRole.admins).to.be.at.least(1);",
+                  "  pm.expect(j.services.map(function (s) { return s.nom; })).to.include('Base de données');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/tableau-de-bord",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "tableau-de-bord"
+              ]
+            },
+            "description": "Comptes actifs par rôle, évaluations, activité sur 7 jours, services réellement connus."
+          }
+        },
+        {
+          "name": "11.2 DS-18: Supervision globale",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : supervision globale', function () { pm.response.to.have.status(200); });",
+                  "pm.test('listes présentes, 20 alertes au plus', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.evaluations).to.be.an('array');",
+                  "  pm.expect(j.alertes).to.be.an('array').with.length.of.at.most(20);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/supervision",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "supervision"
+              ]
+            },
+            "description": "Évaluations en cours de toute la plateforme et 20 dernières alertes."
+          }
+        },
+        {
+          "name": "11.3 DS-18: Statistiques globales",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : statistiques globales', function () { pm.response.to.have.status(200); });",
+                  "pm.test('promotions listées, indicateurs null ou nombres (jamais 0 par défaut)', function () {",
+                  "  var j = pm.response.json();",
+                  "  pm.expect(j.promotions).to.be.an('array');",
+                  "  j.promotions.forEach(function (p) {",
+                  "    if (p.nbCopiesNotees === 0) { pm.expect(p.moyenneSur20).to.equal(null); pm.expect(p.tauxReussite).to.equal(null); }",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "statistiques"
+              ]
+            },
+            "description": "Notes sur 20 des copies notées ; indicateur null sans copie notée."
+          }
+        },
+        {
+          "name": "11.3b DS-18: Configuration en vigueur (lecture seule, sans secret)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 : sections de configuration, chaque paramètre avec sa source, jamais de secret', function () { pm.response.to.have.status(200); var t = pm.response.text(); var j = pm.response.json(); pm.expect(j.sections).to.be.an('array').that.is.not.empty; j.sections.forEach(function (s) { s.parametres.forEach(function (p) { pm.expect(['CODE', 'DEPLOIEMENT']).to.include(p.source); }); }); pm.expect(t.toLowerCase()).to.not.include('jdbc:'); pm.expect(t.toLowerCase()).to.not.include('password'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenAdmin}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/configuration",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "configuration"
+              ]
+            },
+            "description": "Notes sur 20 des copies notées ; indicateur null sans copie notée."
+          }
+        },
+        {
+          "name": "11.4 DS-18: Un enseignant n'y a pas accès → 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('403 : enseignant refusé', function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{tokenEnseignant}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/statistiques",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "statistiques"
+              ]
+            },
+            "description": "Réservé au rôle ADMIN."
           }
         }
       ]

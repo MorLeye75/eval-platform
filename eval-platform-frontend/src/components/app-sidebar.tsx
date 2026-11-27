@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import {
   LayoutDashboard,
   ClipboardList,
@@ -8,6 +9,7 @@ import {
   LogOut,
 } from "lucide-react"
 import { useAuth } from "@/context/AuthContext"
+import { CLE_NON_LUES, INTERVALLE_COMPTEUR_MS, nombreNonLues } from "@/lib/notifications"
 import {
   Sidebar,
   SidebarContent,
@@ -17,8 +19,10 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 
 const menuItems = [
@@ -31,10 +35,21 @@ const menuItems = [
 export function AppSidebar() {
   const location = useLocation()
   const { user, logout } = useAuth()
+  // Compteur de la cloche (DS-15) : relu toutes les 60 s tant que la page est visible, pas de WebSocket
+  const { data: nonLues = 0 } = useQuery({
+    queryKey: CLE_NON_LUES,
+    queryFn: nombreNonLues,
+    refetchInterval: INTERVALLE_COMPTEUR_MS,
+    refetchIntervalInBackground: false,
+  })
 
   const initiales = user
     ? `${user.prenom?.[0] ?? ""}${user.nom?.[0] ?? ""}`.toUpperCase()
     : "ÉT"
+
+  // Sur téléphone, le menu est un panneau par-dessus la page : il se replie dès qu'on choisit une page
+  const { isMobile, setOpenMobile } = useSidebar()
+  const replierSurTelephone = () => { if (isMobile) setOpenMobile(false) }
 
   return (
     <Sidebar className="border-r border-border/60">
@@ -65,12 +80,20 @@ export function AppSidebar() {
                       isActive={isActive}
                       className="group h-10 rounded-xl font-medium transition-colors data-[active=true]:bg-primary/10 data-[active=true]:text-primary hover:bg-muted"
                       render={
-                        <Link to={item.url}>
+                        <Link to={item.url} onClick={replierSurTelephone}>
                           <item.icon className="size-4 transition-colors group-data-[active=true]:text-primary" />
                           <span>{item.title}</span>
                         </Link>
                       }
                     />
+                    {item.url === "/etudiant/notifications" && nonLues > 0 && (
+                      <SidebarMenuBadge
+                        aria-label={`${nonLues} notification${nonLues > 1 ? "s" : ""} non lue${nonLues > 1 ? "s" : ""}`}
+                        className="rounded-full bg-primary text-primary-foreground"
+                      >
+                        {nonLues > 99 ? "99+" : nonLues}
+                      </SidebarMenuBadge>
+                    )}
                   </SidebarMenuItem>
                 )
               })}

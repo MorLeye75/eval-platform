@@ -1,32 +1,104 @@
-# React + TypeScript + Vite
+# Plateforme d'évaluation EPT — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Application React 19 + TypeScript + Vite (Tailwind, composants shadcn/ui, React Router, React Query, axios).
 
-Currently, two official plugins are available:
+## Démarrage
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev        # http://localhost:5173
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+Le backend doit tourner sur `http://localhost:8080` (voir `eval-platform-backend/README.md`, profil `h2-dev` pour
+démarrer sans base). Une autre adresse se configure avec la variable `VITE_API_URL` (par défaut
+`http://localhost:8080/api`).
+
+Comptes de démonstration : `etudiant@ept.sn` / `etudiant123`, `prof@ept.sn` / `prof123`, `admin@ept.sn` / `admin123`.
+
+## Scripts
+
+| Commande | Rôle |
+|---|---|
+| `npm run dev` | serveur de développement |
+| `npm run build` | vérification TypeScript puis build de production |
+| `npm run lint` | analyse statique (oxlint) |
+| `npm test` | tests unitaires (Vitest) |
+| `npm run test:e2e` | tests de bout en bout (Playwright), sans aucune simulation |
+
+### Tests de bout en bout
+
+`e2e/parcours-etudiant.e2e.ts` fait passer le parcours étudiant dans un vrai navigateur, contre le vrai backend et
+une vraie base (H2 neuve à chaque exécution, données de démonstration) : connexion, QCM sauvegardé puis retrouvé après
+rechargement et remis, résultats non publiés, quiz imposé par le serveur, code saisi avec son langage puis remis,
+cloisonnement des rôles. Playwright démarre lui-même le backend (port 18082) et la version de production du front
+(port 5174) : l'environnement de développement (8080, 5173) peut rester lancé.
+
+```bash
+cd ../eval-platform-backend && mvn package -DskipTests   # le jar du backend
+cd ../eval-platform-frontend && npx playwright install chromium   # une seule fois
+npm run test:e2e
+```
+
+L'éditeur de code (Monaco) est livré avec l'application, sans CDN : le scénario du code bloque d'ailleurs jsDelivr
+pour le prouver, et celui du QCM vérifie qu'une épreuve sans code ne télécharge pas Monaco.
+
+## État du branchement sur l'API
+
+| Écran | Source des données |
+|---|---|
+| Connexion, session (`/auth/me`) | API |
+| Espace étudiant : accueil, liste et détail des évaluations | API (`GET /etudiant/evaluations`, `GET /etudiant/performances`) |
+| Passation : QCM, question ouverte, code, épreuve mixte (écran unique) | API : démarrage, sauvegarde automatique, anti-triche, remise |
+| Quiz chronométré | API : question en cours et temps imposés par le serveur (`POST /soumissions/{id}/quiz/suivante`) |
+| Résultats d'une copie, tableau de bord des performances | API (`GET /soumissions/{id}/resultats`, `GET /etudiant/performances`) |
+| Notifications (page étudiant, compteur de la barre latérale), profil | API (`GET /notifications`, `GET /notifications/non-lues/nombre`, `PUT …/lire`, `GET /profil`, `PUT /profil/mot-de-passe`) ; mot de passe provisoire : `ProtectedRoute` ne laisse que le profil |
+| Enseignant : assistant de création et de modification d'une évaluation, choix des promotions | API (`GET /promotions`, `POST` / `PUT /enseignant/evaluations`, `GET /enseignant/evaluations/{id}`) |
+| Enseignant : « Mes évaluations » (publier, repasser en brouillon, supprimer) | API (`GET /enseignant/evaluations`, `POST …/publier`, `POST …/depublier`, `DELETE`) |
+| Enseignant : publication des résultats | API (`POST /enseignant/evaluations/{id}/resultats/publier`) |
+| Enseignant : validation des corrections IA | API (`POST …/corrections-ia/generer`, `GET /enseignant/corrections-ia`, `PUT …/valider`, `PUT …/rejeter`) ; section « À noter à la main » (`GET /enseignant/corrections-manuelles`, `PUT /enseignant/reponses/{id}/note`) |
+| Enseignant : copie d'un étudiant | API (`GET /enseignant/soumissions/{id}/copie`, `PUT /enseignant/reponses/{id}/revision`) ; page `/enseignant/copies/:id`, ouverte depuis « Notes par étudiant » (statistiques de chaque évaluation, même en cours, et publication des résultats) : code et verdicts, note des réponses en attente, révision tracée avant publication |
+| Administrateur : gestion des comptes (liste, création, modification, désactivation, mot de passe provisoire, promotions créées, renommées, supprimées si vides, import CSV d'étudiants) | API (`/admin/utilisateurs`, `/admin/promotions`, `/admin/etudiants/import`) |
+| Enseignant : notes par étudiant dans la publication des résultats (`GET …/resultats`) | API |
+| Enseignant : publication des résultats, immédiate ou programmée à une date | API (`POST …/resultats/publier`, `PUT` et `DELETE …/resultats/programmation`) |
+| Enseignant : comparaison de 2 à 6 évaluations (barres de moyenne, « — » sans note) | API (`GET /enseignant/comparaison?ids=…`) |
+| Enseignant : statistiques d'une évaluation, export CSV des résultats, du détail par question et rapport PDF | API (`GET /enseignant/evaluations/{id}/statistiques`, `GET …/export/csv`, `GET …/export/detail-csv`, `GET …/export/pdf`) |
+| Enseignant : dupliquer une évaluation en nouveau brouillon (bouton de « Mes évaluations ») | API existante : `GET` du détail puis `POST` de création, sans nouvelle route (DS-03) |
+| Enseignant : tiers-temps d'une évaluation (`/enseignant/evaluations/:id/tiers-temps`) | API (`GET` / `PUT` / `DELETE …/amenagements`) |
+| Enseignant : supervision d'une évaluation en cours | API (`GET /enseignant/supervision/{id}`, relue toutes les 15 s) |
+| Enseignant : tableau de bord | synthèse des API existantes (évaluations, corrections IA), sans route dédiée |
+| Administrateur : tableau de bord, supervision globale (relue toutes les 30 s), statistiques globales | API (`GET /admin/tableau-de-bord`, `/admin/supervision`, `/admin/statistiques`) |
+| Administrateur : paramètres système | API (`GET /admin/configuration`) : configuration réellement appliquée, en lecture seule, avec la source de chaque valeur |
+
+Les dates et durées d'une évaluation sont vérifiées par le serveur à la publication : la plage d'ouverture doit être au
+moins aussi longue que la durée de l'épreuve, tiers-temps compris. L'assistant le signale dès l'étape 1 quand on choisit
+« Publier immédiatement ».
+
+Un exercice de code est un **programme complet** : l'entrée de chaque cas de test (facultative) arrive sur l'entrée standard,
+la sortie standard est comparée à la sortie attendue (obligatoire, non vide). Le formulaire de l'enseignant le rappelle.
+
+## Passation d'une épreuve
+
+Les règles suivent les diagrammes de séquence de [`docs/diagrammes-sequence`](../docs/diagrammes-sequence)
+(DS-01 soumission, DS-02 sauvegarde automatique, DS-10 démarrage et reprise).
+
+| Fichier | Rôle |
+|---|---|
+| `src/hooks/usePassation.ts` | démarre ou reprend la copie, chrono sur le temps restant du serveur, soumission |
+| `src/hooks/useAutoSave.ts` | sauvegarde toutes les 30 s, tampon `localStorage` hors ligne, nouvel essai à la reconnexion |
+| `src/hooks/useExamTimer.ts` | compte à rebours sans dérive |
+| `src/lib/passation.ts` | appels API et lecture des erreurs (codes 409) |
+
+Principes :
+
+- **Le serveur fait foi** : questions, réponses enregistrées et temps restant viennent de lui ; le chrono du navigateur
+  n'est qu'un affichage, le serveur refuse toute action hors délai.
+- **Version des réponses** : chaque sauvegarde envoie la version sur laquelle elle a été saisie. Si la copie a été
+  enregistrée entre-temps depuis un autre onglet ou appareil (409 `VERSION_OBSOLETE`), les réponses locales sont mises
+  de côté, la copie est rechargée et un bandeau prévient l'étudiant.
+- **Hors ligne** : les réponses non confirmées restent dans le `localStorage` avec leur version. Au rechargement, elles
+  ne sont restaurées que si le serveur n'a rien reçu de plus récent ; sinon elles sont gardées de côté, jamais
+  détruites avant la remise de la copie.
+- **Soumission** : une dernière sauvegarde part juste avant. Si elle échoue, la soumission manuelle est suspendue ; à la
+  fin du chrono, la copie est soumise quand même avec les réponses déjà enregistrées.
+- **Codes 409** : `TEMPS_EXPIRE` et `SOUMISSION_VERROUILLEE` mènent à l'écran d'expiration ; `VERSION_OBSOLETE`
+  recharge la copie.

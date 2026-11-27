@@ -21,6 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import sn.ept.eval.security.jwt.AuthEntryPointJwt;
 import sn.ept.eval.security.jwt.AuthTokenFilter;
 import sn.ept.eval.security.jwt.JwtUtils;
+import sn.ept.eval.security.services.RevocationJetonsService;
 import sn.ept.eval.security.services.UserDetailsServiceImpl;
 
 import java.util.List;
@@ -33,12 +34,19 @@ public class SecurityConfig {
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthEntryPointJwt unauthorizedHandler;
     private final JwtUtils jwtUtils;
+    private final RevocationJetonsService revocationJetonsService;
+
+    /** Origines du front autorisées (cors.allowed-origins, variable CORS_ALLOWED_ORIGINS). */
+    @Value("${cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173}")
+    private List<String> originesAutorisees;
 
     /** Vrai uniquement avec le profil h2-dev. */
     @Value("${spring.h2.console.enabled:false}")
     private boolean h2ConsoleEnabled;
 
-    public SecurityConfig(UserDetailsServiceImpl userDetailsService, AuthEntryPointJwt unauthorizedHandler, JwtUtils jwtUtils) {
+    public SecurityConfig(UserDetailsServiceImpl userDetailsService, AuthEntryPointJwt unauthorizedHandler, JwtUtils jwtUtils,
+                          RevocationJetonsService revocationJetonsService) {
+        this.revocationJetonsService = revocationJetonsService;
         this.userDetailsService = userDetailsService;
         this.unauthorizedHandler = unauthorizedHandler;
         this.jwtUtils = jwtUtils;
@@ -71,7 +79,8 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> {
                 // Laisse passer le dispatch d'erreur pour ne pas transformer chaque erreur serveur en 401
                 auth.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll();
-                auth.requestMatchers("/auth/login", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
+                auth.requestMatchers("/auth/login", "/auth/mot-de-passe-oublie", "/auth/reinitialiser-mot-de-passe",
+                        "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll();
                 if (h2ConsoleEnabled) {
                     auth.requestMatchers("/h2-console/**").permitAll();
                 }
@@ -85,7 +94,8 @@ public class SecurityConfig {
 
         http.authenticationProvider(authenticationProvider());
         // Instancié ici (pas en @Bean) pour éviter son enregistrement en double comme filtre servlet
-        http.addFilterBefore(new AuthTokenFilter(jwtUtils, userDetailsService), UsernamePasswordAuthenticationFilter.class);
+        http.addFilterBefore(new AuthTokenFilter(jwtUtils, userDetailsService, revocationJetonsService),
+                UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -93,7 +103,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://127.0.0.1:5173"));
+        configuration.setAllowedOrigins(originesAutorisees.stream().map(String::trim).filter(o -> !o.isEmpty()).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"));
         configuration.setAllowCredentials(true);

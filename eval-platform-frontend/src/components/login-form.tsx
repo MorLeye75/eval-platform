@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { accueilPour } from "@/lib/roles"
 import { isAxiosError } from "axios"
+import { messageErreur } from "@/lib/passation"
 
 export function LoginForm({
   className,
@@ -30,7 +31,11 @@ export function LoginForm({
       navigate(accueilPour(loggedUser.role))
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 401) {
+        // Message générique (le serveur ne dit pas non plus si le compte existe ou est désactivé)
         setErreur("Email ou mot de passe incorrect.")
+      } else if (isAxiosError(err) && err.response?.status === 429) {
+        // Trop de tentatives : le serveur indique le délai avant le prochain essai
+        setErreur(messageErreur(err, "Trop de tentatives de connexion. Réessayez dans quelques minutes."))
       } else if (isAxiosError(err) && !err.response) {
         setErreur("Serveur injoignable. Réessayez dans un instant.")
       } else {

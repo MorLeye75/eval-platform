@@ -1,17 +1,15 @@
-import { Link, useParams, useLocation } from "react-router-dom"
+import { Link, useLocation } from "react-router-dom"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { getEvaluation } from "@/mocks/evaluations"
 import { Clock, Home, ListChecks, Lock } from "lucide-react"
 
 export default function ExpirationScreen() {
-  const { id } = useParams<{ id: string }>()
   const location = useLocation()
-  const evaluation = getEvaluation(id)
   const state = location.state as { titre?: string; traitees?: number; total?: number } | null
 
-  const titre = state?.titre ?? evaluation?.titre ?? "Évaluation"
-  const total = state?.total ?? evaluation?.questions.length ?? 0
+  // Données transmises par l'écran de passation (pas de données simulées : elles contiennent les corrigés)
+  const titre = state?.titre ?? "Évaluation"
+  const total = state?.total ?? 0
   const traitees = state?.traitees
 
   return (

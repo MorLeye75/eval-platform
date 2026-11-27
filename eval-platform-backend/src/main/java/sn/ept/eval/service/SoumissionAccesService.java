@@ -34,9 +34,13 @@ public class SoumissionAccesService {
                 .orElseThrow(() -> new RessourceNonTrouveeException("Profil étudiant introuvable pour le compte : " + email));
     }
 
-    /** Copie appartenant à l'étudiant, sinon 404 (inexistante) ou 403 (copie d'un autre étudiant). */
-    public Soumission copieDeLEtudiant(Long soumissionId, Etudiant etudiant) {
-        Soumission soumission = soumissionRepository.findById(soumissionId)
+    /**
+     * Copie appartenant à l'étudiant, verrouillée jusqu'à la fin de la transaction, sinon 404 (inexistante)
+     * ou 403 (copie d'un autre étudiant). Le verrou sérialise sauvegarde, soumission et clôture automatique
+     * d'une même copie : une réponse ne peut pas être écrite après le passage à SOUMIS.
+     */
+    public Soumission copieVerrouilleeDeLEtudiant(Long soumissionId, Etudiant etudiant) {
+        Soumission soumission = soumissionRepository.findByIdForUpdate(soumissionId)
                 .orElseThrow(() -> soumissionIntrouvable(soumissionId));
         verifierProprietaire(soumission, etudiant);
         return soumission;

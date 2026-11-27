@@ -1,5 +1,6 @@
 package sn.ept.eval.dto.auth;
 
+import sn.ept.eval.model.Utilisateur;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -18,12 +19,13 @@ public class LoginRequest {
     public LoginRequest() {}
 
     public LoginRequest(String email, String motDePasse) {
-        this.email = email;
+        this.email = Utilisateur.normaliserEmail(email);
         this.motDePasse = motDePasse;
     }
 
     public String getEmail() { return email; }
-    public void setEmail(String email) { this.email = email; }
+    /** Normalisé dès la réception : la validation @Email ne refuse pas des espaces autour, ajoutés par un clavier. */
+    public void setEmail(String email) { this.email = Utilisateur.normaliserEmail(email); }
 
     public String getMotDePasse() { return motDePasse; }
     public void setMotDePasse(String motDePasse) { this.motDePasse = motDePasse; }

@@ -1,0 +1,65 @@
+@startuml DS-18_vue_ensemble_admin
+title DS-18 — Vue d'ensemble de l'administrateur : tableau de bord, supervision globale, statistiques globales
+hide footbox
+autonumber
+actor "Administrateur" as A
+boundary "Frontend React" as F
+control "Backend Spring" as B
+entity "BDD" as D
+
+note over B
+  Trois lectures seules, sans verrou, calculées à la demande (aucune table de statistiques) :
+  elles ne peuvent donc pas contredire les écrans de l'enseignant (DS-09, DS-17).
+  Réservées au rôle ADMIN ; en-tête Cache-Control: no-store.
+end note
+
+== Tableau de bord ==
+A -> F : ouvre « Tableau de bord »
+F -> B ++ : GET /api/admin/tableau-de-bord
+alt jeton absent ou invalide
+  B --> F : 401 Unauthorized
+else rôle différent de ADMIN
+  B --> F : 403 Forbidden
+else valide
+  B -> D ++ : COUNT comptes actifs par rôle ; COUNT évaluations par statut ;\nCOUNT copies commencées depuis 7 jours ; COUNT alertes depuis 7 jours
+  D --> B -- : effectifs
+  B --> F : 200 { nbUtilisateurs, parRole:{etudiants, enseignants, admins},\n  nbEvaluationsEnCours, nbEvaluationsPubliees, nbSoumissions7j, nbAlertes7j,\n  services:[{ nom, etat, detail }] }
+  note right of B : « services » ne contient que ce que le serveur sait réellement :\nbase de données (la lecture ci-dessus a réussi) et connecteur de correction IA configuré.\nAucun état n'est inventé : Judge0 n'y figure pas tant qu'aucune sonde n'existe.
+end
+deactivate B
+
+== Supervision globale ==
+F -> B ++ : GET /api/admin/supervision (relu toutes les 30 s par le frontend)
+B -> D ++ : SELECT Evaluation WHERE statut = EN_COURS ;\nCOUNT copies par évaluation ; SELECT 20 dernières alertes
+D --> B -- : évaluations, effectifs, alertes
+B --> F : 200 { evaluations:[{ id, titre, enseignant, nbAttendus, nbCommences, nbSoumis,\n  dateOuverture, dateFermeture }], alertes:[{ id, evaluationId, evaluation, etudiant, description, niveau, date }] }
+note right of B : indices, pas des preuves (comme DS-17) ; aucun contenu de réponse ni note.
+deactivate B
+
+== Statistiques globales ==
+F -> B ++ : GET /api/admin/statistiques
+B -> D ++ : copies EVALUE avec note, barème de leur évaluation et promotion de l'étudiant ;\nCOUNT évaluations ; COUNT copies par statut ; effectif et nombre d'évaluations par promotion
+D --> B -- : lignes
+B --> F : 200 { nbEvaluations, nbCopies, nbCopiesNotees, tauxRemise|null, moyenneSur20|null, tauxReussite|null,\n  promotions:[{ id, nom, annee, effectif, nbEvaluations, nbCopiesNotees, moyenneSur20|null, tauxReussite|null }] }
+note right of B : notes ramenées sur 20 (note / barème × 20), réussite ≥ 10/20 ;\nindicateur **null** (jamais 0) sans copie notée.
+deactivate B
+== Configuration en vigueur (paramètres système, lecture seule) ==
+A -> F : ouvre « Paramètres système »
+F -> B ++ : GET /api/admin/configuration
+alt jeton absent ou invalide
+  B --> F : 401 Unauthorized
+else rôle différent de ADMIN
+  B --> F : 403 Forbidden
+else valide
+  B -> B : ConfigurationSystemeService : lit les valeurs là où les services les appliquent\n(constantes du code, propriétés securite.login.*, jwt.expiration-ms, correction.*, passation.*)
+  B --> F : 200 OK { sections:[{ titre, parametres:[{ libelle, valeur, source: CODE | DEPLOIEMENT }] }] }
+  note right of B : **Jamais de secret** : ni jwt.secret, ni jeton Judge0, ni adresse ou mot de passe de base.\nSeules des clés choisies une à une sont lues. En-tête Cache-Control: no-store. Aucune base consultée.
+  F --> E : cartes par section ; chaque ligne dit « Fixé dans le code » ou « Configuration du déploiement »
+end
+deactivate B
+note over A, D
+  **Lecture seule, volontairement** : chaque réglage est une constante du code ou une propriété de déploiement. Un réglage
+  modifiable à chaud demanderait de brancher les services qui le lisent (un par un) et de journaliser les changements :
+  rien n'est affiché qui ne soit pas appliqué, et rien n'est modifiable qui ne soit pas branché.
+end note
+@enduml

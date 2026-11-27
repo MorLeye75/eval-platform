@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -6,51 +7,24 @@ import { useAuth } from "@/context/AuthContext"
 import {
   ClipboardList,
   Plus,
-  Users,
-  BarChart3,
+  Send,
+  FileEdit,
   CheckCircle2,
   Clock,
   ArrowRight,
   FileText,
   Eye,
+  BarChart3,
 } from "lucide-react"
-import type { Evaluation, StatutEvaluation } from "@/types"
+import type { StatutEvaluation } from "@/types"
+import { CLE_EVALUATIONS_ENSEIGNANT, mesEvaluationsEnseignant } from "@/lib/evaluationsEnseignant"
+import { CLE_CORRECTIONS_IA, listerCorrectionsIA } from "@/lib/correctionsIA"
+import { messageErreur } from "@/lib/passation"
 
 // ============================================================
-// Données mockées — à remplacer par :
-// const { data } = useQuery({ queryKey: ["enseignant-dashboard"], queryFn: () => api.get("/enseignant/dashboard") })
+// Tableau de bord de l'enseignant : synthèse des données déjà exposées (évaluations, corrections IA). Aucune route
+// dédiée : chaque chiffre vient de la même source que l'écran qu'il résume, donc ne peut pas le contredire.
 // ============================================================
-
-const stats = [
-  { label: "Évaluations actives",  valeur: "3",  icon: ClipboardList },
-  { label: "Étudiants à corriger", valeur: "28", icon: Users         },
-  { label: "Corrections IA en attente", valeur: "5", icon: CheckCircle2 },
-  { label: "Moy. promotion (dernière éval.)", valeur: "13,4 / 20", icon: BarChart3 },
-]
-
-interface EvaluationResume extends Pick<Evaluation, "id" | "titre" | "statut"> {
-  nbSoumissions: number
-  nbAttendus: number
-  dateFermeture: string
-}
-
-const evaluationsRecentes: EvaluationResume[] = [
-  { id: 1, titre: "Structures de données — QCM",      statut: "EN_COURS",  nbSoumissions: 32, nbAttendus: 45, dateFermeture: "2026-07-12T23:59:00" },
-  { id: 2, titre: "Algorithmique — exercice de code", statut: "BROUILLON", nbSoumissions: 0,  nbAttendus: 45, dateFermeture: "2026-07-15T23:59:00" },
-  { id: 3, titre: "Réseaux — questions ouvertes",     statut: "TERMINEE",  nbSoumissions: 38, nbAttendus: 38, dateFermeture: "2026-07-05T23:59:00" },
-  { id: 4, titre: "Bases de données — quiz",          statut: "PUBLIEE",   nbSoumissions: 40, nbAttendus: 45, dateFermeture: "2026-07-10T18:00:00" },
-]
-
-// Corrections IA en attente de validation
-const correctionsEnAttente = [
-  { id: 1, evaluation: "Génie logiciel — questions ouvertes", etudiant: "Moussa Diop",   question: "Différence agrégation / composition", noteIA: 4.5 },
-  { id: 2, evaluation: "Génie logiciel — questions ouvertes", etudiant: "Awa Ndiaye",    question: "Avantages architecture découplée",    noteIA: 3.0 },
-  { id: 3, evaluation: "Réseaux — questions ouvertes",        etudiant: "Cheikh Ba",     question: "Protocoles réseau — analyse",         noteIA: 2.5 },
-]
-
-// ──────────────────────────────────────────────────────────
-//  Helpers
-// ──────────────────────────────────────────────────────────
 
 const STATUT_CONFIG: Record<StatutEvaluation, { label: string; cls: string }> = {
   BROUILLON: { label: "Brouillon", cls: "bg-muted text-muted-foreground border-transparent"                          },
@@ -68,18 +42,26 @@ function StatutBadge({ statut }: { statut: StatutEvaluation }) {
   )
 }
 
-// ──────────────────────────────────────────────────────────
-//  Composant principal
-// ──────────────────────────────────────────────────────────
-
 export default function DashboardEnseignant() {
   const { user } = useAuth()
+  const evaluations = useQuery({ queryKey: CLE_EVALUATIONS_ENSEIGNANT, queryFn: mesEvaluationsEnseignant })
+  const corrections = useQuery({ queryKey: CLE_CORRECTIONS_IA, queryFn: listerCorrectionsIA })
+
+  const liste = evaluations.data ?? []
+  const enAttente = (corrections.data?.propositions ?? []).filter((p) => p.statut === "EN_ATTENTE")
+  const stats = [
+    { label: "Évaluations en cours",       valeur: liste.filter((e) => e.statut === "EN_COURS").length, icon: ClipboardList },
+    { label: "Résultats à publier",        valeur: liste.filter((e) => e.statut === "TERMINEE" && !e.resultatsPublies).length, icon: Send },
+    { label: "Corrections IA en attente",  valeur: enAttente.length, icon: CheckCircle2 },
+    { label: "Brouillons",                 valeur: liste.filter((e) => e.statut === "BROUILLON").length, icon: FileEdit },
+  ]
+  const chargee = evaluations.isSuccess && corrections.isSuccess
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-7">
 
       {/* En-tête */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-3xl font-extrabold tracking-tight">
             Bonjour, {user?.prenom} <span className="text-2xl">👋</span>
@@ -98,20 +80,24 @@ export default function DashboardEnseignant() {
         />
       </div>
 
-      {/* Stats */}
+      {(evaluations.isError || corrections.isError) && (
+        <p role="alert" className="rounded-xl bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
+          {messageErreur(evaluations.error ?? corrections.error, "Certaines données n'ont pas pu être chargées.")}
+        </p>
+      )}
+
+      {/* Stats : « — » tant que les données ne sont pas là, jamais un 0 trompeur */}
       <div className="grid gap-4 md:grid-cols-4">
         {stats.map((s) => (
           <Card key={s.label} className="rounded-2xl border-border/60 shadow-sm">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {s.label}
-              </CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{s.label}</CardTitle>
               <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                 <s.icon className="size-4" />
               </span>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-extrabold tracking-tight">{s.valeur}</div>
+              <div className="text-3xl font-extrabold tracking-tight">{chargee ? s.valeur : "—"}</div>
             </CardContent>
           </Card>
         ))}
@@ -123,31 +109,31 @@ export default function DashboardEnseignant() {
         <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-bold">Mes évaluations</CardTitle>
-            <Link
-              to="/enseignant/evaluations"
-              className="flex items-center gap-1 text-xs text-primary"
-            >
+            <Link to="/enseignant/evaluations" className="flex items-center gap-1 text-xs text-primary">
               Tout voir <ArrowRight className="size-3" />
             </Link>
           </CardHeader>
           <CardContent className="flex flex-col gap-0 p-0 px-6 pb-4">
-            {evaluationsRecentes.map((e, i, arr) => (
-              <div
-                key={e.id}
-                className={`flex items-center gap-3 py-3 ${i !== arr.length - 1 ? "border-b border-border/60" : ""}`}
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-primary">
-                  <FileText className="size-[18px]" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold">{e.titre}</p>
-                  <p className="mt-0.5 text-[11px] text-muted-foreground">
-                    {e.nbSoumissions} / {e.nbAttendus} soumissions
-                  </p>
+            {liste.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {evaluations.isLoading ? "Chargement…" : "Aucune évaluation pour l'instant."}
+              </p>
+            ) : (
+              liste.slice(0, 4).map((e, i, arr) => (
+                <div key={e.id} className={`flex items-center gap-3 py-3 ${i !== arr.length - 1 ? "border-b border-border/60" : ""}`}>
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-primary">
+                    <FileText className="size-[18px]" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold">{e.titre}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {e.nbCopies ?? 0} / {e.nbAttendus ?? 0} copies
+                    </p>
+                  </div>
+                  <StatutBadge statut={e.statut} />
                 </div>
-                <StatutBadge statut={e.statut} />
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -155,33 +141,29 @@ export default function DashboardEnseignant() {
         <Card className="rounded-2xl border-border/60 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-base font-bold">Corrections IA</CardTitle>
-            <Link
-              to="/enseignant/validation-ia"
-              className="flex items-center gap-1 text-xs text-primary"
-            >
+            <Link to="/enseignant/validation-ia" className="flex items-center gap-1 text-xs text-primary">
               Valider <ArrowRight className="size-3" />
             </Link>
           </CardHeader>
           <CardContent className="flex flex-col gap-0 p-0 px-6 pb-4">
-            {correctionsEnAttente.map((c, i, arr) => (
-              <div
-                key={c.id}
-                className={`flex items-center gap-3 py-3 ${i !== arr.length - 1 ? "border-b border-border/60" : ""}`}
-              >
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-primary">
-                  <CheckCircle2 className="size-[18px]" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13px] font-semibold">{c.etudiant}</p>
-                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                    {c.question}
-                  </p>
+            {enAttente.length === 0 ? (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                {corrections.isLoading ? "Chargement…" : "Aucune correction en attente."}
+              </p>
+            ) : (
+              enAttente.slice(0, 3).map((c, i, arr) => (
+                <div key={c.id} className={`flex items-center gap-3 py-3 ${i !== arr.length - 1 ? "border-b border-border/60" : ""}`}>
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-muted text-primary">
+                    <CheckCircle2 className="size-[18px]" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-semibold">{c.etudiant}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{c.question}</p>
+                  </div>
+                  <span className="shrink-0 text-[13px] font-bold text-primary">{c.noteProposee} / {c.pointsMax}</span>
                 </div>
-                <span className="shrink-0 text-[13px] font-bold text-primary">
-                  {c.noteIA} / 5
-                </span>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
@@ -194,15 +176,11 @@ export default function DashboardEnseignant() {
         <CardContent>
           <div className="grid gap-3 md:grid-cols-3">
             {[
-              { icon: Eye,         label: "Supervision en cours",  to: "/enseignant/supervision",   desc: "Suivre les passations live"     },
-              { icon: BarChart3,   label: "Statistiques",          to: "/enseignant/statistiques",  desc: "Analyser les résultats"         },
-              { icon: Clock,       label: "Publier les résultats", to: "/enseignant/publication",   desc: "Notifier la promotion"          },
+              { icon: Eye,       label: "Supervision en cours",  to: "/enseignant/supervision",  desc: "Suivre les passations en cours" },
+              { icon: BarChart3, label: "Statistiques",          to: "/enseignant/statistiques", desc: "Analyser les résultats"         },
+              { icon: Clock,     label: "Publier les résultats", to: "/enseignant/publication",  desc: "Notifier la promotion"          },
             ].map((a) => (
-              <Link
-                key={a.to}
-                to={a.to}
-                className="flex items-center gap-3 rounded-xl border border-border p-3.5 transition-colors hover:bg-muted/50"
-              >
+              <Link key={a.to} to={a.to} className="flex items-center gap-3 rounded-xl border border-border p-3.5 transition-colors hover:bg-muted/50">
                 <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
                   <a.icon className="size-5" />
                 </span>

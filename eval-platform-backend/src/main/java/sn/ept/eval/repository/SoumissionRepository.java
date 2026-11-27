@@ -1,29 +1,150 @@
 package sn.ept.eval.repository;
 
 import jakarta.persistence.LockModeType;
+import jakarta.persistence.QueryHint;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import sn.ept.eval.model.Soumission;
 import sn.ept.eval.model.enums.StatutSoumission;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
 public interface SoumissionRepository extends JpaRepository<Soumission, Long> {
+    boolean existsByEtudiantId(Long etudiantId);
+    boolean existsByEvaluationId(Long evaluationId);
+    boolean existsByEvaluationIdAndEtudiantId(Long evaluationId, Long etudiantId);
+    long countByEvaluationId(Long evaluationId);
+    long countByEvaluationIdAndStatut(Long evaluationId, StatutSoumission statut);
+    /** Copies d'une évaluation dans un statut (notification « résultats publiés » des copies notées, DS-15). */
+    List<Soumission> findByEvaluationIdAndStatut(Long evaluationId, StatutSoumission statut);
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from Soumission s where s.id = :id")
     Optional<Soumission> findByIdForUpdate(@Param("id") Long id);
 
+    /**
+     * Verrou sans attente (NOWAIT), pour les tâches de fond (DS-11) : une copie déjà verrouillée (sauvegarde,
+     * remise, correction) lève aussitôt une exception au lieu de bloquer la tâche planifiée. PostgreSQL attend
+     * sinon indéfiniment (aucun lock_timeout configuré).
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @QueryHints(@QueryHint(name = "jakarta.persistence.lock.timeout", value = "0"))
+    @Query("select s from Soumission s where s.id = :id")
+    Optional<Soumission> findByIdForUpdateSansAttente(@Param("id") Long id);
+
     Optional<Soumission> findByEvaluationIdAndEtudiantId(Long evaluationId, Long etudiantId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select s from Soumission s where s.evaluation.id = :evaluationId and s.etudiant.id = :etudiantId")
+    Optional<Soumission> findByEvaluationIdAndEtudiantIdForUpdate(@Param("evaluationId") Long evaluationId,
+                                                                  @Param("etudiantId") Long etudiantId);
     List<Soumission> findByEvaluationId(Long evaluationId);
 
     List<Soumission> findByStatut(StatutSoumission statut);
 
-    List<Soumission> findByStatutAndDateModificationBefore(StatutSoumission statut, LocalDateTime seuil);
+    /** Copies d'un statut avec leur évaluation (durée, fermeture) : les règles de temps s'appliquent sans autre requête. */
+    @Query("select s from Soumission s join fetch s.evaluation where s.statut = :statut")
+    List<Soumission> findByStatutAvecEvaluation(@Param("statut") StatutSoumission statut);
+
+    /**
+     * Copies à corriger (relance planifiée, DS-12) : SOUMIS, sans prise en charge en cours (ou abandonnée avant
+     * {@code seuilPriseEnCharge}) et dont la date de prochaine tentative est passée.
+     */
+    @Query("select s.id from Soumission s where s.statut = sn.ept.eval.model.enums.StatutSoumission.SOUMIS"
+            + " and (s.correctionDemarreeLe is null or s.correctionDemarreeLe < :seuilPriseEnCharge)"
+            + " and (s.prochaineTentativeLe is null or s.prochaineTentativeLe <= :maintenant)"
+            + " order by s.id")
+    List<Long> findIdsCorrectionARelancer(@Param("seuilPriseEnCharge") LocalDateTime seuilPriseEnCharge,
+                                          @Param("maintenant") LocalDateTime maintenant, Pageable page);
+
+    /** Réserve une copie SOUMIS avant de la remettre en file : pas de nouvelle relance avant {@code date}. */
+    @Modifying(flushAutomatically = true)
+    @Query("update Soumission s set s.prochaineTentativeLe = :date"
+            + " where s.id = :id and s.statut = sn.ept.eval.model.enums.StatutSoumission.SOUMIS")
+    int reporterProchaineTentative(@Param("id") Long id, @Param("date") LocalDateTime date);
+
+    /** Notes finales des copies notées d'une évaluation (statistiques de l'enseignant, DS-09). */
+    @Query("select s.noteFinale from Soumission s where s.evaluation.id = :evaluationId and s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE and s.noteFinale is not null")
+    List<Double> notesFinales(@Param("evaluationId") Long evaluationId);
+
+    /** Effectif et moyenne des copies notées d'une évaluation (DS-13). */
+    interface StatistiquesNotes {
+        Long getEvaluationId();
+        Long getNbCopies();
+        Double getMoyenne();
+    }
+
+    /** Nombre de copies d'une évaluation, pour la liste de l'enseignant (une ligne par évaluation). */
+    interface NbCopies {
+        Long getEvaluationId();
+        long getNbCopies();
+    }
+
+    /** Copies de toutes les évaluations d'un enseignant en une requête : pas de requête par évaluation (DS-03). */
+    @Query("select s.evaluation.id as evaluationId, count(s) as nbCopies from Soumission s"
+            + " where s.evaluation.enseignant.id = :enseignantId group by s.evaluation.id")
+    List<NbCopies> compterCopiesParEvaluation(@Param("enseignantId") Long enseignantId);
+
+    /**
+     * Statistiques des copies EVALUE de plusieurs évaluations, en une requête (DS-13). Une copie en correction
+     * n'est pas comptée : elle fausserait la moyenne.
+     */
+    @Query("select s.evaluation.id as evaluationId, count(s.noteFinale) as nbCopies, avg(s.noteFinale) as moyenne"
+            + " from Soumission s where s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE"
+            + " and s.evaluation.id in :evaluationIds group by s.evaluation.id")
+    List<StatistiquesNotes> statistiquesNotes(@Param("evaluationIds") Collection<Long> evaluationIds);
+
+    /** Copies notées de l'étudiant dont les résultats sont publiés, de la plus ancienne à la plus récente (DS-13). */
+    @Query("select s from Soumission s join fetch s.evaluation e where s.etudiant.id = :etudiantId"
+            + " and s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE and e.resultatsPublies = true"
+            + " order by s.dateRemise")
+    List<Soumission> findCopiesPubliees(@Param("etudiantId") Long etudiantId);
+
+    /** L'évaluation de la copie contient-elle au moins une question de code (exécutée par Judge0) ? */
+    @Query("select case when count(q) > 0 then true else false end from QuestionCode q"
+            + " where q.evaluation.id = (select s.evaluation.id from Soumission s where s.id = :id)")
+    boolean evaluationContientCode(@Param("id") Long soumissionId);
     List<Soumission> findByEtudiantId(Long etudiantId);
+
+    // ---- vue d'ensemble de l'administrateur (DS-18) : lectures groupées, jamais une requête par ligne
+
+    long countByDateDebutGreaterThanEqual(LocalDateTime depuis);
+    long countByStatut(sn.ept.eval.model.enums.StatutSoumission statut);
+
+    interface NbParEvaluation {
+        Long getEvaluationId();
+        long getNb();
+    }
+
+    /** Copies commencées, par évaluation. */
+    @Query("select s.evaluation.id as evaluationId, count(s) as nb from Soumission s"
+            + " where s.evaluation.id in :ids group by s.evaluation.id")
+    List<NbParEvaluation> copiesParEvaluation(@Param("ids") Collection<Long> evaluationIds);
+
+    /** Copies remises (plus en cours de composition), par évaluation. */
+    @Query("select s.evaluation.id as evaluationId, count(s) as nb from Soumission s"
+            + " where s.evaluation.id in :ids and s.statut <> sn.ept.eval.model.enums.StatutSoumission.EN_COURS"
+            + " group by s.evaluation.id")
+    List<NbParEvaluation> copiesRemisesParEvaluation(@Param("ids") Collection<Long> evaluationIds);
+
+    /** Une copie notée : sa note, le barème de son évaluation et la promotion de l'étudiant. */
+    interface NoteCopie {
+        Long getPromotionId();
+        Double getNote();
+        Double getBareme();
+    }
+
+    @Query("select s.etudiant.promotion.id as promotionId, s.noteFinale as note,"
+            + " (select sum(q.points) from Question q where q.evaluation.id = s.evaluation.id) as bareme"
+            + " from Soumission s where s.statut = sn.ept.eval.model.enums.StatutSoumission.EVALUE and s.noteFinale is not null")
+    List<NoteCopie> notesDesCopiesNotees();
 }

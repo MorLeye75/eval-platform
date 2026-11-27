@@ -13,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import sn.ept.eval.dto.auth.LoginRequest;
@@ -77,29 +76,24 @@ public class AuthController {
     public ResponseEntity<LoginResponse> authenticateUser(@Valid @RequestBody LoginRequest loginRequest,
                                                           HttpServletRequest request) {
         // Adresse de la connexion TCP : derrière un reverse proxy, configurer server.forward-headers-strategy
-        String cle = TentativesConnexionService.cle(loginRequest.getEmail(), request.getRemoteAddr());
-        tentativesConnexionService.verifierNonBloque(cle);
+        // IP du client : derrière un reverse proxy, celle transmise par le proxy si FORWARD_HEADERS_STRATEGY=native
+        String ip = request.getRemoteAddr();
+        // Essai compté avant la vérification du mot de passe, atomiquement : des requêtes simultanées ne passent
+        // pas toutes avant le blocage (429 au-delà du seuil)
+        tentativesConnexionService.reserverTentative(loginRequest.getEmail(), ip);
 
-        Authentication authentication;
-        try {
-            authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
-            );
-        } catch (AuthenticationException e) {
-            tentativesConnexionService.enregistrerEchec(cle);
-            throw e;
-        }
-        tentativesConnexionService.reinitialiser(cle);
+        // Échec : AuthenticationException (401), déjà compté par la réservation ci-dessus
+        Authentication authentication = authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getMotDePasse())
+        );
+        tentativesConnexionService.reinitialiser(loginRequest.getEmail(), ip);
 
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        // Mettre à jour la date de dernière connexion
-        utilisateurRepository.findById(userDetails.getId()).ifPresent(u -> {
-            u.setDerniereConnexion(LocalDateTime.now(clock));
-            utilisateurRepository.save(u);
-        });
+        // Date de dernière connexion, sans toucher à l'audit du compte
+        utilisateurRepository.enregistrerConnexion(userDetails.getId(), LocalDateTime.now(clock));
 
         LoginResponse response = new LoginResponse(
                 jwt,
@@ -110,6 +104,7 @@ public class AuthController {
                 userDetails.getRole()
         );
 
+        response.setMotDePasseProvisoire(userDetails.isMotDePasseProvisoire());
         return ResponseEntity.ok(response);
     }
 
@@ -146,6 +141,7 @@ public class AuthController {
                 userDetails.getRole()
         );
 
+        response.setMotDePasseProvisoire(userDetails.isMotDePasseProvisoire());
         return ResponseEntity.ok(response);
     }
 }

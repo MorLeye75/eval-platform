@@ -1,0 +1,51 @@
+@startuml DS-19_comparaison_evaluations
+title DS-19 — Comparaison de plusieurs évaluations par leur enseignant
+hide footbox
+autonumber
+actor "Enseignant" as E
+boundary "Frontend React" as F
+control "Backend Spring" as B
+control "StatistiquesEvaluationService" as S
+entity "BDD" as D
+
+note over B
+  Lecture seule, sans verrou, calculée à la demande (aucune table de comparaison). Les chiffres viennent du service
+  de DS-09 : ils ne peuvent pas contredire la page « Statistiques » d'une évaluation.
+  Réservée au rôle ENSEIGNANT ; chaque évaluation doit lui appartenir. En-tête Cache-Control: no-store. **Migration** : aucune.
+end note
+
+E -> F : ouvre « Comparer », coche 2 à 6 évaluations ouvertes (EN_COURS ou TERMINEE)
+F -> B ++ : GET /api/enseignant/comparaison?ids=1,2,3
+alt jeton absent ou invalide
+  B --> F : 401 Unauthorized
+else rôle différent de ENSEIGNANT
+  B --> F : 403 Forbidden
+else moins de 2 ou plus de 6 identifiants, ou doublon
+  B --> F : 400 Bad Request (problem+json)
+else
+  loop pour chaque identifiant, dans l'ordre demandé
+    B -> S ++ : statistiques(id, email)
+    S -> D ++ : copies EVALUE avec note, barème de l'évaluation
+    D --> S -- : lignes
+    alt évaluation inconnue
+      S --> B : 404 Not Found
+    else évaluation d'un autre enseignant
+      S --> B : 403 Forbidden
+    else pas encore ouverte (BROUILLON ou PUBLIEE)
+      S --> B : 409 Conflict (code EVALUATION_NON_MODIFIABLE)
+    else
+      S --> B -- : statistiques sur 20
+    end
+  end
+  B --> F : 200 OK { evaluations:[{ evaluationId, titre, statut, nbAttendus, nbNotees,\n  moyenneSur20|null, medianeSur20|null, tauxReussite|null }] }
+  note right of B : un indicateur est **null** (jamais 0) tant qu'aucune copie n'est notée ;\nl'écran affiche « — » et ne trace aucune barre.
+  F --> E : tableau et barres de la moyenne sur 20, côte à côte
+end
+deactivate B
+
+note over E, D
+  Notes ramenées sur 20 (note / barème × 20), réussite ≥ 10/20 : les évaluations de barèmes différents sont comparables.
+  Une évaluation refusée (403, 404 ou 409) fait refuser toute la comparaison : pas de résultat partiel silencieux.
+  **Hors périmètre** : comparaison entre enseignants ou avec la moyenne de la plateforme ; évolution d'un même étudiant.
+end note
+@enduml

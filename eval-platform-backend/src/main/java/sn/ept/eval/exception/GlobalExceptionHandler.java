@@ -3,6 +3,9 @@ package sn.ept.eval.exception;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -17,7 +20,11 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import jakarta.persistence.LockTimeoutException;
+import jakarta.persistence.PessimisticLockException;
+
 import java.net.URI;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -33,6 +40,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String ERROR_BASE_URL = "https://eval.ept.sn/errors/";
 
+    /** Horloge de l'application : l'horodatage des erreurs suit la même heure que le reste (testable). */
+    private final Clock clock;
+
+    public GlobalExceptionHandler(Clock clock) {
+        this.clock = clock;
+    }
+
     /**
      * 409 Conflict (et non 403) : l'utilisateur a bien le droit d'agir sur sa copie,
      * c'est l'état de la ressource (temps écoulé, copie verrouillée) qui empêche l'action.
@@ -44,7 +58,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "temps-expire"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "TEMPS_EXPIRE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -55,7 +69,69 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "soumission-verrouillee"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "SOUMISSION_VERROUILLEE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /** 409 : l'état de l'évaluation (non brouillon, copie déjà commencée, terminée) interdit l'action (DS-03 à DS-06). */
+    @ExceptionHandler(EvaluationNonModifiableException.class)
+    public ProblemDetail handleEvaluationNonModifiable(EvaluationNonModifiableException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Évaluation non modifiable");
+        problem.setType(URI.create(ERROR_BASE_URL + "evaluation-non-modifiable"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "EVALUATION_NON_MODIFIABLE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /** 409 : la copie ou la proposition n'est plus dans un état où l'enseignant peut la noter (DS-08). */
+    @ExceptionHandler(CorrectionNonModifiableException.class)
+    public ProblemDetail handleCorrectionNonModifiable(CorrectionNonModifiableException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Correction non modifiable");
+        problem.setType(URI.create(ERROR_BASE_URL + "correction-non-modifiable"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "CORRECTION_NON_MODIFIABLE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /** 409 : doublon ou opération interdite sur un compte (DS-16). */
+    @ExceptionHandler(OperationCompteRefuseeException.class)
+    public ProblemDetail handleOperationCompteRefusee(OperationCompteRefuseeException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Opération sur le compte refusée");
+        problem.setType(URI.create(ERROR_BASE_URL + "compte-operation-refusee"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "COMPTE_OPERATION_REFUSEE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /** 409 : deux écritures concurrentes sur la même entité versionnée (@Version) ; le front recharge. */
+    @ExceptionHandler(OptimisticLockingFailureException.class)
+    public ProblemDetail handleConflitConcurrent(OptimisticLockingFailureException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "La ressource a été modifiée entre-temps. Rechargez-la puis recommencez.");
+        problem.setTitle("Conflit de modification");
+        problem.setType(URI.create(ERROR_BASE_URL + "conflit-concurrent"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "CONFLIT_CONCURRENT");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /** 409 avec un code distinct : le front recharge la copie au lieu de bloquer l'épreuve. */
+    @ExceptionHandler(VersionObsoleteException.class)
+    public ProblemDetail handleVersionObsolete(VersionObsoleteException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        problem.setTitle("Version des réponses périmée");
+        problem.setType(URI.create(ERROR_BASE_URL + "version-obsolete"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "VERSION_OBSOLETE");
+        problem.setProperty("versionActuelle", ex.getVersionActuelle());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -66,7 +142,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "acces-refuse"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "ACCES_REFUSE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -76,7 +152,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Ressource non trouvée");
         problem.setType(URI.create(ERROR_BASE_URL + "ressource-non-trouvee"));
         problem.setInstance(URI.create(request.getRequestURI()));
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("code", "RESSOURCE_NON_TROUVEE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -86,7 +163,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Requête incorrecte");
         problem.setType(URI.create(ERROR_BASE_URL + "requete-incorrecte"));
         problem.setInstance(URI.create(request.getRequestURI()));
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("code", "REQUETE_INCORRECTE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /** Lien de réinitialisation inutilisable : un code distinct pour que le front propose une nouvelle demande. */
+    @ExceptionHandler(JetonReinitialisationInvalideException.class)
+    public ProblemDetail handleJetonReinitialisation(JetonReinitialisationInvalideException ex, HttpServletRequest request) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        problem.setTitle("Lien de réinitialisation invalide");
+        problem.setType(URI.create(ERROR_BASE_URL + "jeton-invalide"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "JETON_INVALIDE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -98,7 +188,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "authentification"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "AUTHENTIFICATION_ECHOUEE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -110,7 +200,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "trop-de-tentatives"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "TROP_DE_TENTATIVES");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                 .header(HttpHeaders.RETRY_AFTER, String.valueOf(ex.getSecondesAvantNouvelEssai()))
                 .body(problem);
@@ -124,7 +214,41 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setType(URI.create(ERROR_BASE_URL + "acces-refuse"));
         problem.setInstance(URI.create(request.getRequestURI()));
         problem.setProperty("code", "ACCES_REFUSE");
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /**
+     * Contrainte de base violée (unicité, clé étrangère…) : 409 plutôt que 500. Le détail SQL (nom de contrainte,
+     * requête) reste dans les journaux, jamais dans la réponse.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ProblemDetail handleIntegriteDonnees(DataIntegrityViolationException ex, HttpServletRequest request) {
+        log.warn("Conflit de données sur {} : {}", request.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "La requête entre en conflit avec des données existantes.");
+        problem.setTitle("Conflit de données");
+        problem.setType(URI.create(ERROR_BASE_URL + "conflit-donnees"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "CONFLIT_DONNEES");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
+        return problem;
+    }
+
+    /**
+     * Verrou de ligne non obtenu à temps (copie modifiée au même instant par une autre requête) : situation
+     * passagère, 409 à réessayer plutôt que 500. Le front ne la confond pas avec une copie figée.
+     */
+    @ExceptionHandler({PessimisticLockingFailureException.class, PessimisticLockException.class, LockTimeoutException.class})
+    public ProblemDetail handleVerrouIndisponible(Exception ex, HttpServletRequest request) {
+        log.warn("Verrou indisponible sur {} : {}", request.getRequestURI(), ex.getMessage());
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                "La ressource est en cours de modification. Réessayez dans un instant.");
+        problem.setTitle("Ressource momentanément verrouillée");
+        problem.setType(URI.create(ERROR_BASE_URL + "verrou-indisponible"));
+        problem.setInstance(URI.create(request.getRequestURI()));
+        problem.setProperty("code", "VERROU_INDISPONIBLE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 
@@ -136,8 +260,34 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         problem.setTitle("Erreur interne");
         problem.setType(URI.create(ERROR_BASE_URL + "erreur-interne"));
         problem.setInstance(URI.create(request.getRequestURI()));
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("code", "ERREUR_INTERNE");
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
+    }
+
+    /**
+     * Erreurs gérées par Spring lui-même (JSON illisible, méthode non supportée, route inconnue…) : même format,
+     * complété par un code pour que le front n'ait pas à deviner.
+     */
+    @Override
+    protected ResponseEntity<Object> handleExceptionInternal(Exception ex, Object body, HttpHeaders headers,
+                                                             HttpStatusCode statusCode, WebRequest request) {
+        ResponseEntity<Object> reponse = super.handleExceptionInternal(ex, body, headers, statusCode, request);
+        if (reponse != null && reponse.getBody() instanceof ProblemDetail problem
+                && (problem.getProperties() == null || !problem.getProperties().containsKey("code"))) {
+            problem.setProperty("code", codePourStatut(statusCode));
+        }
+        return reponse;
+    }
+
+    private static String codePourStatut(HttpStatusCode statut) {
+        return switch (statut.value()) {
+            case 400 -> "REQUETE_INCORRECTE";
+            case 404 -> "RESSOURCE_NON_TROUVEE";
+            case 405 -> "METHODE_NON_SUPPORTEE";
+            case 415 -> "TYPE_NON_SUPPORTE";
+            default -> statut.is5xxServerError() ? "ERREUR_INTERNE" : "ERREUR_REQUETE";
+        };
     }
 
     @Override
@@ -157,8 +307,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ex.getBindingResult().getFieldErrors().forEach(err ->
                 erreurs.put(err.getField(), err.getDefaultMessage())
         );
+        problem.setProperty("code", "VALIDATION");
         problem.setProperty("erreursChamps", erreurs);
-        problem.setProperty("timestamp", LocalDateTime.now());
+        problem.setProperty("timestamp", LocalDateTime.now(clock));
         return problem;
     }
 }

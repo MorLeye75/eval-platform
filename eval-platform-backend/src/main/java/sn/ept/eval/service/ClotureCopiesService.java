@@ -2,73 +2,143 @@ package sn.ept.eval.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import sn.ept.eval.model.QuestionQuiz;
 import sn.ept.eval.model.Soumission;
 import sn.ept.eval.model.enums.StatutSoumission;
 import sn.ept.eval.repository.SoumissionRepository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Traitements de fond sur les copies, exécutés par PassationScheduler : clôture des copies abandonnées
  * et reprise des corrections perdues.
  */
 @Service
-@Transactional
 public class ClotureCopiesService {
 
     private static final Logger log = LoggerFactory.getLogger(ClotureCopiesService.class);
 
-    /** Au-delà de ce délai sans modification, une copie SOUMIS est considérée comme bloquée. */
-    public static final int DELAI_CORRECTION_BLOQUEE_MINUTES = 5;
+    /** Corrections remises en file à chaque passage de la relance planifiée, au plus. */
+    static final int RELANCES_PAR_PASSAGE = 50;
 
     private final SoumissionRepository soumissionRepository;
     private final TempsEpreuveService tempsEpreuveService;
+    private final QuizService quizService;
     private final CorrectionDeclencheur correctionDeclencheur;
+    /** Une transaction courte par copie clôturée : verrou relâché aussitôt, échec isolé. */
+    private final TransactionTemplate transactionParCopie;
 
     public ClotureCopiesService(SoumissionRepository soumissionRepository,
                                 TempsEpreuveService tempsEpreuveService,
-                                CorrectionDeclencheur correctionDeclencheur) {
+                                QuizService quizService,
+                                CorrectionDeclencheur correctionDeclencheur,
+                                PlatformTransactionManager transactionManager) {
         this.soumissionRepository = soumissionRepository;
         this.tempsEpreuveService = tempsEpreuveService;
+        this.quizService = quizService;
         this.correctionDeclencheur = correctionDeclencheur;
+        this.transactionParCopie = new TransactionTemplate(transactionManager);
+        this.transactionParCopie.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     /**
      * Les copies EN_COURS dont le temps, marge comprise, est écoulé sont figées à leur dernier auto-save
-     * puis corrigées. Cas typique : l'étudiant a fermé son navigateur.
+     * puis corrigées. Cas typique : l'étudiant a fermé son navigateur. Un quiz chronométré se termine avec sa
+     * dernière question, souvent bien avant sa durée standard.
+     *
+     * Les copies expirées sont repérées en mémoire (évaluations, aménagements et questions des quiz chargés en
+     * lot), puis chacune
+     * est clôturée dans sa propre transaction : les verrous ne s'accumulent pas sur tout le lot, et une copie
+     * verrouillée ailleurs (soumission en cours…) est simplement reprise au passage suivant.
      *
      * @return le nombre de copies clôturées
      */
     public int cloturerCopiesExpirees() {
+        List<Soumission> enCours = soumissionRepository.findByStatutAvecEvaluation(StatutSoumission.EN_COURS);
+        Map<Long, Integer> durees = tempsEpreuveService.dureesEffectivesMinutes(enCours);
+        Map<Long, List<QuestionQuiz>> quizParEvaluation = quizService.questionsQuizParEvaluation(
+                enCours.stream().map(s -> s.getEvaluation().getId()).collect(Collectors.toSet()));
+
         int nbCloturees = 0;
-        for (Soumission soumission : soumissionRepository.findByStatut(StatutSoumission.EN_COURS)) {
-            if (tempsEpreuveService.estExpiree(soumission)) {
-                soumission.setStatut(StatutSoumission.SOUMIS);
-                soumission.setDateRemise(tempsEpreuveService.finEpreuve(soumission));
-                correctionDeclencheur.apresCommit(soumission.getId());
-                log.info("Clôture automatique de la soumission ID={} (temps écoulé)", soumission.getId());
-                nbCloturees++;
+        for (Soumission candidate : enCours) {
+            LocalDateTime fin = tempsEpreuveService.finEpreuve(candidate, durees.get(candidate.getId()),
+                    quizParEvaluation.get(candidate.getEvaluation().getId()));
+            if (!tempsEpreuveService.estDepassee(fin)) continue;
+            Long id = candidate.getId();
+            try {
+                if (Boolean.TRUE.equals(transactionParCopie.execute(tx -> cloturerSiToujoursExpiree(id)))) {
+                    nbCloturees++;
+                }
+            } catch (RuntimeException e) {
+                log.warn("Clôture de la soumission ID={} reportée au prochain passage : {}", id, e.getMessage());
             }
         }
         return nbCloturees;
     }
 
     /**
-     * Copies restées SOUMIS : la correction asynchrone a échoué ou le serveur a redémarré
-     * entre la soumission et la correction.
+     * Relue sous verrou : une soumission, une reprise ou un aménagement accordé a pu intervenir entre-temps.
+     * Verrou sans attente : une copie verrouillée ailleurs fait échouer cette seule transaction, la copie est
+     * reprise au passage suivant et la tâche planifiée n'est jamais bloquée (DS-11).
+     */
+    private boolean cloturerSiToujoursExpiree(Long soumissionId) {
+        Soumission soumission = soumissionRepository.findByIdForUpdateSansAttente(soumissionId).orElse(null);
+        if (soumission == null || soumission.getStatut() != StatutSoumission.EN_COURS) return false;
+        LocalDateTime fin = tempsEpreuveService.finEpreuve(soumission, quizService.questionsQuiz(soumission));
+        if (!tempsEpreuveService.estDepassee(fin)) return false;
+        cloturerExpiree(soumission, fin);
+        log.info("Clôture automatique de la soumission ID={} (temps écoulé)", soumissionId);
+        return true;
+    }
+
+    /**
+     * Fige une copie expirée à son dernier auto-save et lance sa correction après le commit, sans alerte
+     * anti-triche (l'étudiant n'a rien envoyé hors délai). L'appelant doit détenir le verrou sur la copie.
+     *
+     * @param finEpreuve fin calculée par {@link TempsEpreuveService#finEpreuve} : date de remise de la copie
+     */
+    @Transactional
+    public void cloturerExpiree(Soumission soumission, LocalDateTime finEpreuve) {
+        soumission.setStatut(StatutSoumission.SOUMIS);
+        soumission.setDateRemise(finEpreuve);
+        // La relance ne reprend la copie que si la correction lancée ci-dessous ne l'a pas prise en charge à temps
+        soumission.setProchaineTentativeLe(
+                tempsEpreuveService.maintenant().plusMinutes(CorrectionService.DELAI_AVANT_RELANCE_MINUTES));
+        correctionDeclencheur.apresCommit(soumission.getId());
+    }
+
+    /**
+     * Copies restées SOUMIS (DS-12) : tentative précédente échouée dont le délai est écoulé, correction perdue
+     * (serveur redémarré, file pleine) ou prise en charge abandonnée depuis plus de 15 min.
+     * Chaque copie est réservée 5 min avant d'être remise en file : tant que sa tâche attend dans la file,
+     * elle n'y est pas remise à la minute suivante. Au plus {@value #RELANCES_PAR_PASSAGE} copies par passage.
      *
      * @return le nombre de corrections relancées
      */
+    @Transactional
     public int relancerCorrectionsBloquees() {
-        LocalDateTime seuil = tempsEpreuveService.maintenant().minusMinutes(DELAI_CORRECTION_BLOQUEE_MINUTES);
-        List<Soumission> bloquees = soumissionRepository.findByStatutAndDateModificationBefore(StatutSoumission.SOUMIS, seuil);
-        bloquees.forEach(s -> {
-            log.warn("Relance de la correction de la soumission ID={} (bloquée en SOUMIS)", s.getId());
-            correctionDeclencheur.apresCommit(s.getId());
-        });
-        return bloquees.size();
+        LocalDateTime maintenant = tempsEpreuveService.maintenant();
+        List<Long> ids = soumissionRepository.findIdsCorrectionARelancer(
+                maintenant.minusMinutes(CorrectionService.PRISE_EN_CHARGE_MINUTES), maintenant,
+                PageRequest.of(0, RELANCES_PAR_PASSAGE));
+        int relancees = 0;
+        for (Long id : ids) {
+            if (soumissionRepository.reporterProchaineTentative(id,
+                    maintenant.plusMinutes(CorrectionService.DELAI_AVANT_RELANCE_MINUTES)) == 1) {
+                log.warn("Relance de la correction de la soumission ID={}", id);
+                correctionDeclencheur.apresCommit(id);
+                relancees++;
+            }
+        }
+        return relancees;
     }
 }

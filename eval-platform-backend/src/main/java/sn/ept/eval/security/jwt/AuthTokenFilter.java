@@ -12,6 +12,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
+import sn.ept.eval.security.services.RevocationJetonsService;
 import sn.ept.eval.security.services.UserDetailsServiceImpl;
 
 import java.io.IOException;
@@ -21,10 +22,13 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserDetailsServiceImpl userDetailsService;
+    private final RevocationJetonsService revocationJetonsService;
 
-    public AuthTokenFilter(JwtUtils jwtUtils, UserDetailsServiceImpl userDetailsService) {
+    public AuthTokenFilter(JwtUtils jwtUtils, UserDetailsServiceImpl userDetailsService,
+                           RevocationJetonsService revocationJetonsService) {
         this.jwtUtils = jwtUtils;
         this.userDetailsService = userDetailsService;
+        this.revocationJetonsService = revocationJetonsService;
     }
 
     @Override
@@ -32,12 +36,15 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         try {
             String jwt = parseJwt(request);
-            if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
+            // Jeton d'une session fermée par la déconnexion : refusé jusqu'à son expiration (DS-14)
+            if (jwt != null && jwtUtils.validateJwtToken(jwt)
+                    && !revocationJetonsService.estRevoque(jwtUtils.lireJeton(jwt).jti())) {
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
 
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
                 // Un compte désactivé après l'émission du jeton ne doit plus être authentifié
-                if (userDetails.isEnabled()) {
+                // Un mot de passe provisoire attribué depuis l'émission du jeton révoque la session (DS-16)
+                if (userDetails.isEnabled() && !emisAvantChangementDeMotDePasse(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authentication =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,
@@ -47,6 +54,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                     authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
                     SecurityContextHolder.getContext().setAuthentication(authentication);
+                    if (motDePasseProvisoireRefuse(request, userDetails)) {
+                        refuserMotDePasseProvisoire(response);
+                        return;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -54,6 +65,27 @@ public class AuthTokenFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /** Mot de passe provisoire : seuls /auth/** et /profil/** (pour le changer) restent accessibles. */
+    private boolean motDePasseProvisoireRefuse(HttpServletRequest request, UserDetails userDetails) {
+        if (!(userDetails instanceof sn.ept.eval.security.services.UserDetailsImpl d) || !d.isMotDePasseProvisoire()) return false;
+        String chemin = request.getRequestURI().substring(request.getContextPath().length());
+        return !(chemin.startsWith("/auth/") || chemin.equals("/profil") || chemin.startsWith("/profil/"));
+    }
+
+    private void refuserMotDePasseProvisoire(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType("application/problem+json;charset=UTF-8");
+        response.getWriter().write("{\"type\":\"about:blank\",\"title\":\"Forbidden\",\"status\":403,"
+                + "\"code\":\"MOT_DE_PASSE_A_CHANGER\","
+                + "\"detail\":\"Vous devez d'abord remplacer votre mot de passe provisoire (profil).\"}");
+    }
+
+    private boolean emisAvantChangementDeMotDePasse(String jwt, UserDetails userDetails) {
+        if (!(userDetails instanceof sn.ept.eval.security.services.UserDetailsImpl d) || d.getMotDePasseModifieLe() == null) return false;
+        // iat est à la seconde : un jeton émis dans la seconde du changement (connexion qui suit) reste valable
+        return jwtUtils.lireJeton(jwt).emisLe().isBefore(d.getMotDePasseModifieLe().truncatedTo(java.time.temporal.ChronoUnit.SECONDS));
     }
 
     private String parseJwt(HttpServletRequest request) {

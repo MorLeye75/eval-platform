@@ -20,7 +20,8 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        Utilisateur user = utilisateurRepository.findByEmail(email)
+        // Même forme que l'email enregistré : la casse saisie ne compte pas
+        Utilisateur user = utilisateurRepository.findByEmail(Utilisateur.normaliserEmail(email))
                 .orElseThrow(() -> new UsernameNotFoundException("Utilisateur introuvable avec l'email: " + email));
 
         return UserDetailsImpl.build(user);
