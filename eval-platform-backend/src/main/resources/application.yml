@@ -58,11 +58,6 @@ cors:
 # spring.mail.host n'est volontairement pas déclaré ici : une valeur vide suffirait à activer l'envoi SMTP.
 app:
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
-  # Premier administrateur d'une installation neuve (aucun administrateur en base) : mot de passe provisoire,
-  # à changer à la première connexion ; ignoré ensuite. À retirer de la configuration une fois connecté.
-  admin-initial:
-    email: ${ADMIN_INITIAL_EMAIL:}
-    mot-de-passe: ${ADMIN_INITIAL_MOT_DE_PASSE:}
   mail:
     expediteur: ${MAIL_EXPEDITEUR:no-reply@ept.sn}
 

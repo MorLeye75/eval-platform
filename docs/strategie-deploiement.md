@@ -38,9 +38,10 @@ de l'extérieur.
    adresse publique, SMTP, Judge0, IA. Sans secret, ou avec un secret trop court, le backend refuse de démarrer.
 4. **Démarrer** le backend (les migrations s'appliquent), servir le frontend par nginx, activer HTTPS.
 5. **Installer Judge0** sur l'hôte interne et vérifier une exécution (`deploy/judge0/verifier.sh`).
-6. **Créer le premier administrateur** : en production, aucun compte de démonstration n'existe. Le backend le crée au
-   premier démarrage depuis `ADMIN_INITIAL_EMAIL` et `ADMIN_INITIAL_MOT_DE_PASSE` (mot de passe provisoire à changer à
-   la première connexion), puis ignore ces variables. L'administrateur crée ensuite les promotions, importe les
+6. **Créer le premier administrateur** : en production, aucun compte de démonstration n'existe, et seul un
+   administrateur peut créer des comptes. **Prérequis à traiter avant un vrai déploiement** : un moyen de créer ce
+   premier compte (par exemple au premier démarrage, depuis deux variables d'environnement, avec un mot de passe
+   provisoire à changer à la première connexion). L'administrateur crée ensuite les promotions, importe les
    étudiants (CSV) et crée les enseignants.
 7. **Vérifier** : page de connexion en HTTPS, e-mail de réinitialisation reçu, une épreuve d'essai de bout en bout.
 
