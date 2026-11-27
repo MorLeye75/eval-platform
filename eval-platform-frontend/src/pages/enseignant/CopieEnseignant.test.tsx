@@ -133,6 +133,17 @@ describe("copie d'un étudiant vue par l'enseignant", () => {
     await waitFor(() => expect(noterReponse).toHaveBeenCalledWith(11, 3))
   })
 
+  it("question sans réponse (quiz laissé vide) : « Sans réponse », ni « À noter » ni formulaire", async () => {
+    vi.mocked(lireCopie).mockResolvedValue(copie({ noteFinale: 0, reponses: [
+      { ...ouverte, reponseId: null, type: "QUIZ_CHRONOMETREE", enonce: "Quelle clause filtre les groupes ?", note: null, notee: false, texte: null },
+    ] }))
+    afficher()
+    const q = await screen.findByRole("article", { name: /Quelle clause filtre les groupes/ })
+    expect(within(q).getByText("Sans réponse")).toBeTruthy()
+    expect(within(q).queryByText("À noter")).toBeNull()
+    expect(within(q).queryByRole("button")).toBeNull()
+  })
+
   it("refus du serveur (409, résultats publiés entre-temps) : son message est affiché", async () => {
     vi.mocked(reviserNote).mockRejectedValue(erreurHttp(409, "Les résultats sont publiés : les notes de cette évaluation ne sont plus modifiables."))
     afficher()

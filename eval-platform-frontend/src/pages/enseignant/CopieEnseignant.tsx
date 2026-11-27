@@ -79,9 +79,14 @@ function Question({ copie, r }: { copie: CopieEnseignantApi; r: ReponseCopieApi 
         <h2 id={idTitre} className="min-w-0 font-semibold break-words">
           <span className="text-muted-foreground">Question {r.ordre} · </span>{r.enonce}
         </h2>
-        <span className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${r.notee ? "bg-primary/10 text-primary" : "bg-amber-100 text-amber-800"}`}>
-          {r.notee && r.note !== null ? `${nombre(r.note)} / ${nombre(r.pointsMax)}` : "À noter"}
-        </span>
+        {r.reponseId === null ? (
+          // Rien d'enregistré (quiz laissé vide) : compte 0, rien à noter
+          <span className="rounded-full bg-muted px-2.5 py-0.5 text-sm font-semibold text-muted-foreground">Sans réponse</span>
+        ) : (
+          <span className={`rounded-full px-2.5 py-0.5 text-sm font-semibold ${r.notee ? "bg-primary/10 text-primary" : "bg-amber-100 text-amber-800"}`}>
+            {r.notee && r.note !== null ? `${nombre(r.note)} / ${nombre(r.pointsMax)}` : "À noter"}
+          </span>
+        )}
       </div>
 
       <Contenu r={r} />
