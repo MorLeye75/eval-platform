@@ -73,6 +73,12 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `JUDGE0_URL` | oui, pour corriger le code | `http://localhost:2358` | Judge0 auto-hébergé, sur le réseau interne uniquement (DS-12) |
 | `JUDGE0_TOKEN` | si Judge0 en exige un | vide | jeton envoyé dans l'en-tête `X-Auth-Token` (`AUTHN_TOKEN` de Judge0) |
 | `JUDGE0_CONCURRENCE` | non | `2` | corrections avec du code simultanées : le nombre de workers Judge0 |
+| `CORRECTION_IA_FOURNISSEUR` | non | `simule` | `simule` = correcteur sans réseau (démonstration, tests) ; `llm` = vrai modèle de langage (DS-08). **Avec `llm`, le texte des réponses des étudiants est envoyé au fournisseur** : accord de l'établissement requis, ou réponses fictives |
+| `LLM_API_KEY` | **oui** si `llm` | vide | clé d'API du fournisseur (jamais dans le dépôt : environnement ou `.env`). Sans elle, le démarrage est refusé avec `llm` |
+| `LLM_URL` | non | `https://api.groq.com/openai/v1/chat/completions` | point d'accès au format « chat completions » d'OpenAI (Groq, Gemini, OpenRouter…) ; `https` obligatoire hors poste local |
+| `LLM_MODEL` | non | `openai/gpt-oss-120b` | nom du modèle chez le fournisseur |
+| `LLM_DELAI_SECONDES` | non | `20` | délai maximal d'un appel ; au-delà, la réponse reste à noter à la main |
+| `LLM_EFFORT_RAISONNEMENT` | non | `low` | propre aux modèles à raisonnement (gpt-oss) : `low`, `medium`, `high` ; **vide pour les autres modèles** |
 | `FRONTEND_URL` | **oui**, pour le mot de passe oublié | `http://localhost:5173` | adresse du front dans le lien envoyé par e-mail (`FRONTEND_URL/reset-password/<jeton>`) |
 | `SPRING_MAIL_HOST` | **oui** en production | aucun | serveur SMTP ; avec `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` et `SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true`. Sans lui, les liens de réinitialisation sont écrits dans les logs (démonstration locale seulement : ils donnent accès au compte) |
 | `MAIL_EXPEDITEUR` | non | `no-reply@ept.sn` | adresse d'expédition des e-mails |

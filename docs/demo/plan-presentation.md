@@ -27,7 +27,7 @@ Pour la passation, utiliser les évaluations de démonstration **déjà ouvertes
 
 ## À dire franchement
 
-- **Correction IA** : c'est un correcteur **simulé** (il compare des mots, ce n'est pas une vraie correction pédagogique). Le vrai modèle dépend d'un choix de fournisseur, de clé et de coût, **et d'une question de confidentialité** : les réponses des étudiants partiraient chez un tiers. L'enseignant valide ou note à la main chaque réponse.
+- **Correction IA** : deux modes. Par défaut, un correcteur **simulé** (il compare des mots, ce n'est pas une vraie correction). Avec un modèle réel branché (Groq, `CORRECTION_IA_FOURNISSEUR=llm`), **le texte des réponses part chez le fournisseur** : en démonstration, uniquement des réponses fictives ; en production, une décision de confidentialité à prendre avec l'établissement. Dans tous les cas, l'enseignant valide, ajuste ou rejette chaque proposition, et note à la main si le modèle est indisponible.
 - **Exécution du code (Judge0)** : testée avec un faux exécuteur ; le test contre une vraie instance Judge0 reste à faire. Ne pas montrer de question de code tant que ce n'est pas validé.
 - **Paramètres système** : lecture seule, volontairement. Les rendre modifiables demande de brancher chaque réglage un par un.
 - **Limites connues** : pas d'édition d'une note après coup, pas d'écran pour noter à la main une question de code sans cas de test, pas de refresh token.
