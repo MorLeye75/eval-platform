@@ -213,15 +213,15 @@ public class DonneesDemoInitializer implements CommandLineRunner {
             Soumission s = copie(e, et.getKey(), 80);
             repondreQcm(s, q1, n >= 0.45);
             repondreOuverte(s, q2, texteJointures(n), n, StatutProposition.VALIDEE, true);
-            ReponseCode rc = repondreCode(s, q3, n, codeSomme(n));
+            ReponseCode rc = repondreCode(s, q3, ProgrammesDemo.somme(n));
             if (et.getKey().getNom().equals("Faye")) alerte(s, 1, NiveauAlerte.INFO);
             if (et.getKey().getNom().equals("Diop")) {
-                // Judge0 a noté 5/10 (2 cas sur 4) ; l'enseignant a relu le code avant de publier
+                // Judge0 a noté 7,5/10 (3 cas sur 4 : isdigit ignore « -1 ») ; l'enseignant a relu le code avant de publier
                 double ancienne = rc.getNoteObtenue();
-                rc.setNoteObtenue(7.5);
-                String motif = "Algorithme correct : seule la lecture des nombres négatifs (isdigit) fait échouer les cas restants.";
+                rc.setNoteObtenue(9.0);
+                String motif = "Algorithme juste ; seul le cas avec un nombre négatif échoue (isdigit ignore le signe « - ») : erreur mineure.";
                 rc.setCommentaireProf("Note revue par l'enseignant : " + motif);
-                revision[0] = new RevisionNote(rc, prof, ancienne, 7.5, motif, fermeture.plusDays(2));
+                revision[0] = new RevisionNote(rc, prof, ancienne, 9.0, motif, fermeture.plusDays(2));
             }
             terminer(s);
         }
@@ -257,10 +257,10 @@ public class DonneesDemoInitializer implements CommandLineRunner {
                 ReponseCode rc = new ReponseCode();
                 rc.setQuestion(q2);
                 rc.setLangage("python");
-                rc.setCodeSoumis(codeVoyelles(0.6));
+                rc.setCodeSoumis(ProgrammesDemo.VOYELLES_SANS_MINUSCULES.code);
                 s.addReponse(rc);
             } else {
-                repondreCode(s, q2, n, codeVoyelles(n));
+                repondreCode(s, q2, ProgrammesDemo.voyelles(n));
             }
             // Aminou et Fatou Sarr : la proposition de l'IA attend la validation de l'enseignant
             repondreOuverte(s, q3, texteRecursivite(n), n, aminouCopie || sarr ? StatutProposition.EN_ATTENTE
@@ -371,23 +371,34 @@ public class DonneesDemoInitializer implements CommandLineRunner {
         s.addReponse(r);
     }
 
-    /** Code exécuté par Judge0 : les premiers cas réussis selon le niveau, les autres en mauvaise réponse. */
-    private ReponseCode repondreCode(Soumission s, QuestionCode q, double niveau, String code) {
+    /**
+     * Code exécuté comme le ferait Judge0 : chaque cas compare ce que le programme affiche vraiment à la sortie attendue.
+     * Un programme que Python refuse (erreur de syntaxe) échoue à tous les cas.
+     */
+    private ReponseCode repondreCode(Soumission s, QuestionCode q, ProgrammesDemo programme) {
         ReponseCode r = new ReponseCode();
         r.setQuestion(q);
         r.setLangage("python");
-        r.setCodeSoumis(code);
+        r.setCodeSoumis(programme.code);
         List<CasDeTest> cas = q.getCasTests();
-        int reussis = (int) Math.max(0, Math.min(cas.size(), Math.round(niveau * cas.size())));
+        int reussis = 0;
         for (int i = 0; i < cas.size(); i++) {
+            CasDeTest c = cas.get(i);
             ResultatCasTest rt = new ResultatCasTest();
-            rt.setCasDeTest(cas.get(i));
-            boolean ok = i < reussis;
-            rt.setEstValide(ok);
-            rt.setVerdict(ok ? VerdictCas.REUSSI : VerdictCas.MAUVAISE_REPONSE);
-            rt.setSortieObtenue(ok ? cas.get(i).getSortieAttendue() : cas.get(i).getSortieAttendue() + "0");
+            rt.setCasDeTest(c);
             rt.setTempsExecution(0.02 + i * 0.01);
+            Optional<String> sortie = programme.executer(c.getEntree());
+            boolean ok = sortie.isPresent() && sortie.get().equals(c.getSortieAttendue().strip());
+            rt.setSortieObtenue(sortie.orElse(""));
+            rt.setEstValide(ok);
+            if (programme.erreurDeSyntaxe()) {
+                rt.setVerdict(VerdictCas.ERREUR_EXECUTION);
+                rt.setMessageErreur(ProgrammesDemo.ERREUR_SYNTAXE);
+            } else {
+                rt.setVerdict(ok ? VerdictCas.REUSSI : VerdictCas.MAUVAISE_REPONSE);
+            }
             r.addResultat(rt);
+            if (ok) reussis++;
         }
         r.setNoteObtenue(arrondi(q.getPoints() * reussis / cas.size()));
         r.setValideeParProf(true);
@@ -442,17 +453,6 @@ public class DonneesDemoInitializer implements CommandLineRunner {
                 + "de gérer une pile à la main."
                 : n >= 0.5 ? "C'est une fonction qui s'appelle elle-même, par exemple factorielle."
                 : "C'est une boucle qui se répète.";
-    }
-
-    private static String codeSomme(double n) {
-        return n >= 0.75 ? "n = int(input())\ntotal = 0\nfor _ in range(n):\n    total += int(input())\nprint(total)\n"
-                : "n = int(input())\ntotal = 0\nfor _ in range(n):\n    ligne = input()\n    if ligne.isdigit():\n"
-                + "        total += int(ligne)\nprint(total)\n";
-    }
-
-    private static String codeVoyelles(double n) {
-        return n >= 0.75 ? "texte = input().lower()\nprint(sum(1 for c in texte if c in \"aeiouy\"))\n"
-                : "texte = input()\ncompte = 0\nfor c in texte:\n    if c in \"aeiou\":\n        compte += 1\nprint(compte)\n";
     }
 
     private static double arrondi(double valeur) {

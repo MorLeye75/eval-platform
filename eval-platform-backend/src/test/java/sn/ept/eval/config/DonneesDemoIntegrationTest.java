@@ -9,7 +9,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.support.TransactionTemplate;
+import sn.ept.eval.model.ReponseCode;
+import sn.ept.eval.model.ResultatCasTest;
+import sn.ept.eval.model.enums.VerdictCas;
 import sn.ept.eval.repository.EvaluationRepository;
+import sn.ept.eval.repository.ReponseEtudiantRepository;
 
 import java.util.List;
 import java.util.Map;
@@ -36,6 +41,8 @@ class DonneesDemoIntegrationTest {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private EvaluationRepository evaluationRepository;
     @Autowired private DonneesDemoInitializer initializer;
+    @Autowired private ReponseEtudiantRepository reponseEtudiantRepository;
+    @Autowired private TransactionTemplate transactionTemplate;
 
     @Test
     @DisplayName("Évaluations de démonstration : terminées et publiées (avec notes, statistiques, historique), terminée à publier, brouillon et à venir")
@@ -124,6 +131,50 @@ class DonneesDemoIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         List<Object> pourLeControle = JsonPath.read(notifications, "$.notifications[?(@.message =~ /.*Contrôle continu.*/)]");
         assertThat(pourLeControle).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("Code des copies : chaque verdict et chaque note correspondent à ce que le code affiché produit vraiment")
+    void verdictsCoherentsAvecLeCode() {
+        Integer verifiees = transactionTemplate.execute(tx -> {
+            int n = 0;
+            for (var brute : reponseEtudiantRepository.findAll()) {
+                if (!(org.hibernate.Hibernate.unproxy(brute) instanceof ReponseCode rc) || rc.getResultatsCasTests().isEmpty()) continue;
+                ProgrammesDemo programme = ProgrammesDemo.de(rc.getCodeSoumis())
+                        .orElseThrow(() -> new AssertionError("code inconnu : " + rc.getCodeSoumis()));
+                int reussis = 0;
+                for (ResultatCasTest rt : rc.getResultatsCasTests()) {
+                    String attendu = rt.getCasDeTest().getSortieAttendue();
+                    String obtenu = programme.executer(rt.getCasDeTest().getEntree()).orElse("");
+                    assertThat(rt.getSortieObtenue()).as("sortie de %s pour %s", programme, rt.getCasDeTest().getEntree()).isEqualTo(obtenu);
+                    assertThat(rt.getEstValide()).isEqualTo(!programme.erreurDeSyntaxe() && obtenu.equals(attendu));
+                    assertThat(rt.getVerdict()).isEqualTo(programme.erreurDeSyntaxe() ? VerdictCas.ERREUR_EXECUTION
+                            : rt.getEstValide() ? VerdictCas.REUSSI : VerdictCas.MAUVAISE_REPONSE);
+                    if (rt.getEstValide()) reussis++;
+                }
+                double attendue = rc.getQuestion().getPoints() * reussis / rc.getResultatsCasTests().size();
+                Double revisee = jdbcTemplate.query("select ancienne_note from revisions_note where reponse_id = ?",
+                        rs -> rs.next() ? rs.getDouble(1) : null, rc.getId());
+                // Une note revue garde dans l'historique la note de la correction automatique
+                assertThat(revisee != null ? revisee : rc.getNoteObtenue()).as("note de %s", programme).isEqualTo(attendue);
+                n++;
+            }
+            return n;
+        });
+        assertThat(verifiees).isGreaterThanOrEqualTo(20);
+    }
+
+    @Test
+    @DisplayName("Programmes de démonstration : sorties réelles (voyelles sans minuscules ni y : 1 cas sur 4 ; somme avec isdigit : le cas négatif échoue)")
+    void sortiesDesProgrammes() {
+        assertThat(List.of("Bonjour", "PYTHON", "xyz", "rythme").stream()
+                .map(e -> ProgrammesDemo.VOYELLES_DEBUTANT.executer(e).orElseThrow()).toList()).containsExactly("3", "0", "0", "1");
+        assertThat(List.of("Bonjour", "PYTHON", "xyz", "rythme").stream()
+                .map(e -> ProgrammesDemo.VOYELLES_JUSTE.executer(e).orElseThrow()).toList()).containsExactly("3", "2", "1", "2");
+        assertThat(ProgrammesDemo.SOMME_SANS_NEGATIFS.executer("4\n-1\n1\n5\n5")).contains("11");
+        assertThat(ProgrammesDemo.SOMME_AVEC_N.executer("3\n1\n2\n3")).contains("9");
+        assertThat(ProgrammesDemo.SOMME_JUSTE.executer("0")).contains("0");
+        assertThat(ProgrammesDemo.VOYELLES_ERREUR_SYNTAXE.executer("Bonjour")).isEmpty();
     }
 
     @Test
