@@ -89,7 +89,7 @@ les copies, DS-12 les corrige, **DS-07 publie les résultats**, DS-15 notifie, D
 | Import CSV tout ou rien, 500 lignes | une erreur de saisie ne doit pas laisser un import à moitié fait ; BCrypt est lent (hachage en parallèle) |
 | Connecteur IA simulé par défaut | pas de clé ni de fournisseur imposé ; la note de l'IA est une proposition, jamais écrite sans validation ; le vrai modèle se branche derrière `CorrecteurIA` (aucune identité d'étudiant envoyée) |
 | Génération déclenchée par l'enseignant, évaluation terminée | pas de coût d'appels imprévu, relançable sans doublon |
-| Copie `EVALUE` : plus de modification de note | hors périmètre ; à reprendre si l'enseignant doit corriger avant publication |
+| Révision d'une note avant publication, définitive après | toute note posée (QCM, Judge0, IA, à la main) peut être revue tant que les résultats ne sont pas publiés : motif obligatoire, montré à l'étudiant, et historique conservé (`revisions_note`, V18 : ancienne note, nouvelle note, motif, auteur, date). Après publication, plus rien ne change : la révision lit l'évaluation sous verrou partagé, la publication (manuelle ou programmée) l'attend ou la précède entièrement (test PostgreSQL) |
 | `window.confirm` pour supprimer et publier les résultats | actions destructives ou irréversibles ; un vrai dialogue pourra le remplacer |
 
 ## Vérifier
@@ -134,7 +134,7 @@ Postman : dossier « 05 - Évaluations enseignant (DS-03 à DS-07) » dans `docs
 **Module d'Aminou**
 
 - **DS-08, suite** : connecteur vers un vrai modèle de langage (fournisseur, clé `LLM_API_KEY` et coût à décider avec
-  l'encadrant), modification d'une note après coup. Les notes manuelles ont leur écran (section « À noter à la main » de la validation IA).
+  l'encadrant). Les notes manuelles ont leur écran (section « À noter à la main » de la validation IA) ; la copie complète de chaque étudiant (code, verdicts, notes) se relit depuis « Notes par étudiant », où une note se revoit avant publication.
 - **DS-09, suite** : export Excel natif si l'encadrant l'exige (le CSV s'ouvre dans Excel). Fait depuis : export du détail par question, rapport PDF, comparaison entre évaluations (DS-19), publication différée des résultats (DS-07).
 - **DS-16, suite** : gestion des promotions (modifier, supprimer), révocation des sessions d'un compte dont on réinitialise le mot de passe, changement de mot de passe obligatoire à la première connexion, paramètres système de l'espace administrateur (aperçu non branché : aucune configuration modifiable à chaud n'existe côté serveur).
 - Paramètres système de l'administrateur : lecture seule (configuration réellement appliquée, sans secret). Les rendre modifiables demande de brancher chaque réglage, un par un : à décider avec Mor.

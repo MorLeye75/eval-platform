@@ -63,7 +63,7 @@ public class ExportResultatsService {
                     notee ? copie.getNoteFinale() : null,
                     notee && d.bareme() > 0 ? StatistiquesEvaluationService.arrondi(
                             StatistiquesEvaluationService.sur20(copie.getNoteFinale(), d.bareme())) : null,
-                    copie == null ? null : copie.getDateRemise());
+                    copie == null ? null : copie.getDateRemise(), copie == null ? null : copie.getId());
         }).toList());
     }
 

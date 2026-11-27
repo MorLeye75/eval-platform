@@ -40,6 +40,7 @@ const StatistiquesEvaluation = lazy(() => import("@/pages/enseignant/Statistique
 const ComparaisonEvaluations = lazy(() => import("@/pages/enseignant/ComparaisonEvaluations"))
 const PublicationResultats = lazy(() => import("@/pages/enseignant/PublicationResultats"))
 const ExportResultats = lazy(() => import("@/pages/enseignant/ExportResultats"))
+const CopieEnseignant = lazy(() => import("@/pages/enseignant/CopieEnseignant"))
 
 // Partagé
 const NotificationsPage = lazy(() => import("@/pages/NotificationsPage"))
@@ -138,6 +139,7 @@ export function AppRouter() {
             <Route path="comparaison" element={<ComparaisonEvaluations />} />
             <Route path="publication" element={<PublicationResultats />} />
             <Route path="export" element={<ExportResultats />} />
+            <Route path="copies/:id" element={<CopieEnseignant />} />
             <Route path="notifications" element={<NotificationsPage />} />
             <Route path="profil" element={<ProfilePage />} />
           </Route>

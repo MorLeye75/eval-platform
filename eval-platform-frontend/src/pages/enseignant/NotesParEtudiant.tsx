@@ -1,9 +1,10 @@
+import { Link } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query"
 import { cleResultats, libelleEtatCopie, resultatsEvaluation } from "@/lib/statistiquesEnseignant"
 import { messageErreur } from "@/lib/passation"
 
 // Notes par étudiant d'une évaluation terminée (DS-09, section C) : mêmes lignes que l'export CSV, sans e-mail.
-// Une note absente s'affiche « — », jamais 0.
+// Une note absente s'affiche « — », jamais 0. Chaque copie remise mène à la copie complète (relecture, révision).
 
 export default function NotesParEtudiant({ evaluationId }: { evaluationId: number }) {
   const requete = useQuery({ queryKey: cleResultats(evaluationId), queryFn: () => resultatsEvaluation(evaluationId) })
@@ -28,6 +29,7 @@ export default function NotesParEtudiant({ evaluationId }: { evaluationId: numbe
             <th scope="col" className="px-3 py-2">État</th>
             <th scope="col" className="px-3 py-2 text-right">Note / {bareme}</th>
             <th scope="col" className="px-3 py-2 text-right">Sur 20</th>
+            <th scope="col" className="px-3 py-2"><span className="sr-only">Copie</span></th>
           </tr>
         </thead>
         <tbody>
@@ -40,6 +42,14 @@ export default function NotesParEtudiant({ evaluationId }: { evaluationId: numbe
               <td className="px-3 py-2 text-muted-foreground">{libelleEtatCopie(l.etat)}</td>
               <td className="px-3 py-2 text-right">{l.note === null ? "—" : l.note.toLocaleString("fr-FR")}</td>
               <td className="px-3 py-2 text-right font-semibold">{l.noteSurVingt === null ? "—" : l.noteSurVingt.toLocaleString("fr-FR")}</td>
+              <td className="px-3 py-2 text-right">
+                {l.soumissionId !== null && (
+                  <Link to={`/enseignant/copies/${l.soumissionId}`} aria-label={`Voir la copie de ${l.prenom} ${l.nom}`}
+                        className="text-sm font-medium text-primary hover:underline">
+                    Voir la copie
+                  </Link>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen, within } from "@testing-library/react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { MemoryRouter } from "react-router-dom"
 import { AxiosError, type AxiosResponse } from "axios"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { libelleEtatCopie, resultatsEvaluation, type ResultatsEvaluationApi } from "@/lib/statistiquesEnseignant"
@@ -14,15 +15,15 @@ vi.mock("@/lib/statistiquesEnseignant", async (original) => ({
 const DONNEES: ResultatsEvaluationApi = {
   evaluationId: 3, bareme: 20,
   lignes: [
-    { etudiantId: 1, numEtudiant: "ETU-1", nom: "Ba", prenom: "Cheikh", etat: "EVALUE", note: 14.5, noteSurVingt: 14.5, dateRemise: "2030-01-10T10:00:00" },
-    { etudiantId: 2, numEtudiant: null, nom: "Diop", prenom: "Moussa", etat: "EN_CORRECTION", note: null, noteSurVingt: null, dateRemise: "2030-01-10T10:05:00" },
-    { etudiantId: 3, numEtudiant: "ETU-3", nom: "Sy", prenom: "Awa", etat: "ABSENT", note: null, noteSurVingt: null, dateRemise: null },
+    { etudiantId: 1, numEtudiant: "ETU-1", nom: "Ba", prenom: "Cheikh", etat: "EVALUE", note: 14.5, noteSurVingt: 14.5, dateRemise: "2030-01-10T10:00:00", soumissionId: 40 },
+    { etudiantId: 2, numEtudiant: null, nom: "Diop", prenom: "Moussa", etat: "EN_CORRECTION", note: null, noteSurVingt: null, dateRemise: "2030-01-10T10:05:00", soumissionId: 41 },
+    { etudiantId: 3, numEtudiant: "ETU-3", nom: "Sy", prenom: "Awa", etat: "ABSENT", note: null, noteSurVingt: null, dateRemise: null, soumissionId: null },
   ],
 }
 
 function afficher() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(<QueryClientProvider client={client}><NotesParEtudiant evaluationId={3} /></QueryClientProvider>)
+  render(<QueryClientProvider client={client}><MemoryRouter><NotesParEtudiant evaluationId={3} /></MemoryRouter></QueryClientProvider>)
 }
 
 describe("notes par étudiant (DS-09, section C)", () => {
@@ -41,6 +42,14 @@ describe("notes par étudiant (DS-09, section C)", () => {
     expect(within(screen.getByText("Awa Sy").closest("tr") as HTMLElement).getByText("Absent")).toBeTruthy()
     expect(screen.getByText("Note / 20")).toBeTruthy()
     expect(resultatsEvaluation).toHaveBeenCalledWith(3)
+  })
+
+  it("chaque copie remise mène à la copie complète (relecture, révision) ; un absent n'a pas de lien", async () => {
+    afficher()
+    const ligne = (await screen.findByText("Cheikh Ba")).closest("tr") as HTMLElement
+    expect(within(ligne).getByRole("link", { name: "Voir la copie de Cheikh Ba" }).getAttribute("href")).toBe("/enseignant/copies/40")
+    const absent = screen.getByText("Awa Sy").closest("tr") as HTMLElement
+    expect(within(absent).queryByRole("link")).toBeNull()
   })
 
   it("aucun étudiant : message clair", async () => {

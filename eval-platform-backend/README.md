@@ -173,6 +173,8 @@ Toutes les routes sont préfixées par `/api`. Les routes autres que le login ex
 | PUT | `/enseignant/corrections-ia/{id}/rejeter` | enseignant (propriétaire) | rejette ; `{ note }` obligatoire (DS-08) |
 | GET | `/enseignant/corrections-manuelles` | enseignant | réponses ouvertes sans proposition IA et pas encore notées, à noter à la main (filtre `evaluationId`) ; même critère que `enCours` (DS-08) |
 | PUT | `/enseignant/reponses/{id}/note` | enseignant (propriétaire) | note une réponse sans proposition (modèle indisponible, code sans cas de test) (DS-08) |
+| GET | `/enseignant/soumissions/{id}/copie` | enseignant (propriétaire) | copie complète : réponses, code, verdicts des cas de test (masqués compris), notes, historique des révisions ; `notesModifiables` (DS-08) |
+| PUT | `/enseignant/reponses/{id}/revision` | enseignant (propriétaire) | revoit une note déjà posée (QCM, Judge0, IA, à la main) avant publication : `{ note, motif }`, motif obligatoire, tracé (V18) et montré à l'étudiant ; note finale recalculée ; 409 si résultats publiés ou réponse pas encore notée (DS-08) |
 | GET | `/admin/utilisateurs` | admin | liste des comptes (filtres `role`, `actif`, `q`), jamais de mot de passe (DS-16) |
 | POST | `/admin/utilisateurs` | admin | crée un compte ; renvoie un mot de passe provisoire, une seule fois (DS-16) |
 | PUT | `/admin/utilisateurs/{id}` | admin | modifie un compte (jamais son rôle) ; un étudiant qui a des copies ne change plus de promotion (DS-16) |

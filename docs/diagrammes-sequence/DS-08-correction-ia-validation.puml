@@ -151,4 +151,15 @@ note over B, D
   tests), LLM_API_KEY, délai d'attente 30 s, concurrence de l'exécuteur (2 appels simultanés au plus).
   **Migration** : aucune (table propositions_ia existante).
 end note
+== F — Relire une copie et revoir une note avant la publication ==
+note over E, D
+  E -> F -> B : GET /api/enseignant/soumissions/{id}/copie : réponses, code, verdicts des cas de test, notes, historique.
+  E -> F -> B : PUT /api/enseignant/reponses/{id}/revision { note, motif } pour une réponse DÉJÀ notée (QCM, Judge0, IA, main).
+  B : 403 hors propriétaire, 400 sans motif / hors barème / note identique ;
+  verrou partagé de l'évaluation (FOR SHARE) puis de la copie (FOR UPDATE) ; 409 si résultats publiés ou réponse non notée.
+  B -> D : INSERT revisions_note (V18 : ancienne, nouvelle, motif, auteur, date) ; note et commentaire (motif) de la réponse ;
+  note finale recalculée si la copie est EVALUE. La publication (UPDATE conditionnel de l'évaluation) attend la fin de
+  la révision : aucune note ne change après la publication.
+end note
+
 @enduml

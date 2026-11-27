@@ -121,6 +121,8 @@ export interface LigneResultatApi {
   note: number | null
   noteSurVingt: number | null
   dateRemise: string | null
+  /** Copie à relire (et dont on peut réviser les notes avant publication) ; null pour un absent. */
+  soumissionId: number | null
 }
 
 export interface ResultatsEvaluationApi {
