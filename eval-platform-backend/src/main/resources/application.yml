@@ -64,6 +64,19 @@ correction:
     url: ${JUDGE0_URL:http://localhost:2358}
     token: ${JUDGE0_TOKEN:}
     concurrence: ${JUDGE0_CONCURRENCE:2}
+  # Correction assistée des questions ouvertes (DS-08). simule = correcteur sans réseau (démonstration, tests) ;
+  # llm = vrai modèle de langage : le texte des réponses est ENVOYÉ au fournisseur (accord de l'établissement requis).
+  # Format « chat completions » d'OpenAI (Groq par défaut ; Gemini, OpenRouter... en changeant url, modele et cle).
+  # La clé ne se met jamais dans ce fichier : variable d'environnement ou fichier .env non versionné.
+  ia:
+    fournisseur: ${CORRECTION_IA_FOURNISSEUR:simule}
+    llm:
+      url: ${LLM_URL:https://api.groq.com/openai/v1/chat/completions}
+      modele: ${LLM_MODEL:openai/gpt-oss-120b}
+      cle: ${LLM_API_KEY:}
+      delai-secondes: ${LLM_DELAI_SECONDES:20}
+      # Propre aux modèles à raisonnement (gpt-oss) : low, medium ou high. Laisser vide pour les autres modèles.
+      effort-raisonnement: ${LLM_EFFORT_RAISONNEMENT:low}
 
 # Documentation OpenAPI / Swagger UI : désactivée hors développement (elle décrit toute l'API),
 # activable explicitement avec SWAGGER_ENABLED=true

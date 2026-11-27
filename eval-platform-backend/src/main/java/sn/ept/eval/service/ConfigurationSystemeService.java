@@ -60,6 +60,8 @@ public class ConfigurationSystemeService {
 
     private String libelleFournisseurIA() {
         String fournisseur = environnement.getProperty("correction.ia.fournisseur", "simule");
-        return "simule".equals(fournisseur) ? "correcteur simulé (démonstration, pas un vrai modèle)" : "modèle « " + fournisseur + " »";
+        if ("simule".equals(fournisseur)) return "correcteur simulé (démonstration, pas un vrai modèle)";
+        // Modèle externe : on le dit clairement, le texte des réponses quitte la plateforme
+        return "modèle externe « " + environnement.getProperty("correction.ia.llm.modele", fournisseur) + " » : le texte des réponses est envoyé au fournisseur";
     }
 }
