@@ -13,6 +13,14 @@ vi.mock("@/lib/copiesEnseignant", async (original) => ({
   lireCopie: vi.fn(),
   reviserNote: vi.fn(),
 }))
+// Monaco ne tourne pas dans jsdom : l'éditeur est remplacé par ses propriétés, lisibles par les tests
+const editeur: { props?: { language?: string; value?: string; options?: { readOnly?: boolean } } } = {}
+vi.mock("@monaco-editor/react", () => ({
+  default: (props: { language?: string; value?: string; options?: { readOnly?: boolean } }) => {
+    editeur.props = props
+    return <pre data-testid="monaco">{props.value}</pre>
+  },
+}))
 vi.mock("@/lib/correctionsIA", async (original) => ({
   ...(await original<typeof import("@/lib/correctionsIA")>()),
   noterReponse: vi.fn(),
@@ -73,6 +81,14 @@ describe("copie d'un étudiant vue par l'enseignant", () => {
     expect(within(q).getByText("2 / 4")).toBeTruthy()
     expect(within(question("Que garantit TCP")).getByText("TCP garantit l'ordre.")).toBeTruthy()
     expect(lireCopie).toHaveBeenCalledWith(5)
+  })
+
+  it("le code s'affiche dans Monaco, coloré selon son langage, en lecture seule", async () => {
+    afficher()
+    const q = await screen.findByRole("article", { name: /Afficher l'entrée/ })
+    expect(within(q).getByTestId("monaco").textContent).toBe("print(input().strip() )")
+    expect(editeur.props?.language).toBe("python")
+    expect(editeur.props?.options?.readOnly).toBe(true)
   })
 
   it("réviser : le motif est obligatoire, puis la nouvelle note et le motif partent au serveur", async () => {

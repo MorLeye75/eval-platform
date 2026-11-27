@@ -1,6 +1,9 @@
 import { useState } from "react"
 import { Link, useParams } from "react-router-dom"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import Editor from "@monaco-editor/react"
+// Monaco livré avec l'application (pas de CDN), comme pour l'épreuve
+import "@/lib/monaco"
 import { ArrowLeft, History, Lock, PenLine } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -13,6 +16,7 @@ import {
   type ReponseCopieApi,
 } from "@/lib/copiesEnseignant"
 import { lireNoteSaisie, noterReponse } from "@/lib/correctionsIA"
+import { LANGAGES_LABELS } from "@/lib/langages"
 import { cleResultats } from "@/lib/statistiquesEnseignant"
 import { messageErreur } from "@/lib/passation"
 
@@ -107,11 +111,9 @@ function Contenu({ r }: { r: ReponseCopieApi }) {
   if (r.type === "CODE") {
     return (
       <div className="flex flex-col gap-3">
-        {/* Code de l'étudiant : affiché tel quel (échappé par React), jamais exécuté ici */}
-        <pre className="max-h-96 overflow-auto rounded-xl border border-border bg-muted/40 p-3 text-xs">
-          <code>{r.code?.trim() ? r.code : "Aucun code soumis."}</code>
-        </pre>
-        {r.langage && <p className="text-[11px] text-muted-foreground">Langage : {r.langage}</p>}
+        {r.code?.trim() ? <CodeEnLecture code={r.code} langage={r.langage} />
+          : <p className="text-sm text-muted-foreground">Aucun code soumis.</p>}
+        {r.langage && <p className="text-[11px] text-muted-foreground">Langage : {LANGAGES_LABELS[r.langage] ?? r.langage}</p>}
         {r.casDeTests.length > 0 ? (
           <div className="overflow-x-auto rounded-xl border border-border">
             <table className="w-full border-collapse text-xs">
@@ -163,6 +165,36 @@ function Contenu({ r }: { r: ReponseCopieApi }) {
   return (
     <div className="whitespace-pre-wrap rounded-xl border border-border bg-muted/30 px-4 py-3 text-sm">
       {r.texte?.trim() ? r.texte : "Aucune réponse."}
+    </div>
+  )
+}
+
+/**
+ * Code de l'étudiant dans Monaco, en lecture seule : même coloration et même thème que pendant l'épreuve. Jamais
+ * exécuté ici. Hauteur ajustée au code (3 à 30 lignes visibles, défilement au-delà).
+ */
+function CodeEnLecture({ code, langage }: { code: string; langage: string | null }) {
+  const lignes = Math.min(Math.max(code.split("\n").length, 3), 30)
+  return (
+    <div className="overflow-hidden rounded-xl border border-border/60">
+      <Editor
+        height={`${lignes * 19 + 16}px`}
+        language={langage ?? "plaintext"}
+        value={code}
+        theme="vs-dark"
+        loading={<pre className="p-3 font-mono text-xs whitespace-pre-wrap">{code}</pre>}
+        options={{
+          readOnly: true,
+          domReadOnly: true,
+          ariaLabel: `Code de l'étudiant${langage ? ` (${LANGAGES_LABELS[langage] ?? langage})` : ""}, en lecture seule`,
+          minimap: { enabled: false },
+          fontSize: 13,
+          scrollBeyondLastLine: false,
+          renderLineHighlight: "none",
+          contextmenu: false,
+          padding: { top: 8, bottom: 8 },
+        }}
+      />
     </div>
   )
 }
