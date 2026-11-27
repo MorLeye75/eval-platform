@@ -82,9 +82,13 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `FRONTEND_URL` | **oui**, pour le mot de passe oublié | `http://localhost:5173` | adresse du front dans le lien envoyé par e-mail (`FRONTEND_URL/reset-password/<jeton>`) |
 | `SPRING_MAIL_HOST` | **oui** en production | aucun | serveur SMTP ; avec `SPRING_MAIL_PORT`, `SPRING_MAIL_USERNAME`, `SPRING_MAIL_PASSWORD` et `SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true`. Sans lui, les liens de réinitialisation sont écrits dans les logs (démonstration locale seulement : ils donnent accès au compte) |
 | `MAIL_EXPEDITEUR` | non | `no-reply@ept.sn` | adresse d'expédition des e-mails |
+| `ADMIN_INITIAL_EMAIL` | **oui** au premier démarrage | vide | premier administrateur d'une installation neuve, créé seulement s'il n'existe aucun administrateur ; à retirer ensuite |
+| `ADMIN_INITIAL_MOT_DE_PASSE` | **oui** au premier démarrage | vide | son mot de passe provisoire (12 à 72 caractères), à changer à la première connexion ; une configuration incomplète ou trop faible bloque le démarrage |
 | `FORWARD_HEADERS_STRATEGY` | derrière un proxy | `none` | `native` derrière un reverse proxy (nginx, traefik…) pour lire l'IP réelle du client dans `X-Forwarded-For` ; laisser `none` sans proxy (sinon un client pourrait inventer son IP) |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.
+Procédure complète d'installation sur un serveur (PostgreSQL, systemd, nginx, HTTPS, Judge0, sauvegardes, mises à
+jour) : [`docs/deploiement.md`](../docs/deploiement.md).
 L'absence de `DB_PASSWORD` est détectée avant toute connexion à la base (`ControleConfigurationObligatoire`) :
 sans ce contrôle, Spring enverrait la chaîne `${DB_PASSWORD}` comme mot de passe.
 Un `JWT_SECRET` qui n'est pas en Base64 ou fait moins de 256 bits bloque aussi le démarrage.

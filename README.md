@@ -182,6 +182,8 @@ npm run test
 - [`docs/diagrammes-sequence/`](docs/diagrammes-sequence/README.md): one PlantUML sequence diagram per feature (DS-01 … DS-18). The code follows them; any change starts there.
 - [`eval-platform-backend/README.md`](eval-platform-backend/README.md): routes, services, configuration, migrations.
 - [`eval-platform-frontend/README.md`](eval-platform-frontend/README.md): screens and the API they use.
+- [`docs/deploiement.md`](docs/deploiement.md): production deployment on a Linux server (PostgreSQL, systemd, nginx, HTTPS, Judge0, first administrator, backups, updates).
+- [`docs/demo/`](docs/demo/README.md): demo dataset, on-screen walkthrough and presentation plan.
 
 ---
 
