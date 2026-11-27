@@ -81,9 +81,10 @@ test("résultats : copie remise mais non publiée, aucune note affichée (DS-13)
   const carte = page.locator('[data-slot="card"]').filter({ hasText: QCM })
   await expect(carte.getByText("En attente des résultats")).toBeVisible()
 
-  // Tableau de bord : rien n'est publié
+  // Tableau de bord : les évaluations publiées du jeu de démonstration y figurent, jamais la copie non publiée
   await page.goto("/etudiant/performances")
-  await expect(page.getByText("Pas encore de résultats publiés")).toBeVisible()
+  await expect(page.getByText("Réseaux — QCM de mi-semestre").first()).toBeVisible()
+  await expect(page.getByText(QCM)).toHaveCount(0)
 })
 
 test("quiz chronométré : une question à la fois, sans retour en arrière, imposé par le serveur", async ({ page }) => {

@@ -109,7 +109,8 @@ jobs:
           # Judge0 injoignable : la remise n'en dépend pas, la correction du code est retentée plus tard
           JUDGE0_URL: http://127.0.0.1:2399
         run: |
-          nohup java -jar target/backend-0.0.1-SNAPSHOT.jar > backend.log 2>&1 &
+          # Base minimale : la collection attend les seules évaluations ouvertes, sans le jeu de démonstration complet
+          nohup java -jar target/backend-0.0.1-SNAPSHOT.jar --app.demo.jeu-complet=false > backend.log 2>&1 &
           # 401 sur /auth/me sans jeton : le serveur est prêt
           for i in $(seq 1 120); do
             [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:18083/api/auth/me)" = "401" ] && exit 0
