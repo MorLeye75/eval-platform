@@ -87,8 +87,8 @@ Deux évaluations ouvertes sont également créées : un QCM « Structures de do
 | `FORWARD_HEADERS_STRATEGY` | derrière un proxy | `none` | `native` derrière un reverse proxy (nginx, traefik…) pour lire l'IP réelle du client dans `X-Forwarded-For` ; laisser `none` sans proxy (sinon un client pourrait inventer son IP) |
 
 Sans `JWT_SECRET` ni `DB_PASSWORD`, l'application refuse de démarrer hors profil `dev` : c'est voulu.
-Procédure complète d'installation sur un serveur (PostgreSQL, systemd, nginx, HTTPS, Judge0, sauvegardes, mises à
-jour) : [`docs/deploiement.md`](../docs/deploiement.md).
+Stratégie de mise en production (architecture, choix, étapes, sécurité, sauvegardes, risques) :
+[`docs/strategie-deploiement.md`](../docs/strategie-deploiement.md).
 L'absence de `DB_PASSWORD` est détectée avant toute connexion à la base (`ControleConfigurationObligatoire`) :
 sans ce contrôle, Spring enverrait la chaîne `${DB_PASSWORD}` comme mot de passe.
 Un `JWT_SECRET` qui n'est pas en Base64 ou fait moins de 256 bits bloque aussi le démarrage.
