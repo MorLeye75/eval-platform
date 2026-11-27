@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recha
 import { CLE_EVALUATIONS_ENSEIGNANT, mesEvaluationsEnseignant } from "@/lib/evaluationsEnseignant"
 import { cleStatistiques, formaterSur20, questionsDifficiles, statistiquesEvaluation } from "@/lib/statistiquesEnseignant"
 import { messageErreur } from "@/lib/passation"
+import NotesParEtudiant from "./NotesParEtudiant"
 
 // ============================================================
 // Statistiques d'une évaluation (DS-09), calculées par le serveur sur les copies notées et ramenées sur 20.
@@ -133,6 +134,20 @@ export default function StatistiquesEvaluation() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Notes par étudiant : chaque copie remise s'ouvre ici, même avant la fermeture (code en repli manuel à noter,
+          relecture, révision avant publication) */}
+      <Card className="rounded-2xl border-border/60 shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle role="heading" aria-level={2} className="text-base font-bold">Notes par étudiant</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Ouvrez une copie pour la relire, noter ce qui attend une note, ou revoir une note avant la publication.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <NotesParEtudiant evaluationId={s.evaluationId} />
+        </CardContent>
+      </Card>
 
       {/* Taux de réussite par question */}
       <Card className="rounded-2xl border-border/60 shadow-sm">

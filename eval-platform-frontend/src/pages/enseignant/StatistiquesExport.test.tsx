@@ -9,6 +9,7 @@ import {
   exporterResultatsCsv,
   exporterDetailCsv,
   exporterResultatsPdf,
+  resultatsEvaluation,
   statistiquesEvaluation,
   telechargerFichier,
   type StatistiquesApi,
@@ -23,6 +24,7 @@ vi.mock("@/lib/evaluationsEnseignant", async (original) => ({
 vi.mock("@/lib/statistiquesEnseignant", async (original) => ({
   ...(await original<typeof import("@/lib/statistiquesEnseignant")>()),
   statistiquesEvaluation: vi.fn(),
+  resultatsEvaluation: vi.fn(),
   exporterResultatsCsv: vi.fn(),
   exporterDetailCsv: vi.fn(),
   exporterResultatsPdf: vi.fn(),
@@ -63,8 +65,22 @@ describe("statistiques d'une évaluation (DS-09)", () => {
   beforeEach(() => {
     vi.mocked(mesEvaluationsEnseignant).mockResolvedValue([evaluation(1, "BROUILLON"), evaluation(2, "EN_COURS"), evaluation(3, "TERMINEE")])
     vi.mocked(statistiquesEvaluation).mockResolvedValue(STATS)
+    vi.mocked(resultatsEvaluation).mockResolvedValue({ evaluationId: 3, bareme: 20, lignes: [] })
   })
   afterEach(() => { cleanup(); vi.clearAllMocks() })
+
+  it("évaluation en cours : les copies déjà remises s'ouvrent depuis « Notes par étudiant », sans attendre la fermeture", async () => {
+    vi.mocked(statistiquesEvaluation).mockResolvedValue({ ...STATS, evaluationId: 2, titre: "Évaluation 2", statut: "EN_COURS" })
+    vi.mocked(resultatsEvaluation).mockResolvedValue({ evaluationId: 2, bareme: 5, lignes: [
+      { etudiantId: 7, numEtudiant: "ETU-7", nom: "Niang", prenom: "Aminou", etat: "EN_CORRECTION", note: null, noteSurVingt: null,
+        dateRemise: "2030-01-10T10:00:00", soumissionId: 2 },
+    ] })
+    afficher(<StatistiquesEvaluation />, "/enseignant/statistiques/2", "/enseignant/statistiques/:id?")
+    const lien = await screen.findByRole("link", { name: "Voir la copie de Aminou Niang" })
+    expect(lien.getAttribute("href")).toBe("/enseignant/copies/2")
+    expect(screen.getByRole("heading", { name: "Notes par étudiant" })).toBeTruthy()
+    expect(resultatsEvaluation).toHaveBeenCalledWith(2)
+  })
 
   it("affiche les indicateurs du serveur, l'effectif et les questions les plus difficiles", async () => {
     afficher(<StatistiquesEvaluation />, "/enseignant/statistiques/3", "/enseignant/statistiques/:id?")

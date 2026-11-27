@@ -36,8 +36,9 @@ export default function CopieEnseignant() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-5">
-      <Link to="/enseignant/publication" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="size-4" aria-hidden /> Publication des résultats
+      <Link to={`/enseignant/statistiques/${c.evaluationId}`}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="size-4" aria-hidden /> Statistiques et notes de l'évaluation
       </Link>
 
       <header className="flex flex-wrap items-end justify-between gap-3">
