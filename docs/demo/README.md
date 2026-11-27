@@ -45,7 +45,7 @@ règles de la correction (QCM avec barème négatif, code au prorata des cas de 
 node docs/demo/parcours-demo.mjs        # attend le backend sur http://localhost:8080/api
 ```
 
-Le script crée ses propres données (suffixe unique) : il peut être relancé sans redémarrer le backend. Il se termine par `31/32 étapes réussies`.
+Le script crée ses propres données (suffixe unique) : il peut être relancé sans redémarrer le backend. Il se termine par `32/32 étapes réussies`.
 
 ## Parcours à l'écran (environ 10 minutes)
 
@@ -79,7 +79,7 @@ Par défaut, la correction des questions ouvertes utilise un correcteur **simul�
    ```
    Le modèle par défaut est `openai/gpt-oss-120b` ; `LLM_MODEL`, `LLM_URL` et `LLM_EFFORT_RAISONNEMENT` se changent au besoin (voir le README du backend). Sans clé, le backend **refuse de démarrer** avec `llm` : c'est voulu.
 3. **Relancer le backend.** La page « Paramètres système » de l'administrateur affiche alors « modèle externe … : le texte des réponses est envoyé au fournisseur ».
-4. **Préparer les données de démonstration.** Les évaluations de démonstration n'ont pas de question ouverte, donc rien à corriger. Ce script crée une évaluation à questions ouvertes, la fait passer par trois étudiants fictifs (bonne réponse, réponse partielle, tentative de manipulation) et attend qu'elle soit terminée (**environ 6 minutes**) :
+4. **Préparer les données de démonstration.** Les propositions déjà présentes dans le jeu de démonstration (contrôle continu) viennent du correcteur simulé. Pour montrer le vrai modèle sur des réponses fictives, ce script crée une évaluation à questions ouvertes, la fait passer par trois étudiants fictifs (bonne réponse, réponse partielle, tentative de manipulation) et attend qu'elle soit terminée (**environ 6 minutes**) :
    ```bash
    node docs/demo/preparer-correction-ia.mjs --generer
    ```
@@ -91,6 +91,6 @@ Par défaut, la correction des questions ouvertes utilise un correcteur **simul�
 ## À dire franchement si on pose la question
 
 - La **correction IA** des questions ouvertes utilise par défaut un correcteur de démonstration. Un vrai modèle (Groq) peut être branché (section ci-dessus), mais il envoie le texte des réponses au fournisseur : réponses fictives en démonstration, décision de confidentialité à prendre avec l'établissement pour de vraies copies. L'enseignant valide ou note à la main chaque réponse.
-- L'**exécution du code** passe par Judge0 : un test réel contre une instance Judge0 reste à faire ; les tests automatiques utilisent un faux exécuteur.
+- L'**exécution du code** passe par Judge0 : testée le 14/11 contre une vraie instance (VM Ubuntu 20.04, `deploy/judge0`) ; les tests automatiques utilisent un faux exécuteur. Judge0 ne tourne pas sur le poste de démonstration : les copies de code du jeu de démonstration sont **pré-remplies**, et leurs verdicts sont ceux que Judge0 donnerait pour le code affiché (vérifié par un test).
 - La page **Paramètres système** de l'administrateur est en **lecture seule** : elle montre ce que le serveur applique réellement (valeurs du code ou du déploiement), mais rien ne s'y modifie.
 - Une évaluation créée pendant la démonstration est datée de 2030 : elle ne s'ouvre pas tout de suite. Pour montrer la passation, utiliser les évaluations de démonstration déjà ouvertes.
