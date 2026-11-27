@@ -58,8 +58,7 @@ alt promotion inconnue
   B --> F : 404 Not Found
 else elle compte des étudiants ou elle est liée à des évaluations
   B --> F : 409 Conflict (message : nombre d'étudiants ou d'évaluations)
-  note right of B : supprimer laisserait des étudiants sans promotion
-et des évaluations sans public
+  note right of B : supprimer laisserait des étudiants sans promotion\net des évaluations sans public
 else vide
   B -> D : DELETE Promotion
   B --> F -- : 204 No Content

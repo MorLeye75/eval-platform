@@ -108,11 +108,13 @@ F -> F : construit le corps de création depuis ce détail ; titre = « Copie de
 F -> B ++ : POST /api/enseignant/evaluations (route de création ci-dessus)
 B --> F -- : 201 Created, **nouveau brouillon** (mêmes règles de validation que toute création)
 F --> E : ouvre l'assistant d'édition sur la copie
-note right of F : la copie reprend titre, description, durée, dates, promotions et questions.
-ELLE NE REPREND PAS : tiers-temps, copies d'étudiants, notes, propositions IA, résultats publiés.
-Les dates d'une ancienne évaluation sont souvent passées : la publication (DS-04) refuse une fermeture
-dans le passé, l'enseignant les corrige dans l'assistant. Aucune migration, aucune nouvelle route :
-l'enseignant reste le propriétaire de la copie (le propriétaire vient du jeton).
+note right of F
+  la copie reprend titre, description, durée, dates, promotions et questions.
+  ELLE NE REPREND PAS : tiers-temps, copies d'étudiants, notes, propositions IA, résultats publiés.
+  Les dates d'une ancienne évaluation sont souvent passées : la publication (DS-04) refuse une fermeture
+  dans le passé, l'enseignant les corrige dans l'assistant. Aucune migration, aucune nouvelle route :
+  l'enseignant reste le propriétaire de la copie (le propriétaire vient du jeton).
+end note
 
 note over B
   **Règles de validation des questions**

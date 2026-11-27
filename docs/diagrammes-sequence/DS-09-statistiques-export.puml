@@ -86,8 +86,10 @@ else
   F --> E : tableau trié par nom ; « Absent » sans copie, « En attente » tant que la copie n'est pas EVALUE ; note « — » (jamais 0) sans note
 end
 deactivate B
-note right of F : l'écran et le fichier CSV sortent de la **même** fabrique de lignes : ils ne peuvent pas diverger.
-Notes visibles de l'enseignant avant la publication ; l'e-mail reste dans le CSV seul (minimisation à l'écran).
+note right of F
+  l'écran et le fichier CSV sortent de la **même** fabrique de lignes : ils ne peuvent pas diverger.
+  Notes visibles de l'enseignant avant la publication ; l'e-mail reste dans le CSV seul (minimisation à l'écran).
+end note
 
 == D — Exporter le détail par question ==
 E -> F : « Détail par question » (page Export des résultats)
