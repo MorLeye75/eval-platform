@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +23,7 @@ import java.util.Set;
  * Jeu de données de démonstration : uniquement pour le développement local et les tests.
  */
 @Component
+@Order(1) // avant le jeu de démonstration complet (DonneesDemoInitializer)
 @Profile({"dev", "h2-dev", "test"})
 public class DataInitializer implements CommandLineRunner {
 

@@ -90,6 +90,11 @@ spring:
 jwt:
   secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWV2YWwtcGxhdGZvcm0tbm90LWZvci1wcm9kdWN0aW9uIQ==}
 
+# Jeu de démonstration complet (DonneesDemoInitializer) : promotions, notes, évaluation à corriger et publier
+app:
+  demo:
+    jeu-complet: true
+
 springdoc:
   api-docs:
     enabled: true
@@ -121,6 +126,11 @@ spring:
 
 jwt:
   secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWV2YWwtcGxhdGZvcm0tbm90LWZvci1wcm9kdWN0aW9uIQ==}
+
+# Jeu de démonstration complet (DonneesDemoInitializer) : promotions, notes, évaluation à corriger et publier
+app:
+  demo:
+    jeu-complet: true
 
 springdoc:
   api-docs:
